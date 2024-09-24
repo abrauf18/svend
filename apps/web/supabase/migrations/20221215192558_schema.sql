@@ -152,9 +152,9 @@ create type public.invitation as (email text, role varchar(50));
  */
 create table if not exists
   public.config (
-    enable_team_accounts boolean default true not null,
+    enable_team_accounts boolean default false not null,
     enable_account_billing boolean default true not null,
-    enable_team_account_billing boolean default true not null,
+    enable_team_account_billing boolean default false not null,
     billing_provider public.billing_provider default 'stripe' not null
   );
 

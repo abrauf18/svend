@@ -29,7 +29,8 @@
     "supabase:web:reset": "pnpm --filter web supabase:reset",
     "stripe:listen": "pnpm --filter '@kit/stripe' start",
     "env:generate": "turbo gen env",
-    "env:validate": "turbo gen validate-env"
+    "env:validate": "turbo gen validate-env",
+    "aws:sso": "aws sso login --sso-session=svend"
   },
   "prettier": "@kit/prettier-config",
   "dependencies": {
