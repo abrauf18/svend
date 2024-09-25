@@ -1,5 +1,5 @@
 {
-  "name": "next-supabase-saas-kit-turbo",
+  "name": "svend-app",
   "version": "0.1.0",
   "private": true,
   "sideEffects": false,
@@ -7,8 +7,8 @@
     "node": ">=v18.17.1"
   },
   "author": {
-    "url": "https://makerkit.dev",
-    "name": "MakerKit"
+    "url": "https://my.svend.app",
+    "name": "Svend"
   },
   "scripts": {
     "postinstall": "manypkg fix",
@@ -29,6 +29,7 @@
     "supabase:web:typegen": "pnpm --filter web supabase:typegen",
     "supabase:web:reset": "pnpm --filter web supabase:reset",
     "stripe:listen": "pnpm --filter '@kit/stripe' start",
+    "stripe:logout": "pnpm --filter '@kit/stripe' logout",
     "env:generate": "turbo gen env",
     "env:validate": "turbo gen validate-env",
     "aws:sso": "aws sso login --sso-session=svend"
