@@ -1,4 +1,4 @@
-# Makerkit - Supabase SaaS Starter Kit - Turbo Edition
+# Svend
 
 This is a Starter Kit for building SaaS applications using Supabase, Next.js, and Tailwind CSS.
 
