@@ -1,6 +1,6 @@
 {
-  "name": "svend-app",
-  "version": "0.1.0",
+  "name": "svend",
+  "version": "0.0.1",
   "private": true,
   "sideEffects": false,
   "engines": {

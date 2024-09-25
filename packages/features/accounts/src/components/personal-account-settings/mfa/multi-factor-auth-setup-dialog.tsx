@@ -161,7 +161,7 @@ function MultiFactorAuthSetupForm({
   }
 
   return (
-    <div className={'flex flex-col space-y-4'}>
+    <div className={'flex flex-col space-y-8'}>
       <div className={'flex justify-center'}>
         <FactorQrCode
           userId={userId}
@@ -187,6 +187,12 @@ function MultiFactorAuthSetupForm({
                         'mx-auto flex flex-col items-center justify-center'
                       }
                     >
+                      <FormDescription>
+                        <Trans
+                          i18nKey={'account:verifyActivationCodeDescription'}
+                        />
+                      </FormDescription>
+                      
                       <FormControl>
                         <InputOTP {...field} maxLength={6} minLength={6}>
                           <InputOTPGroup>
@@ -202,12 +208,6 @@ function MultiFactorAuthSetupForm({
                           </InputOTPGroup>
                         </InputOTP>
                       </FormControl>
-
-                      <FormDescription>
-                        <Trans
-                          i18nKey={'account:verifyActivationCodeDescription'}
-                        />
-                      </FormDescription>
 
                       <FormMessage />
                     </FormItem>
@@ -259,11 +259,13 @@ function FactorQrCode({
       z.object({
         factorName: z.string().min(1),
         qrCode: z.string().min(1),
+        secret: z.string().min(1),
       }),
     ),
     defaultValues: {
       factorName: '',
       qrCode: '',
+      secret: ''
     },
   });
 
@@ -307,6 +309,7 @@ function FactorQrCode({
           if (data.type === 'totp') {
             form.setValue('factorName', name);
             form.setValue('qrCode', data.totp.qr_code);
+            form.setValue('secret', data.totp.secret);
           }
 
           // dispatch event to set factor ID
@@ -326,6 +329,16 @@ function FactorQrCode({
 
       <div className={'flex justify-center'}>
         <QrImage src={form.getValues('qrCode')} />
+      </div>
+
+      <p>
+        <span className={'text-muted-foreground text-sm'}>
+          <Trans i18nKey={'account:multiFactorModalSecretHeading'} />
+        </span>
+      </p>
+      
+      <div className={'flex justify-center'}>
+        <p>{form.getValues('secret')}</p>
       </div>
     </div>
   );
