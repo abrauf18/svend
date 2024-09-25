@@ -1,14 +1,14 @@
 {
-  "name": "next-supabase-saas-kit-turbo",
-  "version": "0.0.2",
+  "name": "svend",
+  "version": "0.0.1",
   "private": true,
   "sideEffects": false,
   "engines": {
     "node": ">=v18.17.1"
   },
   "author": {
-    "url": "https://makerkit.dev",
-    "name": "MakerKit"
+    "url": "https://my.svend.app",
+    "name": "Svend"
   },
   "scripts": {
     "postinstall": "manypkg fix",
