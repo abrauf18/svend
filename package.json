@@ -32,7 +32,9 @@
     "stripe:logout": "pnpm --filter '@kit/stripe' logout",
     "env:generate": "turbo gen env",
     "env:validate": "turbo gen validate-env",
-    "aws:sso": "aws sso login --sso-session=svend"
+    "aws:sso": "aws sso login --sso-session=svend",
+    "aws:env:local": "node .aws/tools/env/pull.js svend-dev",
+    "vercel:env:local": "vercel env pull --yes --environment=development"
   },
   "prettier": "@kit/prettier-config",
   "dependencies": {
