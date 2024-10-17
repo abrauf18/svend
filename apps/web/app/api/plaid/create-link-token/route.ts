@@ -41,7 +41,8 @@ export async function POST(request: Request) {
         Products.Transactions,
         Products.Identity,
         Products.Assets,
-        Products.Transfer
+        Products.Transfer,
+        Products.Liabilities
       ],
       redirect_uri: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/${redirectType}`,
     });

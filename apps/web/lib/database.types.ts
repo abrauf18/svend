@@ -859,54 +859,54 @@ export type Database = {
         Row: {
           account_id: string
           balance_available: number | null
-          balance_current: number
+          balance_current: number | null
           balance_limit: number | null
           created_at: string | null
           id: string
-          iso_currency_code: string
+          iso_currency_code: string | null
           mask: string | null
           name: string
           official_name: string | null
           plaid_account_id: string
           plaid_conn_item_id: string
           plaid_persistent_account_id: string | null
-          subtype: string
+          subtype: string | null
           type: string
           updated_at: string | null
         }
         Insert: {
           account_id: string
           balance_available?: number | null
-          balance_current: number
+          balance_current?: number | null
           balance_limit?: number | null
           created_at?: string | null
           id?: string
-          iso_currency_code: string
+          iso_currency_code?: string | null
           mask?: string | null
           name: string
           official_name?: string | null
           plaid_account_id: string
           plaid_conn_item_id: string
           plaid_persistent_account_id?: string | null
-          subtype: string
+          subtype?: string | null
           type: string
           updated_at?: string | null
         }
         Update: {
           account_id?: string
           balance_available?: number | null
-          balance_current?: number
+          balance_current?: number | null
           balance_limit?: number | null
           created_at?: string | null
           id?: string
-          iso_currency_code?: string
+          iso_currency_code?: string | null
           mask?: string | null
           name?: string
           official_name?: string | null
           plaid_account_id?: string
           plaid_conn_item_id?: string
           plaid_persistent_account_id?: string | null
-          subtype?: string
+          subtype?: string | null
           type?: string
           updated_at?: string | null
         }
@@ -1246,16 +1246,16 @@ export type Database = {
           p_plaid_conn_item_id: string
           p_plaid_account_id: string
           p_account_id: string
-          p_balance_available: number
-          p_balance_current: number
-          p_balance_limit: number
-          p_iso_currency_code: string
-          p_mask: string
           p_name: string
-          p_official_name: string
-          p_plaid_persistent_account_id: string
           p_type: string
-          p_subtype: string
+          p_balance_available?: number
+          p_balance_current?: number
+          p_balance_limit?: number
+          p_iso_currency_code?: string
+          p_mask?: string
+          p_official_name?: string
+          p_plaid_persistent_account_id?: string
+          p_subtype?: string
         }
         Returns: string
       }

@@ -148,10 +148,10 @@ create table if not exists public.plaid_accounts (
   name text not null,
   official_name text,
   type text not null,
-  subtype text not null,
+  subtype text,
   balance_available numeric, -- NULL for loans
-  balance_current numeric not null,
-  iso_currency_code text not null,
+  balance_current numeric,
+  iso_currency_code text default 'USD',
   balance_limit numeric,
   mask text,
   created_at timestamp with time zone default current_timestamp,
@@ -520,16 +520,16 @@ CREATE OR REPLACE FUNCTION add_budget_plaid_account(
     p_plaid_conn_item_id UUID,
     p_plaid_account_id TEXT,
     p_account_id UUID,
-    p_balance_available NUMERIC,
-    p_balance_current NUMERIC,
-    p_balance_limit NUMERIC,
-    p_iso_currency_code TEXT,
-    p_mask TEXT,
     p_name TEXT,
-    p_official_name TEXT,
-    p_plaid_persistent_account_id TEXT,
     p_type TEXT,
-    p_subtype TEXT
+    p_balance_available NUMERIC = NULL,
+    p_balance_current NUMERIC = NULL,
+    p_balance_limit NUMERIC = NULL,
+    p_iso_currency_code TEXT = NULL,
+    p_mask TEXT = NULL,
+    p_official_name TEXT = NULL,
+    p_plaid_persistent_account_id TEXT = NULL,
+    p_subtype TEXT = NULL
 )
 RETURNS UUID AS $$
 DECLARE
@@ -613,7 +613,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Grant execute permission to the service role
-GRANT EXECUTE ON FUNCTION add_budget_plaid_account(UUID, UUID, TEXT, UUID, NUMERIC, NUMERIC, NUMERIC, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION add_budget_plaid_account TO service_role;
 
 -- ============================================================
 -- budget_goals table
@@ -736,6 +736,7 @@ CREATE TRIGGER set_timestamp
 BEFORE INSERT OR UPDATE ON public.budget_goals
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
+
 
 
 

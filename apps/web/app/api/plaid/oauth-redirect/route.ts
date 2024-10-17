@@ -5,7 +5,7 @@ import { Configuration, PlaidApi, PlaidEnvironments, CountryCode } from 'plaid';
 export async function GET(request: Request) {
   // Function to create absolute URLs
   const createAbsoluteUrl = (path: string) => `${process.env.NEXT_PUBLIC_SITE_URL}${path}`;
-  
+
   const { searchParams } = new URL(request.url);
 
   console.log('oauth-redirect >> incoming request URL:', request.url);
@@ -113,35 +113,44 @@ export async function GET(request: Request) {
       institution_id: institutionId,
       institution_name: institutionName,
       institution_logo_storage_name: institutionLogoObjName,
-    }).select().single();
+    })
+      .select('id')
+      .single();
 
-    if (error) {
-      console.error('Error storing Plaid connection:', error);
-      return NextResponse.redirect(createAbsoluteUrl('/onboarding?error=db_error'));
-    }
+      if (error) {
+        console.error('Error storing Plaid connection:', error);
+        return NextResponse.redirect(createAbsoluteUrl('/onboarding?error=db_error'));
+      }
+      
+      const newPlaidConnectionSvendItemId = plaidConnectionItem?.id;
 
     // Now, let's add the Plaid accounts associated with this item
     const accountsResponse = await client.accountsGet({
       access_token: accessToken,
     });
 
-    for (const account of accountsResponse.data.accounts) {
-      await supabase.rpc('add_budget_plaid_account', {
+    for (const plaidAccount of accountsResponse.data.accounts) {
+      const rpcParams = {
+        // required fields
         p_budget_id: budgetId,
-        p_plaid_conn_item_id: plaidConnectionItem.id,
-        p_plaid_account_id: account.account_id,
+        p_plaid_conn_item_id: newPlaidConnectionSvendItemId,
+        p_plaid_account_id: plaidAccount.account_id,
         p_account_id: user.id,
-        p_balance_available: account.balances.available ?? 0,
-        p_balance_current: account.balances.current ?? 0,
-        p_balance_limit: account.balances.limit ?? 0,
-        p_iso_currency_code: account.balances.iso_currency_code ?? 'USD',
-        p_mask: account.mask ?? '',
-        p_name: account.name ?? '',
-        p_official_name: account.official_name ?? '',
-        p_plaid_persistent_account_id: account.persistent_account_id ?? '',
-        p_type: account.type,
-        p_subtype: account.subtype ?? '',
-      });
+        p_name: plaidAccount.name,
+        p_type: plaidAccount.type,
+
+        // nullable fields
+        p_mask: plaidAccount.mask as string | undefined,
+        p_balance_available: plaidAccount.balances.available as number | undefined,
+        p_balance_current: plaidAccount.balances.current as number | undefined,
+        p_balance_limit: plaidAccount.balances.limit as number | undefined,
+        p_iso_currency_code: plaidAccount.balances.iso_currency_code as string | undefined,
+        p_official_name: plaidAccount.official_name as string | undefined,
+        p_plaid_persistent_account_id: plaidAccount.persistent_account_id as string | undefined,
+        p_subtype: plaidAccount.subtype as string | undefined
+      }
+
+      await supabase.rpc('add_budget_plaid_account', rpcParams);
     }
 
     // Redirect based on the redirectType
@@ -154,7 +163,7 @@ export async function GET(request: Request) {
       // Default fallback, you may want to adjust this
       redirectPath = '/onboarding?error=invalid_redirect_type';
     }
-    
+
     return NextResponse.redirect(createAbsoluteUrl(redirectPath));
   } catch (error) {
     console.error('Error in oauth-redirect:', error);

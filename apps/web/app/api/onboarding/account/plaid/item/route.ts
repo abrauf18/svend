@@ -136,25 +136,28 @@ export async function POST(request: Request) {
     // Insert the accounts into the database using add_budget_plaid_account function
     const accountInsertResults = await Promise.all(plaidItemAccountsResponse.data.accounts.map(async (plaidAccount) => {
       const rpcParams = {
+        // required fields
         p_budget_id: budgetId,
         p_plaid_conn_item_id: newPlaidConnectionSvendItemId,
         p_plaid_account_id: plaidAccount.account_id,
         p_account_id: user.id,
-        p_balance_available: plaidAccount.balances.available || 0,
-        p_balance_current: plaidAccount.balances.current || 0,
-        p_balance_limit: plaidAccount.balances.limit || 0,
-        p_iso_currency_code: plaidAccount.balances.iso_currency_code || '',
-        p_mask: plaidAccount.mask || '',
         p_name: plaidAccount.name,
-        p_official_name: plaidAccount.official_name || '',
-        p_plaid_persistent_account_id: plaidAccount.persistent_account_id || '',
         p_type: plaidAccount.type,
-        p_subtype: plaidAccount.subtype || ''
+
+        // nullable fields
+        p_mask: plaidAccount.mask as string | undefined,
+        p_balance_available: plaidAccount.balances.available as number | undefined,
+        p_balance_current: plaidAccount.balances.current as number | undefined,
+        p_balance_limit: plaidAccount.balances.limit as number | undefined,
+        p_iso_currency_code: plaidAccount.balances.iso_currency_code as string | undefined,
+        p_official_name: plaidAccount.official_name as string | undefined,
+        p_plaid_persistent_account_id: plaidAccount.persistent_account_id as string | undefined,
+        p_subtype: plaidAccount.subtype as string | undefined
       }
 
       const { data, error } = await supabaseAdminClient.rpc('add_budget_plaid_account', rpcParams);
       if (error) {
-        console.error('Error inserting Plaid account:', error);
+        console.error(`Error inserting Plaid account ${plaidAccount.account_id}:`, error);
         return { error };
       }
       return { id: data, plaidAccount };
