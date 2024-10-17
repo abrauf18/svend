@@ -8,6 +8,7 @@ import { createMiddlewareClient } from '@kit/supabase/middleware-client';
 
 import appConfig from '~/config/app.config';
 import pathsConfig from '~/config/paths.config';
+import { AccountOnboardingStepContextKey } from '@kit/accounts/components';
 
 const CSRF_SECRET_COOKIE = 'csrfSecret';
 const NEXT_ACTION_HEADER = 'next-action';
@@ -49,6 +50,60 @@ export async function middleware(request: NextRequest) {
   // which is useful for knowing the action path in server actions
   if (isServerAction(request)) {
     csrfResponse.headers.set('x-action-path', request.nextUrl.pathname);
+  }
+
+  // Check for account onboarding redirect from /home/(user)
+  if (request.nextUrl.pathname.startsWith('/home')) {
+    const supabase = createMiddlewareClient(request, response);
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data, error } = await supabase
+        .from('onboarding')
+        .select('state->account')
+        .eq('account_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching onboarding state:', error);
+        throw error;
+      }
+
+      const account = data?.account as { contextKey: AccountOnboardingStepContextKey };
+      
+      // Redirect to /onboarding/account if onboarding is not complete
+      console.log('middleware redirect to /onboarding/account if contextKey != end >> contextKey:', account?.contextKey);
+      if (account?.contextKey as AccountOnboardingStepContextKey != 'end') {
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/account`);
+      }
+    }
+  }
+
+  // Check for account onboarding redirect from /onboarding/account
+  if (request.nextUrl.pathname.startsWith('/onboarding/account')) {
+    const supabase = createMiddlewareClient(request, response);
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data, error } = await supabase
+        .from('onboarding')
+        .select('state->account')
+        .eq('account_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching onboarding state:', error);
+        throw error;
+      }
+
+      const account = data?.account as { contextKey: AccountOnboardingStepContextKey };
+      
+      // Redirect to /onboarding/account if onboarding is not complete
+      console.log('middleware redirect to /home if contextKey == end >> contextKey:', account?.contextKey);
+      if (account?.contextKey as AccountOnboardingStepContextKey == 'end') {
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/home`);
+      }
+    }
   }
 
   // if no pattern handler returned a response,

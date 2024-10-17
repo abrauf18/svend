@@ -1,4 +1,4 @@
--- Seed the roles table with default roles 'owner' and 'member'
+-- Seed the roles table with default roles 'owner', 'collaborator', and 'reporter'
 insert into public.roles(
     name,
     hierarchy_level)
@@ -10,8 +10,15 @@ insert into public.roles(
     name,
     hierarchy_level)
 values (
-    'member',
+    'collaborator',
     2);
+
+insert into public.roles(
+    name,
+    hierarchy_level)
+values (
+    'reporter',
+    3);
 
 -- We seed the role_permissions table with the default roles and permissions
 insert into public.role_permissions(
@@ -33,8 +40,17 @@ values (
   'owner',
   'invites.manage'),
 (
-  'member',
-  'settings.manage'),
+  'owner',
+  'budgets.read'),
 (
-  'member',
-  'invites.manage');
+  'owner',
+  'budgets.write'),
+(
+  'collaborator',
+  'budgets.read'),
+(
+  'collaborator',
+  'budgets.write'),
+(
+  'reporter',
+  'budgets.read');

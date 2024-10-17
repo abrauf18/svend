@@ -28,6 +28,7 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.aws/tools/env/dotfiles
 
 # vercel
 .vercel

@@ -1,0 +1,423 @@
+{
+  "override_accounts": [
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "transactions": [
+        {
+          "date_transacted": "2024-07-26",
+          "date_posted": "2024-07-27",
+          "amount": 3823.58,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-21",
+          "date_posted": "2024-07-22",
+          "amount": 1030.02,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-12",
+          "date_posted": "2024-10-13",
+          "amount": 1305.3,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-06",
+          "date_posted": "2024-09-07",
+          "amount": 3572.98,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-15",
+          "date_posted": "2024-09-16",
+          "amount": 3386.04,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-06",
+          "date_posted": "2024-08-07",
+          "amount": 2871.41,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-19",
+          "date_posted": "2024-08-20",
+          "amount": 3953.98,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-03",
+          "date_posted": "2024-08-04",
+          "amount": 1904.64,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-26",
+          "date_posted": "2024-08-27",
+          "amount": 4047.53,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-28",
+          "date_posted": "2024-07-29",
+          "amount": 1971.32,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-12",
+          "date_posted": "2024-09-13",
+          "amount": 2040.68,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-17",
+          "date_posted": "2024-08-18",
+          "amount": 3724.63,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-14",
+          "date_posted": "2024-09-15",
+          "amount": 2378.19,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": 2457.6,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-16",
+          "date_posted": "2024-07-17",
+          "amount": 4763.02,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-02",
+          "date_posted": "2024-09-03",
+          "amount": 1681.4,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-20",
+          "date_posted": "2024-08-21",
+          "amount": 2216.66,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-23",
+          "date_posted": "2024-07-24",
+          "amount": 1201.94,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-23",
+          "date_posted": "2024-07-24",
+          "amount": 2196.67,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-11",
+          "date_posted": "2024-09-12",
+          "amount": 2255.05,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        }
+      ],
+      "starting_balance": 2682.09,
+      "identity": {
+        "names": [
+          "John Smith"
+        ],
+        "addresses": [
+          {
+            "primary": true,
+            "data": {
+              "country": "US",
+              "city": "New York",
+              "street": "10003 Broadway Road",
+              "postal_code": "10003",
+              "region": "NY"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "transactions": [
+        {
+          "date_transacted": "2024-07-17",
+          "date_posted": "2024-07-18",
+          "amount": 11.43,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-14",
+          "date_posted": "2024-10-15",
+          "amount": 21.42,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-11",
+          "date_posted": "2024-08-12",
+          "amount": 25.88,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-13",
+          "date_posted": "2024-08-14",
+          "amount": 26.8,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-16",
+          "date_posted": "2024-09-17",
+          "amount": 5.59,
+          "description": "Interest Income",
+          "currency": "USD"
+        }
+      ],
+      "starting_balance": 2000.09,
+      "identity": {
+        "names": [
+          "John Smith"
+        ],
+        "addresses": [
+          {
+            "primary": true,
+            "data": {
+              "country": "US",
+              "city": "New York",
+              "street": "10003 Broadway Road",
+              "postal_code": "10003",
+              "region": "NY"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "credit",
+      "subtype": "credit card",
+      "transactions": [
+        {
+          "date_transacted": "2024-08-04",
+          "date_posted": "2024-08-05",
+          "amount": -1500,
+          "description": "Rent Payment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-05",
+          "date_posted": "2024-08-06",
+          "amount": -100,
+          "description": "Electricity Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-06",
+          "date_posted": "2024-08-07",
+          "amount": -15,
+          "description": "Streaming Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-07",
+          "date_posted": "2024-08-08",
+          "amount": -200,
+          "description": "Auto Insurance",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-08",
+          "date_posted": "2024-08-09",
+          "amount": -50,
+          "description": "Gym Membership Fee",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-09",
+          "date_posted": "2024-08-10",
+          "amount": -60,
+          "description": "Internet Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-10",
+          "date_posted": "2024-08-11",
+          "amount": -62.37,
+          "description": "Pharmacy Purchase",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-25",
+          "date_posted": "2024-08-26",
+          "amount": -40.58,
+          "description": "Dining at Restaurant",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-10",
+          "date_posted": "2024-08-11",
+          "amount": -110.76,
+          "description": "Hotel Stay",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-25",
+          "date_posted": "2024-07-26",
+          "amount": -1500,
+          "description": "Rent Payment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-26",
+          "date_posted": "2024-07-27",
+          "amount": -100,
+          "description": "Electricity Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-27",
+          "date_posted": "2024-07-28",
+          "amount": -15,
+          "description": "Streaming Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-28",
+          "date_posted": "2024-07-29",
+          "amount": -200,
+          "description": "Auto Insurance",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-29",
+          "date_posted": "2024-07-30",
+          "amount": -50,
+          "description": "Gym Membership Fee",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-30",
+          "date_posted": "2024-07-31",
+          "amount": -60,
+          "description": "Internet Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-31",
+          "date_posted": "2024-08-01",
+          "amount": -39.98,
+          "description": "Taxi Ride",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-09",
+          "date_posted": "2024-10-10",
+          "amount": -100,
+          "description": "Electricity Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-10",
+          "date_posted": "2024-10-11",
+          "amount": -15,
+          "description": "Streaming Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-11",
+          "date_posted": "2024-10-12",
+          "amount": -200,
+          "description": "Auto Insurance",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-12",
+          "date_posted": "2024-10-13",
+          "amount": -50,
+          "description": "Gym Membership Fee",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-13",
+          "date_posted": "2024-10-14",
+          "amount": -60,
+          "description": "Internet Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-14",
+          "date_posted": "2024-10-15",
+          "amount": -82.76,
+          "description": "Concert Tickets",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-23",
+          "date_posted": "2024-07-24",
+          "amount": -100,
+          "description": "Electricity Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-24",
+          "date_posted": "2024-07-25",
+          "amount": -15,
+          "description": "Streaming Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-25",
+          "date_posted": "2024-07-26",
+          "amount": -200,
+          "description": "Auto Insurance",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-07-26",
+          "date_posted": "2024-07-27",
+          "amount": -50,
+          "description": "Gym Membership Fee",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-23",
+          "date_posted": "2024-08-24",
+          "amount": -15,
+          "description": "Streaming Service",
+          "currency": "USD"
+        }
+      ],
+      "starting_balance": 0
+    }
+  ]
+}

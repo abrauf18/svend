@@ -1,6 +1,7 @@
 {
   "homeTabLabel": "Home",
   "homeTabDescription": "Welcome to your home page",
+  "onboardingDescription": "Welcome to your onboarding page",
   "accountMembers": "Team Members",
   "membersTabDescription": "Here you can manage the members of your team.",
   "billingTabLabel": "Billing",
@@ -57,8 +58,10 @@
   "back": "Back",
   "routes": {
     "home": "Home",
+    "onboarding": "Onboarding",
     "account": "Account",
     "members": "Members",
+    "manage": "Manage",
     "billing": "Billing",
     "dashboard": "Dashboard",
     "settings": "Settings",
@@ -77,5 +80,6 @@
     "description": "This website uses cookies to ensure you get the best experience on our website.",
     "reject": "Reject",
     "accept": "Accept"
-  }
+  },
+  "transactionTabAddToGoalsBtn": "Add Transaction to Goals"
 }

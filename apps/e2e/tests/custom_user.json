@@ -1,0 +1,411 @@
+{
+    "override_accounts": [
+      {
+        "type": "depository",
+        "subtype": "checking",
+        "starting_balance": 6543.23,
+        "meta": {
+          "name": "John Smith Checking",
+          "official_name": "John Smith Daily Checking Account"
+        },
+        "numbers": {
+          "account": "1111222233335555",
+          "ach_routing": "122105155"
+        },
+        "transactions": [
+          {
+            "date_transacted": "2024-10-14",
+            "date_posted": "2024-10-14",
+            "amount": -1200,
+            "description": "Rent Payment",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-10-13",
+            "date_posted": "2024-10-14",
+            "amount": -85.67,
+            "description": "Grocery Store - Trader Joe's",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-10-11",
+            "date_posted": "2024-10-12",
+            "amount": -150,
+            "description": "Transfer to Savings",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-09-05",
+            "date_posted": "2024-09-06",
+            "amount": -55,
+            "description": "Planet Fitness Membership",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-09-01",
+            "date_posted": "2024-09-01",
+            "amount": -1200,
+            "description": "Rent Payment",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-08-30",
+            "date_posted": "2024-08-31",
+            "amount": -72.15,
+            "description": "Grocery Store - Safeway",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-08-26",
+            "date_posted": "2024-08-27",
+            "amount": -45,
+            "description": "Coffee Shop",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-08-20",
+            "date_posted": "2024-08-21",
+            "amount": -120,
+            "description": "Electricity Bill",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-08-15",
+            "date_posted": "2024-08-16",
+            "amount": 150,
+            "description": "Transfer from Savings",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-08-01",
+            "date_posted": "2024-08-02",
+            "amount": 3.61,
+            "description": "Interest Payment",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-07-25",
+            "date_posted": "2024-07-26",
+            "amount": -68.49,
+            "description": "Grocery Store - Trader Joe's",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-07-20",
+            "date_posted": "2024-07-21",
+            "amount": -45.89,
+            "description": "Shell Gas Station",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-07-15",
+            "date_posted": "2024-07-16",
+            "amount": -150,
+            "description": "Transfer to Savings",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-07-01",
+            "date_posted": "2024-07-02",
+            "amount": 3.54,
+            "description": "Interest Payment",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-28",
+            "date_posted": "2024-06-29",
+            "amount": -200,
+            "description": "Online Shopping - Amazon",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-20",
+            "date_posted": "2024-06-21",
+            "amount": -60,
+            "description": "Dinner - Olive Garden",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-15",
+            "date_posted": "2024-06-16",
+            "amount": -150,
+            "description": "Transfer to Savings",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-10",
+            "date_posted": "2024-06-11",
+            "amount": -30,
+            "description": "Movie Theater",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-05",
+            "date_posted": "2024-06-06",
+            "amount": -55,
+            "description": "Planet Fitness Membership",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-01",
+            "date_posted": "2024-06-02",
+            "amount": -1200,
+            "description": "Rent Payment",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-05-28",
+            "date_posted": "2024-05-29",
+            "amount": -75,
+            "description": "Grocery Store - Whole Foods",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-05-20",
+            "date_posted": "2024-05-21",
+            "amount": -100,
+            "description": "Utility Bill - Water",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-05-15",
+            "date_posted": "2024-05-16",
+            "amount": -150,
+            "description": "Transfer to Savings",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-05-10",
+            "date_posted": "2024-05-11",
+            "amount": -50,
+            "description": "Uber Ride",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-05-05",
+            "date_posted": "2024-05-06",
+            "amount": -55,
+            "description": "Planet Fitness Membership",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-05-01",
+            "date_posted": "2024-05-02",
+            "amount": -1200,
+            "description": "Rent Payment",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-04-28",
+            "date_posted": "2024-04-29",
+            "amount": -90,
+            "description": "Grocery Store - Costco",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-04-20",
+            "date_posted": "2024-04-21",
+            "amount": -80,
+            "description": "Dinner - Cheesecake Factory",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-04-15",
+            "date_posted": "2024-04-16",
+            "amount": -150,
+            "description": "Transfer to Savings",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-04-10",
+            "date_posted": "2024-04-11",
+            "amount": -40,
+            "description": "Coffee Shop - Starbucks",
+            "currency": "USD"
+          }
+        ],
+        "identity": {
+          "names": [
+            "John Smith"
+          ],
+          "phone_numbers": [
+            {
+              "primary": true,
+              "type": "mobile",
+              "data": "9084581209"
+            }
+          ],
+          "emails": [
+            {
+              "primary": true,
+              "type": "primary",
+              "data": "jsmith@plaid.com"
+            }
+          ],
+          "addresses": [
+            {
+              "primary": true,
+              "data": {
+                "country": "US",
+                "city": "New York",
+                "street": "10003 Broadway Road",
+                "postal_code": "10003",
+                "region": "NY"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "depository",
+        "subtype": "savings",
+        "starting_balance": 275649.12,
+        "meta": {
+          "name": "John Smith Savings",
+          "official_name": "John Smith Growth Savings Account"
+        },
+        "numbers": {
+          "account": "6666777788889999",
+          "ach_routing": "122105155"
+        },
+        "transactions": [
+          {
+            "date_transacted": "2024-07-15",
+            "date_posted": "2024-07-16",
+            "amount": 2650.3,
+            "description": "ACME CORP - Payroll",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-07-13",
+            "date_posted": "2024-07-14",
+            "amount": -412.75,
+            "description": "Southwest Airlines",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-07-05",
+            "date_posted": "2024-07-06",
+            "amount": -55,
+            "description": "Planet Fitness Membership",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-30",
+            "date_posted": "2024-07-01",
+            "amount": 150,
+            "description": "Transfer from Checking",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-15",
+            "date_posted": "2024-06-16",
+            "amount": 2650.3,
+            "description": "ACME CORP - Payroll",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-10",
+            "date_posted": "2024-06-11",
+            "amount": -200,
+            "description": "Amazon Purchase",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-06-05",
+            "date_posted": "2024-06-06",
+            "amount": -55,
+            "description": "Planet Fitness Membership",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-05-30",
+            "date_posted": "2024-05-31",
+            "amount": 150,
+            "description": "Transfer from Checking",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-05-15",
+            "date_posted": "2024-05-16",
+            "amount": 2650.3,
+            "description": "ACME CORP - Payroll",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-05-10",
+            "date_posted": "2024-05-11",
+            "amount": -300,
+            "description": "Best Buy Purchase",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-04-30",
+            "date_posted": "2024-05-01",
+            "amount": 150,
+            "description": "Transfer from Checking",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-04-15",
+            "date_posted": "2024-04-16",
+            "amount": 2650.3,
+            "description": "ACME CORP - Payroll",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-04-10",
+            "date_posted": "2024-04-11",
+            "amount": -250,
+            "description": "Home Depot Purchase",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-04-05",
+            "date_posted": "2024-04-06",
+            "amount": -55,
+            "description": "Planet Fitness Membership",
+            "currency": "USD"
+          },
+          {
+            "date_transacted": "2024-03-30",
+            "date_posted": "2024-03-31",
+            "amount": 150,
+            "description": "Transfer from Checking",
+            "currency": "USD"
+          }
+        ],
+        "identity": {
+          "names": [
+            "John Smith"
+          ],
+          "phone_numbers": [
+            {
+              "primary": true,
+              "type": "mobile",
+              "data": "9084581209"
+            }
+          ],
+          "emails": [
+            {
+              "primary": true,
+              "type": "primary",
+              "data": "jsmith@plaid.com"
+            }
+          ],
+          "addresses": [
+            {
+              "primary": true,
+              "data": {
+                "country": "US",
+                "city": "New York",
+                "street": "10003 Broadway Road",
+                "postal_code": "10003",
+                "region": "NY"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }

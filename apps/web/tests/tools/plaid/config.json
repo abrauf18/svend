@@ -1,0 +1,25 @@
+{
+    "transactions": 20,
+    "output": "plaid_data.json",
+    "accounts": [
+      {
+        "type": "depository",
+        "subtype": "checking",
+        "starting_balance": 2682.09,
+        "name": "Plaid Checking",
+        "official_name": "Plaid Instant Daily Checking Account"
+      },
+      {
+        "type": "depository",
+        "subtype": "savings",
+        "starting_balance": 2000.09,
+        "name": "Plaid Savings",
+        "official_name": "Plaid Instant Savings Account"
+      },
+      {
+        "type": "credit",
+        "subtype": "credit card",
+        "credit_limit": 10000
+      }
+    ]
+  }

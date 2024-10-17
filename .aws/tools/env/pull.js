@@ -1,6 +1,8 @@
 import { SecretsManager } from '@aws-sdk/client-secrets-manager';
 import { writeFileSync } from 'fs';
 
+const envFileName = '.env.aws.local';
+
 async function pullEnv(profile) {
   // Configure AWS SDK to use the specified profile
   process.env.AWS_PROFILE = profile;
@@ -16,8 +18,8 @@ async function pullEnv(profile) {
         .map(([key, value]) => `${key}=${value}`)
         .join('\n');
 
-      writeFileSync('apps/web/.env.aws.local', envContent);
-      console.log('Successfully created .env.aws.local');
+      writeFileSync(`apps/web/${envFileName}`, envContent);
+      console.log(`Successfully created ${envFileName}`);
     } else {
       console.error('Secret value is not a string');
     }

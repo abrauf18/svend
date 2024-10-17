@@ -4,1347 +4,2017 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
+  | Json[]
 
 export type Database = {
   graphql_public: {
     Tables: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     Views: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     Functions: {
       graphql: {
         Args: {
-          operationName?: string;
-          query?: string;
-          variables?: Json;
-          extensions?: Json;
-        };
-        Returns: Json;
-      };
-    };
+          operationName?: string
+          query?: string
+          variables?: Json
+          extensions?: Json
+        }
+        Returns: Json
+      }
+    }
     Enums: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       accounts: {
         Row: {
-          created_at: string | null;
-          created_by: string | null;
-          email: string | null;
-          id: string;
-          is_personal_account: boolean;
-          name: string;
-          picture_url: string | null;
-          primary_owner_user_id: string;
-          public_data: Json;
-          slug: string | null;
-          updated_at: string | null;
-          updated_by: string | null;
-        };
+          created_at: string | null
+          created_by: string | null
+          email: string | null
+          id: string
+          is_personal_account: boolean
+          name: string
+          picture_url: string | null
+          primary_owner_user_id: string
+          public_data: Json
+          slug: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
         Insert: {
-          created_at?: string | null;
-          created_by?: string | null;
-          email?: string | null;
-          id?: string;
-          is_personal_account?: boolean;
-          name: string;
-          picture_url?: string | null;
-          primary_owner_user_id?: string;
-          public_data?: Json;
-          slug?: string | null;
-          updated_at?: string | null;
-          updated_by?: string | null;
-        };
+          created_at?: string | null
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_personal_account?: boolean
+          name: string
+          picture_url?: string | null
+          primary_owner_user_id?: string
+          public_data?: Json
+          slug?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
         Update: {
-          created_at?: string | null;
-          created_by?: string | null;
-          email?: string | null;
-          id?: string;
-          is_personal_account?: boolean;
-          name?: string;
-          picture_url?: string | null;
-          primary_owner_user_id?: string;
-          public_data?: Json;
-          slug?: string | null;
-          updated_at?: string | null;
-          updated_by?: string | null;
-        };
+          created_at?: string | null
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_personal_account?: boolean
+          name?: string
+          picture_url?: string | null
+          primary_owner_user_id?: string
+          public_data?: Json
+          slug?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: 'accounts_created_by_fkey';
-            columns: ['created_by'];
-            isOneToOne: false;
-            referencedRelation: 'users';
-            referencedColumns: ['id'];
+            foreignKeyName: "accounts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'accounts_primary_owner_user_id_fkey';
-            columns: ['primary_owner_user_id'];
-            isOneToOne: false;
-            referencedRelation: 'users';
-            referencedColumns: ['id'];
+            foreignKeyName: "accounts_primary_owner_user_id_fkey"
+            columns: ["primary_owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'accounts_updated_by_fkey';
-            columns: ['updated_by'];
-            isOneToOne: false;
-            referencedRelation: 'users';
-            referencedColumns: ['id'];
+            foreignKeyName: "accounts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
       accounts_memberships: {
         Row: {
-          account_id: string;
-          account_role: string;
-          created_at: string;
-          created_by: string | null;
-          updated_at: string;
-          updated_by: string | null;
-          user_id: string;
-        };
+          account_id: string
+          account_role: string
+          created_at: string
+          created_by: string | null
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
         Insert: {
-          account_id: string;
-          account_role: string;
-          created_at?: string;
-          created_by?: string | null;
-          updated_at?: string;
-          updated_by?: string | null;
-          user_id: string;
-        };
+          account_id: string
+          account_role: string
+          created_at?: string
+          created_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
         Update: {
-          account_id?: string;
-          account_role?: string;
-          created_at?: string;
-          created_by?: string | null;
-          updated_at?: string;
-          updated_by?: string | null;
-          user_id?: string;
-        };
+          account_id?: string
+          account_role?: string
+          created_at?: string
+          created_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 'accounts_memberships_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "accounts_memberships_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'accounts_memberships_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_account_workspace';
-            referencedColumns: ['id'];
+            foreignKeyName: "accounts_memberships_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'accounts_memberships_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "accounts_memberships_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'accounts_memberships_account_role_fkey';
-            columns: ['account_role'];
-            isOneToOne: false;
-            referencedRelation: 'roles';
-            referencedColumns: ['name'];
+            foreignKeyName: "accounts_memberships_account_role_fkey"
+            columns: ["account_role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["name"]
           },
           {
-            foreignKeyName: 'accounts_memberships_created_by_fkey';
-            columns: ['created_by'];
-            isOneToOne: false;
-            referencedRelation: 'users';
-            referencedColumns: ['id'];
+            foreignKeyName: "accounts_memberships_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'accounts_memberships_updated_by_fkey';
-            columns: ['updated_by'];
-            isOneToOne: false;
-            referencedRelation: 'users';
-            referencedColumns: ['id'];
+            foreignKeyName: "accounts_memberships_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'accounts_memberships_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'users';
-            referencedColumns: ['id'];
+            foreignKeyName: "accounts_memberships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
+      acct_fin_profile: {
+        Row: {
+          account_id: string
+          age: number | null
+          created_at: string | null
+          current_debt: Database["public"]["Enums"]["debt_type_enum"][] | null
+          current_debt_other: string | null
+          dependents: number | null
+          full_name: string | null
+          id: string
+          income_level: Database["public"]["Enums"]["income_level_enum"] | null
+          marital_status:
+            | Database["public"]["Enums"]["marital_status_enum"]
+            | null
+          marital_status_other: string | null
+          savings: Database["public"]["Enums"]["savings_enum"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          age?: number | null
+          created_at?: string | null
+          current_debt?: Database["public"]["Enums"]["debt_type_enum"][] | null
+          current_debt_other?: string | null
+          dependents?: number | null
+          full_name?: string | null
+          id?: string
+          income_level?: Database["public"]["Enums"]["income_level_enum"] | null
+          marital_status?:
+            | Database["public"]["Enums"]["marital_status_enum"]
+            | null
+          marital_status_other?: string | null
+          savings?: Database["public"]["Enums"]["savings_enum"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          age?: number | null
+          created_at?: string | null
+          current_debt?: Database["public"]["Enums"]["debt_type_enum"][] | null
+          current_debt_other?: string | null
+          dependents?: number | null
+          full_name?: string | null
+          id?: string
+          income_level?: Database["public"]["Enums"]["income_level_enum"] | null
+          marital_status?:
+            | Database["public"]["Enums"]["marital_status_enum"]
+            | null
+          marital_status_other?: string | null
+          savings?: Database["public"]["Enums"]["savings_enum"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acct_fin_profile_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acct_fin_profile_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acct_fin_profile_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_customers: {
         Row: {
-          account_id: string;
-          customer_id: string;
-          email: string | null;
-          id: number;
-          provider: Database['public']['Enums']['billing_provider'];
-        };
+          account_id: string
+          customer_id: string
+          email: string | null
+          id: number
+          provider: Database["public"]["Enums"]["billing_provider"]
+        }
         Insert: {
-          account_id: string;
-          customer_id: string;
-          email?: string | null;
-          id?: number;
-          provider: Database['public']['Enums']['billing_provider'];
-        };
+          account_id: string
+          customer_id: string
+          email?: string | null
+          id?: number
+          provider: Database["public"]["Enums"]["billing_provider"]
+        }
         Update: {
-          account_id?: string;
-          customer_id?: string;
-          email?: string | null;
-          id?: number;
-          provider?: Database['public']['Enums']['billing_provider'];
-        };
+          account_id?: string
+          customer_id?: string
+          email?: string | null
+          id?: number
+          provider?: Database["public"]["Enums"]["billing_provider"]
+        }
         Relationships: [
           {
-            foreignKeyName: 'billing_customers_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "billing_customers_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'billing_customers_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_account_workspace';
-            referencedColumns: ['id'];
+            foreignKeyName: "billing_customers_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'billing_customers_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "billing_customers_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
+      budget_goals: {
+        Row: {
+          budget_id: string
+          created_at: string | null
+          goal_timeline:
+            | Database["public"]["Enums"]["goal_timeline_enum"]
+            | null
+          id: string
+          monthly_contribution:
+            | Database["public"]["Enums"]["monthly_contribution_enum"]
+            | null
+          primary_goal:
+            | Database["public"]["Enums"]["financial_goal_enum"][]
+            | null
+          updated_at: string | null
+        }
+        Insert: {
+          budget_id: string
+          created_at?: string | null
+          goal_timeline?:
+            | Database["public"]["Enums"]["goal_timeline_enum"]
+            | null
+          id?: string
+          monthly_contribution?:
+            | Database["public"]["Enums"]["monthly_contribution_enum"]
+            | null
+          primary_goal?:
+            | Database["public"]["Enums"]["financial_goal_enum"][]
+            | null
+          updated_at?: string | null
+        }
+        Update: {
+          budget_id?: string
+          created_at?: string | null
+          goal_timeline?:
+            | Database["public"]["Enums"]["goal_timeline_enum"]
+            | null
+          id?: string
+          monthly_contribution?:
+            | Database["public"]["Enums"]["monthly_contribution_enum"]
+            | null
+          primary_goal?:
+            | Database["public"]["Enums"]["financial_goal_enum"][]
+            | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_goals_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: true
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_plaid_accounts: {
+        Row: {
+          budget_id: string
+          plaid_account_id: string
+        }
+        Insert: {
+          budget_id: string
+          plaid_account_id: string
+        }
+        Update: {
+          budget_id?: string
+          plaid_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_plaid_accounts_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_plaid_accounts_plaid_account_id_fkey"
+            columns: ["plaid_account_id"]
+            isOneToOne: false
+            referencedRelation: "plaid_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budgets: {
+        Row: {
+          account_id: string
+          budget_type: Database["public"]["Enums"]["budget_type"]
+          category_spending: Json
+          created_at: string | null
+          current_onboarding_step: Database["public"]["Enums"]["onboarding_step_enum"]
+          end_date: string | null
+          id: string
+          is_active: boolean
+          start_date: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          budget_type?: Database["public"]["Enums"]["budget_type"]
+          category_spending?: Json
+          created_at?: string | null
+          current_onboarding_step?: Database["public"]["Enums"]["onboarding_step_enum"]
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          start_date?: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          budget_type?: Database["public"]["Enums"]["budget_type"]
+          category_spending?: Json
+          created_at?: string | null
+          current_onboarding_step?: Database["public"]["Enums"]["onboarding_step_enum"]
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          start_date?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       config: {
         Row: {
-          billing_provider: Database['public']['Enums']['billing_provider'];
-          enable_account_billing: boolean;
-          enable_team_account_billing: boolean;
-          enable_team_accounts: boolean;
-        };
+          billing_provider: Database["public"]["Enums"]["billing_provider"]
+          enable_account_billing: boolean
+          enable_team_account_billing: boolean
+          enable_team_accounts: boolean
+        }
         Insert: {
-          billing_provider?: Database['public']['Enums']['billing_provider'];
-          enable_account_billing?: boolean;
-          enable_team_account_billing?: boolean;
-          enable_team_accounts?: boolean;
-        };
+          billing_provider?: Database["public"]["Enums"]["billing_provider"]
+          enable_account_billing?: boolean
+          enable_team_account_billing?: boolean
+          enable_team_accounts?: boolean
+        }
         Update: {
-          billing_provider?: Database['public']['Enums']['billing_provider'];
-          enable_account_billing?: boolean;
-          enable_team_account_billing?: boolean;
-          enable_team_accounts?: boolean;
-        };
-        Relationships: [];
-      };
+          billing_provider?: Database["public"]["Enums"]["billing_provider"]
+          enable_account_billing?: boolean
+          enable_team_account_billing?: boolean
+          enable_team_accounts?: boolean
+        }
+        Relationships: []
+      }
+      feature_usage: {
+        Row: {
+          account_id: string
+          created_at: string | null
+          feature: string
+          id: string
+          updated_at: string | null
+          usage: Json
+        }
+        Insert: {
+          account_id: string
+          created_at?: string | null
+          feature: string
+          id?: string
+          updated_at?: string | null
+          usage?: Json
+        }
+        Update: {
+          account_id?: string
+          created_at?: string | null
+          feature?: string
+          id?: string
+          updated_at?: string | null
+          usage?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_usage_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feature_usage_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feature_usage_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_account_transactions: {
+        Row: {
+          amount: number
+          category_confidence: string | null
+          category_detailed: string | null
+          category_primary: string | null
+          created_at: string | null
+          date: string
+          id: string
+          iso_currency_code: string | null
+          merchant_name: string | null
+          payee: string | null
+          plaid_account_id: string
+          raw_data: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          category_confidence?: string | null
+          category_detailed?: string | null
+          category_primary?: string | null
+          created_at?: string | null
+          date: string
+          id?: string
+          iso_currency_code?: string | null
+          merchant_name?: string | null
+          payee?: string | null
+          plaid_account_id: string
+          raw_data?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          category_confidence?: string | null
+          category_detailed?: string | null
+          category_primary?: string | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          iso_currency_code?: string | null
+          merchant_name?: string | null
+          payee?: string | null
+          plaid_account_id?: string
+          raw_data?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_account_transactions_plaid_account_id_fkey"
+            columns: ["plaid_account_id"]
+            isOneToOne: false
+            referencedRelation: "plaid_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
-          account_id: string;
-          created_at: string;
-          email: string;
-          expires_at: string;
-          id: number;
-          invite_token: string;
-          invited_by: string;
-          role: string;
-          updated_at: string;
-        };
+          account_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: number
+          invite_token: string
+          invited_by: string
+          role: string
+          updated_at: string
+        }
         Insert: {
-          account_id: string;
-          created_at?: string;
-          email: string;
-          expires_at?: string;
-          id?: number;
-          invite_token: string;
-          invited_by: string;
-          role: string;
-          updated_at?: string;
-        };
+          account_id: string
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: number
+          invite_token: string
+          invited_by: string
+          role: string
+          updated_at?: string
+        }
         Update: {
-          account_id?: string;
-          created_at?: string;
-          email?: string;
-          expires_at?: string;
-          id?: number;
-          invite_token?: string;
-          invited_by?: string;
-          role?: string;
-          updated_at?: string;
-        };
+          account_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: number
+          invite_token?: string
+          invited_by?: string
+          role?: string
+          updated_at?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 'invitations_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "invitations_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'invitations_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_account_workspace';
-            referencedColumns: ['id'];
+            foreignKeyName: "invitations_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'invitations_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "invitations_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'invitations_invited_by_fkey';
-            columns: ['invited_by'];
-            isOneToOne: false;
-            referencedRelation: 'users';
-            referencedColumns: ['id'];
+            foreignKeyName: "invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'invitations_role_fkey';
-            columns: ['role'];
-            isOneToOne: false;
-            referencedRelation: 'roles';
-            referencedColumns: ['name'];
+            foreignKeyName: "invitations_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["name"]
           },
-        ];
-      };
+        ]
+      }
       notifications: {
         Row: {
-          account_id: string;
-          body: string;
-          channel: Database['public']['Enums']['notification_channel'];
-          created_at: string;
-          dismissed: boolean;
-          expires_at: string | null;
-          id: number;
-          link: string | null;
-          type: Database['public']['Enums']['notification_type'];
-        };
+          account_id: string
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          dismissed: boolean
+          expires_at: string | null
+          id: number
+          link: string | null
+          type: Database["public"]["Enums"]["notification_type"]
+        }
         Insert: {
-          account_id: string;
-          body: string;
-          channel?: Database['public']['Enums']['notification_channel'];
-          created_at?: string;
-          dismissed?: boolean;
-          expires_at?: string | null;
-          id?: never;
-          link?: string | null;
-          type?: Database['public']['Enums']['notification_type'];
-        };
+          account_id: string
+          body: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          dismissed?: boolean
+          expires_at?: string | null
+          id?: never
+          link?: string | null
+          type?: Database["public"]["Enums"]["notification_type"]
+        }
         Update: {
-          account_id?: string;
-          body?: string;
-          channel?: Database['public']['Enums']['notification_channel'];
-          created_at?: string;
-          dismissed?: boolean;
-          expires_at?: string | null;
-          id?: never;
-          link?: string | null;
-          type?: Database['public']['Enums']['notification_type'];
-        };
+          account_id?: string
+          body?: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          dismissed?: boolean
+          expires_at?: string | null
+          id?: never
+          link?: string | null
+          type?: Database["public"]["Enums"]["notification_type"]
+        }
         Relationships: [
           {
-            foreignKeyName: 'notifications_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "notifications_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'notifications_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_account_workspace';
-            referencedColumns: ['id'];
+            foreignKeyName: "notifications_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'notifications_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "notifications_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
+      onboarding: {
+        Row: {
+          account_id: string
+          created_at: string | null
+          state: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          created_at?: string | null
+          state?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          created_at?: string | null
+          state?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
-          created_at: string;
-          id: string;
-          order_id: string;
-          price_amount: number | null;
-          product_id: string;
-          quantity: number;
-          updated_at: string;
-          variant_id: string;
-        };
+          created_at: string
+          id: string
+          order_id: string
+          price_amount: number | null
+          product_id: string
+          quantity: number
+          updated_at: string
+          variant_id: string
+        }
         Insert: {
-          created_at?: string;
-          id: string;
-          order_id: string;
-          price_amount?: number | null;
-          product_id: string;
-          quantity?: number;
-          updated_at?: string;
-          variant_id: string;
-        };
+          created_at?: string
+          id: string
+          order_id: string
+          price_amount?: number | null
+          product_id: string
+          quantity?: number
+          updated_at?: string
+          variant_id: string
+        }
         Update: {
-          created_at?: string;
-          id?: string;
-          order_id?: string;
-          price_amount?: number | null;
-          product_id?: string;
-          quantity?: number;
-          updated_at?: string;
-          variant_id?: string;
-        };
+          created_at?: string
+          id?: string
+          order_id?: string
+          price_amount?: number | null
+          product_id?: string
+          quantity?: number
+          updated_at?: string
+          variant_id?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 'order_items_order_id_fkey';
-            columns: ['order_id'];
-            isOneToOne: false;
-            referencedRelation: 'orders';
-            referencedColumns: ['id'];
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
       orders: {
         Row: {
-          account_id: string;
-          billing_customer_id: number;
-          billing_provider: Database['public']['Enums']['billing_provider'];
-          created_at: string;
-          currency: string;
-          id: string;
-          status: Database['public']['Enums']['payment_status'];
-          total_amount: number;
-          updated_at: string;
-        };
+          account_id: string
+          billing_customer_id: number
+          billing_provider: Database["public"]["Enums"]["billing_provider"]
+          created_at: string
+          currency: string
+          id: string
+          status: Database["public"]["Enums"]["payment_status"]
+          total_amount: number
+          updated_at: string
+        }
         Insert: {
-          account_id: string;
-          billing_customer_id: number;
-          billing_provider: Database['public']['Enums']['billing_provider'];
-          created_at?: string;
-          currency: string;
-          id: string;
-          status: Database['public']['Enums']['payment_status'];
-          total_amount: number;
-          updated_at?: string;
-        };
+          account_id: string
+          billing_customer_id: number
+          billing_provider: Database["public"]["Enums"]["billing_provider"]
+          created_at?: string
+          currency: string
+          id: string
+          status: Database["public"]["Enums"]["payment_status"]
+          total_amount: number
+          updated_at?: string
+        }
         Update: {
-          account_id?: string;
-          billing_customer_id?: number;
-          billing_provider?: Database['public']['Enums']['billing_provider'];
-          created_at?: string;
-          currency?: string;
-          id?: string;
-          status?: Database['public']['Enums']['payment_status'];
-          total_amount?: number;
-          updated_at?: string;
-        };
+          account_id?: string
+          billing_customer_id?: number
+          billing_provider?: Database["public"]["Enums"]["billing_provider"]
+          created_at?: string
+          currency?: string
+          id?: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          total_amount?: number
+          updated_at?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 'orders_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "orders_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'orders_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_account_workspace';
-            referencedColumns: ['id'];
+            foreignKeyName: "orders_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'orders_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "orders_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'orders_billing_customer_id_fkey';
-            columns: ['billing_customer_id'];
-            isOneToOne: false;
-            referencedRelation: 'billing_customers';
-            referencedColumns: ['id'];
+            foreignKeyName: "orders_billing_customer_id_fkey"
+            columns: ["billing_customer_id"]
+            isOneToOne: false
+            referencedRelation: "billing_customers"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
+      plaid_accounts: {
+        Row: {
+          account_id: string
+          balance_available: number | null
+          balance_current: number
+          balance_limit: number | null
+          created_at: string | null
+          id: string
+          iso_currency_code: string
+          mask: string | null
+          name: string
+          official_name: string | null
+          plaid_account_id: string
+          plaid_conn_item_id: string
+          plaid_persistent_account_id: string | null
+          subtype: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          balance_available?: number | null
+          balance_current: number
+          balance_limit?: number | null
+          created_at?: string | null
+          id?: string
+          iso_currency_code: string
+          mask?: string | null
+          name: string
+          official_name?: string | null
+          plaid_account_id: string
+          plaid_conn_item_id: string
+          plaid_persistent_account_id?: string | null
+          subtype: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          balance_available?: number | null
+          balance_current?: number
+          balance_limit?: number | null
+          created_at?: string | null
+          id?: string
+          iso_currency_code?: string
+          mask?: string | null
+          name?: string
+          official_name?: string | null
+          plaid_account_id?: string
+          plaid_conn_item_id?: string
+          plaid_persistent_account_id?: string | null
+          subtype?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plaid_accounts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plaid_accounts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plaid_accounts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plaid_accounts_plaid_conn_item_id_fkey"
+            columns: ["plaid_conn_item_id"]
+            isOneToOne: false
+            referencedRelation: "plaid_connection_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plaid_connection_items: {
+        Row: {
+          access_token: string
+          account_id: string
+          created_at: string | null
+          id: string
+          institution_id: string
+          institution_logo_storage_name: string | null
+          institution_name: string
+          next_cursor: string | null
+          plaid_item_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          access_token: string
+          account_id: string
+          created_at?: string | null
+          id?: string
+          institution_id: string
+          institution_logo_storage_name?: string | null
+          institution_name: string
+          next_cursor?: string | null
+          plaid_item_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string
+          account_id?: string
+          created_at?: string | null
+          id?: string
+          institution_id?: string
+          institution_logo_storage_name?: string | null
+          institution_name?: string
+          next_cursor?: string | null
+          plaid_item_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plaid_connection_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plaid_connection_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plaid_connection_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_entitlements: {
+        Row: {
+          created_at: string | null
+          entitlement: Json
+          feature: string
+          id: string
+          updated_at: string | null
+          variant_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          entitlement: Json
+          feature: string
+          id?: string
+          updated_at?: string | null
+          variant_id: string
+        }
+        Update: {
+          created_at?: string | null
+          entitlement?: Json
+          feature?: string
+          id?: string
+          updated_at?: string | null
+          variant_id?: string
+        }
+        Relationships: []
+      }
       role_permissions: {
         Row: {
-          id: number;
-          permission: Database['public']['Enums']['app_permissions'];
-          role: string;
-        };
+          id: number
+          permission: Database["public"]["Enums"]["app_permissions"]
+          role: string
+        }
         Insert: {
-          id?: number;
-          permission: Database['public']['Enums']['app_permissions'];
-          role: string;
-        };
+          id?: number
+          permission: Database["public"]["Enums"]["app_permissions"]
+          role: string
+        }
         Update: {
-          id?: number;
-          permission?: Database['public']['Enums']['app_permissions'];
-          role?: string;
-        };
+          id?: number
+          permission?: Database["public"]["Enums"]["app_permissions"]
+          role?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 'role_permissions_role_fkey';
-            columns: ['role'];
-            isOneToOne: false;
-            referencedRelation: 'roles';
-            referencedColumns: ['name'];
+            foreignKeyName: "role_permissions_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["name"]
           },
-        ];
-      };
+        ]
+      }
       roles: {
         Row: {
-          hierarchy_level: number;
-          name: string;
-        };
+          hierarchy_level: number
+          name: string
+        }
         Insert: {
-          hierarchy_level: number;
-          name: string;
-        };
+          hierarchy_level: number
+          name: string
+        }
         Update: {
-          hierarchy_level?: number;
-          name?: string;
-        };
-        Relationships: [];
-      };
+          hierarchy_level?: number
+          name?: string
+        }
+        Relationships: []
+      }
       subscription_items: {
         Row: {
-          created_at: string;
-          id: string;
-          interval: string;
-          interval_count: number;
-          price_amount: number | null;
-          product_id: string;
-          quantity: number;
-          subscription_id: string;
-          type: Database['public']['Enums']['subscription_item_type'];
-          updated_at: string;
-          variant_id: string;
-        };
+          created_at: string
+          id: string
+          interval: string
+          interval_count: number
+          price_amount: number | null
+          product_id: string
+          quantity: number
+          subscription_id: string
+          type: Database["public"]["Enums"]["subscription_item_type"]
+          updated_at: string
+          variant_id: string
+        }
         Insert: {
-          created_at?: string;
-          id: string;
-          interval: string;
-          interval_count: number;
-          price_amount?: number | null;
-          product_id: string;
-          quantity?: number;
-          subscription_id: string;
-          type: Database['public']['Enums']['subscription_item_type'];
-          updated_at?: string;
-          variant_id: string;
-        };
+          created_at?: string
+          id: string
+          interval: string
+          interval_count: number
+          price_amount?: number | null
+          product_id: string
+          quantity?: number
+          subscription_id: string
+          type: Database["public"]["Enums"]["subscription_item_type"]
+          updated_at?: string
+          variant_id: string
+        }
         Update: {
-          created_at?: string;
-          id?: string;
-          interval?: string;
-          interval_count?: number;
-          price_amount?: number | null;
-          product_id?: string;
-          quantity?: number;
-          subscription_id?: string;
-          type?: Database['public']['Enums']['subscription_item_type'];
-          updated_at?: string;
-          variant_id?: string;
-        };
+          created_at?: string
+          id?: string
+          interval?: string
+          interval_count?: number
+          price_amount?: number | null
+          product_id?: string
+          quantity?: number
+          subscription_id?: string
+          type?: Database["public"]["Enums"]["subscription_item_type"]
+          updated_at?: string
+          variant_id?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 'subscription_items_subscription_id_fkey';
-            columns: ['subscription_id'];
-            isOneToOne: false;
-            referencedRelation: 'subscriptions';
-            referencedColumns: ['id'];
+            foreignKeyName: "subscription_items_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
       subscriptions: {
         Row: {
-          account_id: string;
-          active: boolean;
-          billing_customer_id: number;
-          billing_provider: Database['public']['Enums']['billing_provider'];
-          cancel_at_period_end: boolean;
-          created_at: string;
-          currency: string;
-          id: string;
-          period_ends_at: string;
-          period_starts_at: string;
-          status: Database['public']['Enums']['subscription_status'];
-          trial_ends_at: string | null;
-          trial_starts_at: string | null;
-          updated_at: string;
-        };
+          account_id: string
+          active: boolean
+          billing_customer_id: number
+          billing_provider: Database["public"]["Enums"]["billing_provider"]
+          cancel_at_period_end: boolean
+          created_at: string
+          currency: string
+          id: string
+          period_ends_at: string
+          period_starts_at: string
+          status: Database["public"]["Enums"]["subscription_status"]
+          trial_ends_at: string | null
+          trial_starts_at: string | null
+          updated_at: string
+        }
         Insert: {
-          account_id: string;
-          active: boolean;
-          billing_customer_id: number;
-          billing_provider: Database['public']['Enums']['billing_provider'];
-          cancel_at_period_end: boolean;
-          created_at?: string;
-          currency: string;
-          id: string;
-          period_ends_at: string;
-          period_starts_at: string;
-          status: Database['public']['Enums']['subscription_status'];
-          trial_ends_at?: string | null;
-          trial_starts_at?: string | null;
-          updated_at?: string;
-        };
+          account_id: string
+          active: boolean
+          billing_customer_id: number
+          billing_provider: Database["public"]["Enums"]["billing_provider"]
+          cancel_at_period_end: boolean
+          created_at?: string
+          currency: string
+          id: string
+          period_ends_at: string
+          period_starts_at: string
+          status: Database["public"]["Enums"]["subscription_status"]
+          trial_ends_at?: string | null
+          trial_starts_at?: string | null
+          updated_at?: string
+        }
         Update: {
-          account_id?: string;
-          active?: boolean;
-          billing_customer_id?: number;
-          billing_provider?: Database['public']['Enums']['billing_provider'];
-          cancel_at_period_end?: boolean;
-          created_at?: string;
-          currency?: string;
-          id?: string;
-          period_ends_at?: string;
-          period_starts_at?: string;
-          status?: Database['public']['Enums']['subscription_status'];
-          trial_ends_at?: string | null;
-          trial_starts_at?: string | null;
-          updated_at?: string;
-        };
+          account_id?: string
+          active?: boolean
+          billing_customer_id?: number
+          billing_provider?: Database["public"]["Enums"]["billing_provider"]
+          cancel_at_period_end?: boolean
+          created_at?: string
+          currency?: string
+          id?: string
+          period_ends_at?: string
+          period_starts_at?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          trial_ends_at?: string | null
+          trial_starts_at?: string | null
+          updated_at?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 'subscriptions_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "subscriptions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'subscriptions_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_account_workspace';
-            referencedColumns: ['id'];
+            foreignKeyName: "subscriptions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'subscriptions_account_id_fkey';
-            columns: ['account_id'];
-            isOneToOne: false;
-            referencedRelation: 'user_accounts';
-            referencedColumns: ['id'];
+            foreignKeyName: "subscriptions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'subscriptions_billing_customer_id_fkey';
-            columns: ['billing_customer_id'];
-            isOneToOne: false;
-            referencedRelation: 'billing_customers';
-            referencedColumns: ['id'];
+            foreignKeyName: "subscriptions_billing_customer_id_fkey"
+            columns: ["billing_customer_id"]
+            isOneToOne: false
+            referencedRelation: "billing_customers"
+            referencedColumns: ["id"]
           },
-        ];
-      };
-    };
+        ]
+      }
+    }
     Views: {
       user_account_workspace: {
         Row: {
-          id: string | null;
-          name: string | null;
-          picture_url: string | null;
+          id: string | null
+          name: string | null
+          picture_url: string | null
           subscription_status:
-            | Database['public']['Enums']['subscription_status']
-            | null;
-        };
-        Relationships: [];
-      };
+            | Database["public"]["Enums"]["subscription_status"]
+            | null
+        }
+        Relationships: []
+      }
       user_accounts: {
         Row: {
-          id: string | null;
-          name: string | null;
-          picture_url: string | null;
-          role: string | null;
-          slug: string | null;
-        };
+          id: string | null
+          name: string | null
+          picture_url: string | null
+          role: string | null
+          slug: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: 'accounts_memberships_account_role_fkey';
-            columns: ['role'];
-            isOneToOne: false;
-            referencedRelation: 'roles';
-            referencedColumns: ['name'];
+            foreignKeyName: "accounts_memberships_account_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["name"]
           },
-        ];
-      };
-    };
+        ]
+      }
+    }
     Functions: {
       accept_invitation: {
         Args: {
-          token: string;
-          user_id: string;
-        };
-        Returns: string;
-      };
+          token: string
+          user_id: string
+        }
+        Returns: string
+      }
+      add_budget_plaid_account: {
+        Args: {
+          p_budget_id: string
+          p_plaid_conn_item_id: string
+          p_plaid_account_id: string
+          p_account_id: string
+          p_balance_available: number
+          p_balance_current: number
+          p_balance_limit: number
+          p_iso_currency_code: string
+          p_mask: string
+          p_name: string
+          p_official_name: string
+          p_plaid_persistent_account_id: string
+          p_type: string
+          p_subtype: string
+        }
+        Returns: string
+      }
       add_invitations_to_account: {
         Args: {
-          account_slug: string;
-          invitations: Database['public']['CompositeTypes']['invitation'][];
-        };
-        Returns: Database['public']['Tables']['invitations']['Row'][];
-      };
+          account_slug: string
+          invitations: Database["public"]["CompositeTypes"]["invitation"][]
+        }
+        Returns: Database["public"]["Tables"]["invitations"]["Row"][]
+      }
       can_action_account_member: {
         Args: {
-          target_team_account_id: string;
-          target_user_id: string;
-        };
-        Returns: boolean;
-      };
+          target_team_account_id: string
+          target_user_id: string
+        }
+        Returns: boolean
+      }
+      can_use_feature: {
+        Args: {
+          p_account_id: string
+          p_feature: string
+        }
+        Returns: boolean
+      }
       create_invitation: {
         Args: {
-          account_id: string;
-          email: string;
-          role: string;
-        };
+          account_id: string
+          email: string
+          role: string
+        }
         Returns: {
-          account_id: string;
-          created_at: string;
-          email: string;
-          expires_at: string;
-          id: number;
-          invite_token: string;
-          invited_by: string;
-          role: string;
-          updated_at: string;
-        };
-      };
+          account_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: number
+          invite_token: string
+          invited_by: string
+          role: string
+          updated_at: string
+        }
+      }
       create_team_account: {
         Args: {
-          account_name: string;
-        };
+          primary_owner_user_id: string
+          account_name: string
+        }
         Returns: {
-          created_at: string | null;
-          created_by: string | null;
-          email: string | null;
-          id: string;
-          is_personal_account: boolean;
-          name: string;
-          picture_url: string | null;
-          primary_owner_user_id: string;
-          public_data: Json;
-          slug: string | null;
-          updated_at: string | null;
-          updated_by: string | null;
-        };
-      };
+          created_at: string | null
+          created_by: string | null
+          email: string | null
+          id: string
+          is_personal_account: boolean
+          name: string
+          picture_url: string | null
+          primary_owner_user_id: string
+          public_data: Json
+          slug: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+      }
       get_account_invitations: {
         Args: {
-          account_slug: string;
-        };
+          account_slug: string
+        }
         Returns: {
-          id: number;
-          email: string;
-          account_id: string;
-          invited_by: string;
-          role: string;
-          created_at: string;
-          updated_at: string;
-          expires_at: string;
-          inviter_name: string;
-          inviter_email: string;
-        }[];
-      };
+          id: number
+          email: string
+          account_id: string
+          invited_by: string
+          role: string
+          created_at: string
+          updated_at: string
+          expires_at: string
+          inviter_name: string
+          inviter_email: string
+        }[]
+      }
       get_account_members: {
         Args: {
-          account_slug: string;
-        };
+          account_slug: string
+        }
         Returns: {
-          id: string;
-          user_id: string;
-          account_id: string;
-          role: string;
-          role_hierarchy_level: number;
-          primary_owner_user_id: string;
-          name: string;
-          email: string;
-          picture_url: string;
-          created_at: string;
-          updated_at: string;
-        }[];
-      };
+          id: string
+          user_id: string
+          account_id: string
+          role: string
+          role_hierarchy_level: number
+          primary_owner_user_id: string
+          name: string
+          email: string
+          picture_url: string
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      get_budget_transactions: {
+        Args: {
+          p_budget_id: string
+        }
+        Returns: {
+          id: string
+          date: string
+          category: string
+          merchant_name: string
+          payee: string
+          amount: number
+          account_name: string
+          account_mask: string
+        }[]
+      }
       get_config: {
-        Args: Record<PropertyKey, never>;
-        Returns: Json;
-      };
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_entitlement: {
+        Args: {
+          p_account_id: string
+          p_feature: string
+        }
+        Returns: Json
+      }
       get_upper_system_role: {
-        Args: Record<PropertyKey, never>;
-        Returns: string;
-      };
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       has_active_subscription: {
         Args: {
-          target_account_id: string;
-        };
-        Returns: boolean;
-      };
+          target_account_id: string
+        }
+        Returns: boolean
+      }
       has_more_elevated_role: {
         Args: {
-          target_user_id: string;
-          target_account_id: string;
-          role_name: string;
-        };
-        Returns: boolean;
-      };
+          target_user_id: string
+          target_account_id: string
+          role_name: string
+        }
+        Returns: boolean
+      }
       has_permission: {
         Args: {
-          user_id: string;
-          account_id: string;
-          permission_name: Database['public']['Enums']['app_permissions'];
-        };
-        Returns: boolean;
-      };
+          user_id: string
+          account_id: string
+          permission_name: Database["public"]["Enums"]["app_permissions"]
+        }
+        Returns: boolean
+      }
       has_role_on_account: {
         Args: {
-          account_id: string;
-          account_role?: string;
-        };
-        Returns: boolean;
-      };
+          account_id: string
+          account_role?: string
+        }
+        Returns: boolean
+      }
       has_same_role_hierarchy_level: {
         Args: {
-          target_user_id: string;
-          target_account_id: string;
-          role_name: string;
-        };
-        Returns: boolean;
-      };
+          target_user_id: string
+          target_account_id: string
+          role_name: string
+        }
+        Returns: boolean
+      }
       is_account_owner: {
         Args: {
-          account_id: string;
-        };
-        Returns: boolean;
-      };
+          account_id: string
+        }
+        Returns: boolean
+      }
       is_account_team_member: {
         Args: {
-          target_account_id: string;
-        };
-        Returns: boolean;
-      };
+          target_account_id: string
+        }
+        Returns: boolean
+      }
       is_set: {
         Args: {
-          field_name: string;
-        };
-        Returns: boolean;
-      };
+          field_name: string
+        }
+        Returns: boolean
+      }
       is_team_member: {
         Args: {
-          account_id: string;
-          user_id: string;
-        };
-        Returns: boolean;
-      };
+          account_id: string
+          user_id: string
+        }
+        Returns: boolean
+      }
+      remove_plaid_account: {
+        Args: {
+          p_budget_id: string
+          p_plaid_account_id: string
+        }
+        Returns: undefined
+      }
       team_account_workspace: {
         Args: {
-          account_slug: string;
-        };
+          account_slug: string
+        }
         Returns: {
-          id: string;
-          name: string;
-          picture_url: string;
-          slug: string;
-          role: string;
-          role_hierarchy_level: number;
-          primary_owner_user_id: string;
-          subscription_status: Database['public']['Enums']['subscription_status'];
-          permissions: Database['public']['Enums']['app_permissions'][];
-        }[];
-      };
+          id: string
+          name: string
+          picture_url: string
+          slug: string
+          role: string
+          role_hierarchy_level: number
+          primary_owner_user_id: string
+          subscription_status: Database["public"]["Enums"]["subscription_status"]
+          permissions: Database["public"]["Enums"]["app_permissions"][]
+          budget_id: string
+        }[]
+      }
       transfer_team_account_ownership: {
         Args: {
-          target_account_id: string;
-          new_owner_id: string;
-        };
-        Returns: undefined;
-      };
+          target_account_id: string
+          new_owner_id: string
+        }
+        Returns: undefined
+      }
+      update_feature_usage: {
+        Args: {
+          p_account_id: string
+          p_feature: string
+          p_usage: Json
+        }
+        Returns: undefined
+      }
       upsert_order: {
         Args: {
-          target_account_id: string;
-          target_customer_id: string;
-          target_order_id: string;
-          status: Database['public']['Enums']['payment_status'];
-          billing_provider: Database['public']['Enums']['billing_provider'];
-          total_amount: number;
-          currency: string;
-          line_items: Json;
-        };
+          target_account_id: string
+          target_customer_id: string
+          target_order_id: string
+          status: Database["public"]["Enums"]["payment_status"]
+          billing_provider: Database["public"]["Enums"]["billing_provider"]
+          total_amount: number
+          currency: string
+          line_items: Json
+        }
         Returns: {
-          account_id: string;
-          billing_customer_id: number;
-          billing_provider: Database['public']['Enums']['billing_provider'];
-          created_at: string;
-          currency: string;
-          id: string;
-          status: Database['public']['Enums']['payment_status'];
-          total_amount: number;
-          updated_at: string;
-        };
-      };
+          account_id: string
+          billing_customer_id: number
+          billing_provider: Database["public"]["Enums"]["billing_provider"]
+          created_at: string
+          currency: string
+          id: string
+          status: Database["public"]["Enums"]["payment_status"]
+          total_amount: number
+          updated_at: string
+        }
+      }
       upsert_subscription: {
         Args: {
-          target_account_id: string;
-          target_customer_id: string;
-          target_subscription_id: string;
-          active: boolean;
-          status: Database['public']['Enums']['subscription_status'];
-          billing_provider: Database['public']['Enums']['billing_provider'];
-          cancel_at_period_end: boolean;
-          currency: string;
-          period_starts_at: string;
-          period_ends_at: string;
-          line_items: Json;
-          trial_starts_at?: string;
-          trial_ends_at?: string;
-        };
+          target_account_id: string
+          target_customer_id: string
+          target_subscription_id: string
+          active: boolean
+          status: Database["public"]["Enums"]["subscription_status"]
+          billing_provider: Database["public"]["Enums"]["billing_provider"]
+          cancel_at_period_end: boolean
+          currency: string
+          period_starts_at: string
+          period_ends_at: string
+          line_items: Json
+          trial_starts_at?: string
+          trial_ends_at?: string
+        }
         Returns: {
-          account_id: string;
-          active: boolean;
-          billing_customer_id: number;
-          billing_provider: Database['public']['Enums']['billing_provider'];
-          cancel_at_period_end: boolean;
-          created_at: string;
-          currency: string;
-          id: string;
-          period_ends_at: string;
-          period_starts_at: string;
-          status: Database['public']['Enums']['subscription_status'];
-          trial_ends_at: string | null;
-          trial_starts_at: string | null;
-          updated_at: string;
-        };
-      };
-    };
+          account_id: string
+          active: boolean
+          billing_customer_id: number
+          billing_provider: Database["public"]["Enums"]["billing_provider"]
+          cancel_at_period_end: boolean
+          created_at: string
+          currency: string
+          id: string
+          period_ends_at: string
+          period_starts_at: string
+          status: Database["public"]["Enums"]["subscription_status"]
+          trial_ends_at: string | null
+          trial_starts_at: string | null
+          updated_at: string
+        }
+      }
+    }
     Enums: {
       app_permissions:
-        | 'roles.manage'
-        | 'billing.manage'
-        | 'settings.manage'
-        | 'members.manage'
-        | 'invites.manage';
-      billing_provider: 'stripe' | 'lemon-squeezy' | 'paddle';
-      notification_channel: 'in_app' | 'email';
-      notification_type: 'info' | 'warning' | 'error';
-      payment_status: 'pending' | 'succeeded' | 'failed';
-      subscription_item_type: 'flat' | 'per_seat' | 'metered';
+        | "roles.manage"
+        | "billing.manage"
+        | "settings.manage"
+        | "members.manage"
+        | "invites.manage"
+        | "budgets.read"
+        | "budgets.write"
+      billing_provider: "stripe" | "lemon-squeezy" | "paddle"
+      budget_type: "personal" | "business"
+      debt_type_enum:
+        | "Credit Cards"
+        | "Student Loans"
+        | "Personal Loans"
+        | "Mortgage"
+        | "Auto Loans"
+        | "Other"
+      financial_goal_enum:
+        | "Debt - Loans"
+        | "Debt - Credit Cards"
+        | "Save - Build an emergency fund"
+        | "Save - Save for a house"
+        | "Save - Save for retirement"
+        | "Save - Save for children's education"
+        | "Save - Save for vacation or a large purchase"
+        | "Invest in stocks or bonds"
+        | "Donate to charity or tithe regularly"
+        | "Manage your money better"
+      goal_timeline_enum: "6 months" | "1 year" | "3 years" | "5 years or more"
+      income_level_enum:
+        | "Less than $25,000"
+        | "$25,000 - $50,000"
+        | "$50,000 - $75,000"
+        | "$75,000 - $100,000"
+        | "More than $100,000"
+      marital_status_enum: "Single" | "Married" | "Married with Kids" | "Other"
+      monthly_contribution_enum:
+        | "Less than $100"
+        | "$100 - $250"
+        | "$250 - $500"
+        | "$500 - $1,000"
+        | "More than $1,000"
+      notification_channel: "in_app" | "email"
+      notification_type: "info" | "warning" | "error"
+      onboarding_step_enum:
+        | "start"
+        | "plaid"
+        | "profile_goals"
+        | "analyze_spending"
+        | "analyze_spending_in_progress"
+        | "budget_setup"
+        | "end"
+      payment_status: "pending" | "succeeded" | "failed"
+      savings_enum:
+        | "Less than $1,000"
+        | "$1,000 - $5,000"
+        | "$5,000 - $10,000"
+        | "$10,000 - $25,000"
+        | "More than $25,000"
+      subscription_item_type: "flat" | "per_seat" | "metered"
       subscription_status:
-        | 'active'
-        | 'trialing'
-        | 'past_due'
-        | 'canceled'
-        | 'unpaid'
-        | 'incomplete'
-        | 'incomplete_expired'
-        | 'paused';
-    };
+        | "active"
+        | "trialing"
+        | "past_due"
+        | "canceled"
+        | "unpaid"
+        | "incomplete"
+        | "incomplete_expired"
+        | "paused"
+    }
     CompositeTypes: {
       invitation: {
-        email: string | null;
-        role: string | null;
-      };
-    };
-  };
+        email: string | null
+        role: string | null
+      }
+    }
+  }
   storage: {
     Tables: {
       buckets: {
         Row: {
-          allowed_mime_types: string[] | null;
-          avif_autodetection: boolean | null;
-          created_at: string | null;
-          file_size_limit: number | null;
-          id: string;
-          name: string;
-          owner: string | null;
-          owner_id: string | null;
-          public: boolean | null;
-          updated_at: string | null;
-        };
+          allowed_mime_types: string[] | null
+          avif_autodetection: boolean | null
+          created_at: string | null
+          file_size_limit: number | null
+          id: string
+          name: string
+          owner: string | null
+          owner_id: string | null
+          public: boolean | null
+          updated_at: string | null
+        }
         Insert: {
-          allowed_mime_types?: string[] | null;
-          avif_autodetection?: boolean | null;
-          created_at?: string | null;
-          file_size_limit?: number | null;
-          id: string;
-          name: string;
-          owner?: string | null;
-          owner_id?: string | null;
-          public?: boolean | null;
-          updated_at?: string | null;
-        };
+          allowed_mime_types?: string[] | null
+          avif_autodetection?: boolean | null
+          created_at?: string | null
+          file_size_limit?: number | null
+          id: string
+          name: string
+          owner?: string | null
+          owner_id?: string | null
+          public?: boolean | null
+          updated_at?: string | null
+        }
         Update: {
-          allowed_mime_types?: string[] | null;
-          avif_autodetection?: boolean | null;
-          created_at?: string | null;
-          file_size_limit?: number | null;
-          id?: string;
-          name?: string;
-          owner?: string | null;
-          owner_id?: string | null;
-          public?: boolean | null;
-          updated_at?: string | null;
-        };
-        Relationships: [];
-      };
+          allowed_mime_types?: string[] | null
+          avif_autodetection?: boolean | null
+          created_at?: string | null
+          file_size_limit?: number | null
+          id?: string
+          name?: string
+          owner?: string | null
+          owner_id?: string | null
+          public?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       migrations: {
         Row: {
-          executed_at: string | null;
-          hash: string;
-          id: number;
-          name: string;
-        };
+          executed_at: string | null
+          hash: string
+          id: number
+          name: string
+        }
         Insert: {
-          executed_at?: string | null;
-          hash: string;
-          id: number;
-          name: string;
-        };
+          executed_at?: string | null
+          hash: string
+          id: number
+          name: string
+        }
         Update: {
-          executed_at?: string | null;
-          hash?: string;
-          id?: number;
-          name?: string;
-        };
-        Relationships: [];
-      };
+          executed_at?: string | null
+          hash?: string
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
       objects: {
         Row: {
-          bucket_id: string | null;
-          created_at: string | null;
-          id: string;
-          last_accessed_at: string | null;
-          metadata: Json | null;
-          name: string | null;
-          owner: string | null;
-          owner_id: string | null;
-          path_tokens: string[] | null;
-          updated_at: string | null;
-          version: string | null;
-        };
+          bucket_id: string | null
+          created_at: string | null
+          id: string
+          last_accessed_at: string | null
+          metadata: Json | null
+          name: string | null
+          owner: string | null
+          owner_id: string | null
+          path_tokens: string[] | null
+          updated_at: string | null
+          user_metadata: Json | null
+          version: string | null
+        }
         Insert: {
-          bucket_id?: string | null;
-          created_at?: string | null;
-          id?: string;
-          last_accessed_at?: string | null;
-          metadata?: Json | null;
-          name?: string | null;
-          owner?: string | null;
-          owner_id?: string | null;
-          path_tokens?: string[] | null;
-          updated_at?: string | null;
-          version?: string | null;
-        };
+          bucket_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_accessed_at?: string | null
+          metadata?: Json | null
+          name?: string | null
+          owner?: string | null
+          owner_id?: string | null
+          path_tokens?: string[] | null
+          updated_at?: string | null
+          user_metadata?: Json | null
+          version?: string | null
+        }
         Update: {
-          bucket_id?: string | null;
-          created_at?: string | null;
-          id?: string;
-          last_accessed_at?: string | null;
-          metadata?: Json | null;
-          name?: string | null;
-          owner?: string | null;
-          owner_id?: string | null;
-          path_tokens?: string[] | null;
-          updated_at?: string | null;
-          version?: string | null;
-        };
+          bucket_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_accessed_at?: string | null
+          metadata?: Json | null
+          name?: string | null
+          owner?: string | null
+          owner_id?: string | null
+          path_tokens?: string[] | null
+          updated_at?: string | null
+          user_metadata?: Json | null
+          version?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: 'objects_bucketId_fkey';
-            columns: ['bucket_id'];
-            isOneToOne: false;
-            referencedRelation: 'buckets';
-            referencedColumns: ['id'];
+            foreignKeyName: "objects_bucketId_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
       s3_multipart_uploads: {
         Row: {
-          bucket_id: string;
-          created_at: string;
-          id: string;
-          in_progress_size: number;
-          key: string;
-          owner_id: string | null;
-          upload_signature: string;
-          version: string;
-        };
+          bucket_id: string
+          created_at: string
+          id: string
+          in_progress_size: number
+          key: string
+          owner_id: string | null
+          upload_signature: string
+          user_metadata: Json | null
+          version: string
+        }
         Insert: {
-          bucket_id: string;
-          created_at?: string;
-          id: string;
-          in_progress_size?: number;
-          key: string;
-          owner_id?: string | null;
-          upload_signature: string;
-          version: string;
-        };
+          bucket_id: string
+          created_at?: string
+          id: string
+          in_progress_size?: number
+          key: string
+          owner_id?: string | null
+          upload_signature: string
+          user_metadata?: Json | null
+          version: string
+        }
         Update: {
-          bucket_id?: string;
-          created_at?: string;
-          id?: string;
-          in_progress_size?: number;
-          key?: string;
-          owner_id?: string | null;
-          upload_signature?: string;
-          version?: string;
-        };
+          bucket_id?: string
+          created_at?: string
+          id?: string
+          in_progress_size?: number
+          key?: string
+          owner_id?: string | null
+          upload_signature?: string
+          user_metadata?: Json | null
+          version?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 's3_multipart_uploads_bucket_id_fkey';
-            columns: ['bucket_id'];
-            isOneToOne: false;
-            referencedRelation: 'buckets';
-            referencedColumns: ['id'];
+            foreignKeyName: "s3_multipart_uploads_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
       s3_multipart_uploads_parts: {
         Row: {
-          bucket_id: string;
-          created_at: string;
-          etag: string;
-          id: string;
-          key: string;
-          owner_id: string | null;
-          part_number: number;
-          size: number;
-          upload_id: string;
-          version: string;
-        };
+          bucket_id: string
+          created_at: string
+          etag: string
+          id: string
+          key: string
+          owner_id: string | null
+          part_number: number
+          size: number
+          upload_id: string
+          version: string
+        }
         Insert: {
-          bucket_id: string;
-          created_at?: string;
-          etag: string;
-          id?: string;
-          key: string;
-          owner_id?: string | null;
-          part_number: number;
-          size?: number;
-          upload_id: string;
-          version: string;
-        };
+          bucket_id: string
+          created_at?: string
+          etag: string
+          id?: string
+          key: string
+          owner_id?: string | null
+          part_number: number
+          size?: number
+          upload_id: string
+          version: string
+        }
         Update: {
-          bucket_id?: string;
-          created_at?: string;
-          etag?: string;
-          id?: string;
-          key?: string;
-          owner_id?: string | null;
-          part_number?: number;
-          size?: number;
-          upload_id?: string;
-          version?: string;
-        };
+          bucket_id?: string
+          created_at?: string
+          etag?: string
+          id?: string
+          key?: string
+          owner_id?: string | null
+          part_number?: number
+          size?: number
+          upload_id?: string
+          version?: string
+        }
         Relationships: [
           {
-            foreignKeyName: 's3_multipart_uploads_parts_bucket_id_fkey';
-            columns: ['bucket_id'];
-            isOneToOne: false;
-            referencedRelation: 'buckets';
-            referencedColumns: ['id'];
+            foreignKeyName: "s3_multipart_uploads_parts_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 's3_multipart_uploads_parts_upload_id_fkey';
-            columns: ['upload_id'];
-            isOneToOne: false;
-            referencedRelation: 's3_multipart_uploads';
-            referencedColumns: ['id'];
+            foreignKeyName: "s3_multipart_uploads_parts_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "s3_multipart_uploads"
+            referencedColumns: ["id"]
           },
-        ];
-      };
-    };
+        ]
+      }
+    }
     Views: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     Functions: {
       can_insert_object: {
         Args: {
-          bucketid: string;
-          name: string;
-          owner: string;
-          metadata: Json;
-        };
-        Returns: undefined;
-      };
+          bucketid: string
+          name: string
+          owner: string
+          metadata: Json
+        }
+        Returns: undefined
+      }
       extension: {
         Args: {
-          name: string;
-        };
-        Returns: string;
-      };
+          name: string
+        }
+        Returns: string
+      }
       filename: {
         Args: {
-          name: string;
-        };
-        Returns: string;
-      };
+          name: string
+        }
+        Returns: string
+      }
       foldername: {
         Args: {
-          name: string;
-        };
-        Returns: string[];
-      };
+          name: string
+        }
+        Returns: string[]
+      }
       get_size_by_bucket: {
-        Args: Record<PropertyKey, never>;
+        Args: Record<PropertyKey, never>
         Returns: {
-          size: number;
-          bucket_id: string;
-        }[];
-      };
+          size: number
+          bucket_id: string
+        }[]
+      }
       list_multipart_uploads_with_delimiter: {
         Args: {
-          bucket_id: string;
-          prefix_param: string;
-          delimiter_param: string;
-          max_keys?: number;
-          next_key_token?: string;
-          next_upload_token?: string;
-        };
+          bucket_id: string
+          prefix_param: string
+          delimiter_param: string
+          max_keys?: number
+          next_key_token?: string
+          next_upload_token?: string
+        }
         Returns: {
-          key: string;
-          id: string;
-          created_at: string;
-        }[];
-      };
+          key: string
+          id: string
+          created_at: string
+        }[]
+      }
       list_objects_with_delimiter: {
         Args: {
-          bucket_id: string;
-          prefix_param: string;
-          delimiter_param: string;
-          max_keys?: number;
-          start_after?: string;
-          next_token?: string;
-        };
+          bucket_id: string
+          prefix_param: string
+          delimiter_param: string
+          max_keys?: number
+          start_after?: string
+          next_token?: string
+        }
         Returns: {
-          name: string;
-          id: string;
-          metadata: Json;
-          updated_at: string;
-        }[];
-      };
+          name: string
+          id: string
+          metadata: Json
+          updated_at: string
+        }[]
+      }
+      operation: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       search: {
         Args: {
-          prefix: string;
-          bucketname: string;
-          limits?: number;
-          levels?: number;
-          offsets?: number;
-          search?: string;
-          sortcolumn?: string;
-          sortorder?: string;
-        };
+          prefix: string
+          bucketname: string
+          limits?: number
+          levels?: number
+          offsets?: number
+          search?: string
+          sortcolumn?: string
+          sortorder?: string
+        }
         Returns: {
-          name: string;
-          id: string;
-          updated_at: string;
-          created_at: string;
-          last_accessed_at: string;
-          metadata: Json;
-        }[];
-      };
-    };
+          name: string
+          id: string
+          updated_at: string
+          created_at: string
+          last_accessed_at: string
+          metadata: Json
+        }[]
+      }
+    }
     Enums: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
-};
+      [_ in never]: never
+    }
+  }
+}
 
-type PublicSchema = Database[Extract<keyof Database, 'public'>];
+type PublicSchema = Database[Extract<keyof Database, "public">]
 
 export type Tables<
   PublicTableNameOrOptions extends
-    | keyof (PublicSchema['Tables'] & PublicSchema['Views'])
+    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
     | { schema: keyof Database },
   TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions['schema']]['Tables'] &
-        Database[PublicTableNameOrOptions['schema']]['Views'])
+    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+        Database[PublicTableNameOrOptions["schema"]]["Views"])
     : never = never,
 > = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions['schema']]['Tables'] &
-      Database[PublicTableNameOrOptions['schema']]['Views'])[TableName] extends {
-      Row: infer R;
+  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema['Tables'] &
-        PublicSchema['Views'])
-    ? (PublicSchema['Tables'] &
-        PublicSchema['Views'])[PublicTableNameOrOptions] extends {
-        Row: infer R;
+  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
+        PublicSchema["Views"])
+    ? (PublicSchema["Tables"] &
+        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+        Row: infer R
       }
       ? R
       : never
-    : never;
+    : never
 
 export type TablesInsert<
   PublicTableNameOrOptions extends
-    | keyof PublicSchema['Tables']
+    | keyof PublicSchema["Tables"]
     | { schema: keyof Database },
   TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions['schema']]['Tables']
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions['schema']]['Tables'][TableName] extends {
-      Insert: infer I;
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema['Tables']
-    ? PublicSchema['Tables'][PublicTableNameOrOptions] extends {
-        Insert: infer I;
+  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
+    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+        Insert: infer I
       }
       ? I
       : never
-    : never;
+    : never
 
 export type TablesUpdate<
   PublicTableNameOrOptions extends
-    | keyof PublicSchema['Tables']
+    | keyof PublicSchema["Tables"]
     | { schema: keyof Database },
   TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions['schema']]['Tables']
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions['schema']]['Tables'][TableName] extends {
-      Update: infer U;
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema['Tables']
-    ? PublicSchema['Tables'][PublicTableNameOrOptions] extends {
-        Update: infer U;
+  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
+    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+        Update: infer U
       }
       ? U
       : never
-    : never;
+    : never
 
 export type Enums<
   PublicEnumNameOrOptions extends
-    | keyof PublicSchema['Enums']
+    | keyof PublicSchema["Enums"]
     | { schema: keyof Database },
   EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions['schema']]['Enums']
+    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
 > = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions['schema']]['Enums'][EnumName]
-  : PublicEnumNameOrOptions extends keyof PublicSchema['Enums']
-    ? PublicSchema['Enums'][PublicEnumNameOrOptions]
-    : never;
+  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
+    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+    : never
+

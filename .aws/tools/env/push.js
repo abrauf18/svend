@@ -2,6 +2,8 @@ import { SecretsManager } from '@aws-sdk/client-secrets-manager';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
+const envFileName = '.env.aws.local';
+
 async function pushEnv(profile) {
   // Configure AWS SDK to use the specified profile
   process.env.AWS_PROFILE = profile;
@@ -10,8 +12,8 @@ async function pushEnv(profile) {
   const secretName = 'svend-app-local-env';
 
   try {
-    // Read the .env.aws.local file
-    const envFilePath = resolve(process.cwd(), 'apps', 'web', '.env.aws.local');
+    // Read the .env.local file
+    const envFilePath = resolve(process.cwd(), 'apps', 'web', envFileName);
     const envContent = readFileSync(envFilePath, 'utf8');
 
     // Convert env file content to JSON, ignoring comments
@@ -30,7 +32,7 @@ async function pushEnv(profile) {
       SecretString: JSON.stringify(envJson),
     });
 
-    console.log('Successfully updated the secret in AWS Secrets Manager');
+    console.log(`Successfully updated the secret in AWS Secrets Manager from ${envFilePath}`);
   } catch (error) {
     console.error('Error updating secret:', error);
   }

@@ -1,0 +1,93 @@
+{
+  "startPage": "Connect your Accounts",
+  "connectAccountsTitle": "Connect Accounts",
+  "connectAccountsInstructionText": "Connecting your bank will allow us to import transactions from all your associated accounts, including creditcards and checking or savings accounts.",
+  "connectAccountsButtonLabel": "Connect Accounts",
+  "connectAccountsNextButtonLabel": "Next",
+  "finBackgroundTitle": "Let's get to know you",
+  "finBackgroundInstructionText": "By understanding your financial background and goals, we can offer personalized advice just for you. This will help you save more and improve your financial well-being.",
+  "finBackgroundNextButtonLabel": "Next",
+  "analyzingDataTitle": "Analyzing your data",
+  "analyzingDataInstructionText": "Svend is analyzing your financial data to give you best advice..",
+  "createBudgetTitle": "Let's get to know you",
+  "createBudgetSubtitleFinRecommendation": "Financial Recommendation",
+  "personalInformationTitle": "Personal Information",
+  "personalInformationNameLabel": "What is your name?",
+  "personalInformationAgeLabel": "What is your age?",
+  "financialInformationTitle": "Financial Information",
+  "financialGoalsTitle": "Financial Goals",
+  "createBudgetCardGoalTitle": "Goal recommendation",
+  "createBudgetCardGoalDescription": "Description",
+  "createBudgetCardAdditionalTitle": "Additional recommendation",
+  "createBudgetCardAdditionalDescription": "Description",
+  "createBudgetFinRecommendationInstructions": "The custom plan that suggests how to allocate your money to meet your financial goals and maintain stability based your 3 last month transactions",
+  "createBudgetSubtitleCreateBudgeting": "Create Budgeting",
+  "createBudgetCreateBudgetingInstructions": "Helps you track spending, save more, and improve financial well-being. Create now!",
+  "createBudgetSaveButtonLabel": "Save",
+  "dependents": {
+    "label": "Do you have any dependents (children, elderly parents, etc.)?",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "maritalStatus": {
+    "label": "What is your current marital status?",
+    "single": "Single",
+    "married": "Married",
+    "marriedWithKids": "Married with Kids",
+    "other": "Other (please specify)"
+  },
+  "incomeLevel": {
+    "label": "What is your approximate annual income?",
+    "lt_25k": "Less than $25,000",
+    "25k_50k": "$25,000 - $50,000",
+    "50k_75k": "$50,000 - $75,000",
+    "75k_100k": "$75,000 - $100,000",
+    "gt_100k": "More than $100,000"
+  },
+  "savingsLevel": {
+    "label": "How much do you currently have in savings?",
+    "lt_1k": "Less than $1,000",
+    "1k_5k": "$1,000 - $5,000",
+    "5k_10k": "$5,000 - $10,000",
+    "10k_25k": "$10,000 - $25,000",
+    "gt_25k": "More than $25,000"
+  },
+  "debtTypes": {
+    "label": "Do you have any outstanding debts?",
+    "creditCardDebt": "Credit Card Debt",
+    "studentLoans": "Student Loans",
+    "personalLoans": "Personal Loans",
+    "mortgage": "Mortgage",
+    "autoLoans": "Auto Loans",
+    "other": "Other (please specify)",
+    "none": "No Debts"
+  },
+  "financialGoals": {
+    "label": "What is your primary financial goal?",
+    "debt": "Debt",
+    "loans": "Loans",
+    "creditCards": "Credit Cards",
+    "buildAnEmergencyFund": "Build an emergency fund",
+    "saveForAHouse": "Save for a house",
+    "saveForARetirement": "Save for a retirement",
+    "saveForChildrenEducation": "Save for children’s education",
+    "investInStocksOrBonds": "Invest in stocks or bonds",
+    "donateToCharityOrTitheRegularly": "Donate to charity or tithe regularly",
+    "manageYourMoneyBetter": "Manage your money better"
+  },
+  "achievingGoals": {
+    "label": "When do you want to achieve your primary financial goal?",
+    "sixMonth": "6 months",
+    "oneYear":  "1 year",
+    "threeYear":  "3 years",
+    "fiveYearsOrMore": "5 years or more"
+  },
+  "monthlyContributions": {
+    "label": "How much can you realistically contribute toward your goal each month?",
+    "levelOne": "Less than $100",
+    "levelTwo": "$100 - $250",
+    "levelThree": "$250 - $500",
+    "levelFour": "$500 - $1,000",
+    "levelFive": "More than $1,000"
+  }
+}

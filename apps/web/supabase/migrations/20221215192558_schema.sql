@@ -96,7 +96,9 @@ create type public.app_permissions as enum(
   'billing.manage',
   'settings.manage',
   'members.manage',
-  'invites.manage'
+  'invites.manage',
+  'budgets.read',
+  'budgets.write'
 );
 
 /*
@@ -152,7 +154,7 @@ create type public.invitation as (email text, role varchar(50));
  */
 create table if not exists
   public.config (
-    enable_team_accounts boolean default false not null,
+    enable_team_accounts boolean default true not null,
     enable_account_billing boolean default true not null,
     enable_team_account_billing boolean default false not null,
     billing_provider public.billing_provider default 'stripe' not null
@@ -385,6 +387,17 @@ with
         auth.uid ()
     ) = primary_owner_user_id
   );
+
+
+-- Create new helper function in the kit schema
+create or replace function kit.check_team_account_by_id(account_id uuid) returns boolean as $$
+begin
+  return exists (select 1 from public.accounts where id = account_id and is_personal_account = false);
+end;
+$$ language plpgsql security definer;
+
+grant
+execute on function kit.check_team_account_by_id (uuid) to service_role;
 
 -- Function "public.transfer_team_account_ownership"
 -- Function to transfer the ownership of a team account to another user
@@ -2297,6 +2310,8 @@ set
 declare
     user_name text;
     picture_url text;
+    team_account_id uuid;
+    new_budget_id uuid;
 begin
     if new.raw_user_meta_data ->> 'name' is not null then
         user_name := new.raw_user_meta_data ->> 'name';
@@ -2319,6 +2334,7 @@ begin
         picture_url := null;
     end if;
 
+    -- Insert personal account
     insert into public.accounts(
         id,
         primary_owner_user_id,
@@ -2333,6 +2349,43 @@ begin
         true,
         picture_url,
         new.email);
+
+    -- Insert financial profile for the new personal account
+    insert into public.acct_fin_profile(
+        account_id,
+        full_name)
+    values (
+        new.id,
+        user_name);
+
+    -- Insert budget team account (non-personal)
+    select id into team_account_id from public.create_team_account(new.id, 'My First Budget');
+
+    -- Insert new budget
+    insert into public.budgets(account_id)
+    values (team_account_id)
+    returning id into new_budget_id;
+
+    -- Insert membership for the new team account
+    insert into public.accounts_memberships(
+        user_id,
+        account_id,
+        account_role)
+    values (
+        new.id,
+        team_account_id,
+        'owner');
+
+    -- Insert onboarding row
+    insert into public.onboarding(
+        account_id,
+        state)
+    values (
+        new.id,
+        json_build_object(
+            'account', json_build_object('budgetId', new_budget_id, 'contextKey', 'start')
+        )
+    );
 
     return new;
 
@@ -2354,7 +2407,7 @@ execute procedure kit.setup_new_user ();
 -- Function "public.create_team_account"
 -- Create a team account if team accounts are enabled
 create
-or replace function public.create_team_account (account_name text) returns public.accounts
+or replace function public.create_team_account (primary_owner_user_id uuid, account_name text) returns public.accounts
 set
   search_path = '' as $$
 declare
@@ -2365,9 +2418,11 @@ begin
     end if;
 
     insert into public.accounts(
+        primary_owner_user_id,
         name,
         is_personal_account)
     values (
+        primary_owner_user_id,
         account_name,
         false)
 returning
@@ -2380,7 +2435,7 @@ end;
 $$ language plpgsql;
 
 grant
-execute on function public.create_team_account (text) to authenticated,
+execute on function public.create_team_account (uuid, text) to authenticated,
 service_role;
 
 -- RLS(public.accounts)
@@ -2507,7 +2562,8 @@ returns table (
   role_hierarchy_level int,
   primary_owner_user_id uuid,
   subscription_status public.subscription_status,
-  permissions public.app_permissions[]
+  permissions public.app_permissions[],
+  budget_id uuid
 )
 set search_path to ''
 as $$
@@ -2522,9 +2578,11 @@ begin
         roles.hierarchy_level,
         accounts.primary_owner_user_id,
         subscriptions.status,
-        array_agg(role_permissions.permission)
+        array_agg(role_permissions.permission),
+        budgets.id
     from
         public.accounts
+        join public.budgets on accounts.id = budgets.account_id
         join public.accounts_memberships on accounts.id = accounts_memberships.account_id
         left join public.subscriptions on accounts.id = subscriptions.account_id
         join public.roles on accounts_memberships.account_role = roles.name
@@ -2534,6 +2592,7 @@ begin
         and public.accounts_memberships.user_id = (select auth.uid())
     group by
         accounts.id,
+        budgets.id,
         accounts_memberships.account_role,
         subscriptions.status,
         roles.hierarchy_level;
@@ -2757,3 +2816,54 @@ with check (
     )
   )
 );
+
+-- Add triggers for automatic timestamp updates
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.accounts
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.config
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.accounts_memberships
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.invitations
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.billing_customers
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.subscriptions
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.subscription_items
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.orders
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.order_items
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.notifications
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();

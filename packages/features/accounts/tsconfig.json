@@ -3,6 +3,6 @@
   "compilerOptions": {
     "tsBuildInfoFile": "node_modules/.cache/tsbuildinfo.json"
   },
-  "include": ["*.ts", "*.tsx", "src"],
+  "include": ["*.ts", "*.tsx", "src", "../../../apps/web/components/onboarding-context.tsx", "../../../apps/web/lib/server/onboarding.service.ts"],
   "exclude": ["node_modules"]
 }

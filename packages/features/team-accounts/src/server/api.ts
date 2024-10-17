@@ -128,7 +128,7 @@ export class TeamAccountsApi {
     return {
       data: {
         account: accountData,
-        accounts: accountsResult.data,
+        accounts: accountsResult.data
       },
       error: null,
     };
