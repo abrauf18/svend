@@ -105,18 +105,42 @@ export async function GET(request: Request) {
     }
 
     // Insert the Plaid connection item into the database
-    const { error } = await supabase.from('plaid_connection_items').insert({
+    const { data: plaidConnectionItem, error } = await supabase.from('plaid_connection_items').insert({
       account_id: user.id,
       access_token: accessToken,
-      item_id: itemId,
+      plaid_item_id: itemId,
       institution_id: institutionId,
       institution_name: institutionName,
-      institution_logo_obj_id: institutionLogoObjId,
-    });
+      institution_logo_storage_name: institutionLogoObjId,
+    }).select().single();
 
     if (error) {
       console.error('Error storing Plaid connection:', error);
       return NextResponse.redirect(createAbsoluteUrl('/onboarding?error=db_error'));
+    }
+
+    // Now, let's add the Plaid accounts associated with this item
+    const accountsResponse = await client.accountsGet({
+      access_token: accessToken,
+    });
+
+    for (const account of accountsResponse.data.accounts) {
+      await supabase.rpc('add_budget_plaid_account', {
+        p_budget_id: budgetId,
+        p_plaid_conn_item_id: plaidConnectionItem.id,
+        p_plaid_account_id: account.account_id,
+        p_account_id: user.id,
+        p_balance_available: account.balances.available ?? 0,
+        p_balance_current: account.balances.current ?? 0,
+        p_balance_limit: account.balances.limit ?? 0,
+        p_iso_currency_code: account.balances.iso_currency_code ?? 'USD',
+        p_mask: account.mask ?? '',
+        p_name: account.name ?? '',
+        p_official_name: account.official_name ?? '',
+        p_plaid_persistent_account_id: account.persistent_account_id ?? '',
+        p_type: account.type,
+        p_subtype: account.subtype ?? '',
+      });
     }
 
     // Redirect based on the redirectType
