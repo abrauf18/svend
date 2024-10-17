@@ -73,23 +73,24 @@ export async function GET(request: Request) {
       .from(process.env.SUPABASE_STORAGE_BUCKET_PLAID_ITEM_INSTITUTION_LOGOS as string)
       .list('', {
         limit: 1,
-        search: `institution_id=${institutionId}`
+        search: `name=${institutionId}.png`
       });
 
     if (existingLogoError) {
       console.warn(`Error checking existing logo for institution ID ${institutionId}:`, existingLogoError);
     }
 
-    let institutionLogoObjId;
+    let institutionLogoObjName;
 
     if (existingLogos && existingLogos.length > 0) {
       // Logo found in storage bucket
-      institutionLogoObjId = existingLogos[0].id;
+      institutionLogoObjName = existingLogos[0]?.name;
     } else if (!existingLogoError && institutionLogoBase64) {
       // Upload the logo to the storage bucket
+      console.log(`Uploading institution logo ${institutionId}.png to bucket ${process.env.SUPABASE_STORAGE_BUCKET_PLAID_ITEM_INSTITUTION_LOGOS}`);
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(process.env.SUPABASE_STORAGE_BUCKET_PLAID_ITEM_INSTITUTION_LOGOS as string)
-        .upload(`logos/${institutionId}.png`, Buffer.from(institutionLogoBase64, 'base64'), {
+        .upload(`${institutionId}.png`, Buffer.from(institutionLogoBase64, 'base64'), {
           contentType: 'image/png',
           upsert: true,
           metadata: {
@@ -100,7 +101,7 @@ export async function GET(request: Request) {
       if (uploadError) {
         console.warn(`Error uploading institution logo for institution ID ${institutionId}:`, uploadError);
       } else {
-        institutionLogoObjId = uploadData.id;
+        institutionLogoObjName = uploadData.path;
       }
     }
 
@@ -111,7 +112,7 @@ export async function GET(request: Request) {
       plaid_item_id: itemId,
       institution_id: institutionId,
       institution_name: institutionName,
-      institution_logo_storage_name: institutionLogoObjId,
+      institution_logo_storage_name: institutionLogoObjName,
     }).select().single();
 
     if (error) {

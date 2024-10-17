@@ -84,19 +84,21 @@ export async function POST(request: Request) {
     } else if (institutionLogoBase64) {
       // Upload the logo to the storage bucket
       institutionLogoStorageName = `${institutionId}.png`;
+      console.log(`Uploading institution logo ${institutionId}.png to bucket ${process.env.SUPABASE_STORAGE_BUCKET_PLAID_ITEM_INSTITUTION_LOGOS}`);
       const { data: uploadData, error: uploadError } = await supabaseAdminClient.storage
-        .from(process.env.SUPABASE_STORAGE_BUCKET_PLAID_ITEM_INSTITUTION_LOGOS as string)
-        .upload(institutionLogoStorageName, Buffer.from(institutionLogoBase64, 'base64'), {
-          contentType: 'image/png',
-          upsert: true,
-          metadata: {
-            institution_name: institutionName,
-            institution_id: institutionId
-          }
-        });
-
+      .from(process.env.SUPABASE_STORAGE_BUCKET_PLAID_ITEM_INSTITUTION_LOGOS as string)
+      .upload(institutionLogoStorageName, Buffer.from(institutionLogoBase64, 'base64'), {
+        contentType: 'image/png',
+        upsert: true,
+        metadata: {
+          institution_name: institutionName,
+          institution_id: institutionId
+        }
+      });
+      
       if (uploadError) {
-        console.warn(`Error uploading institution logo for institution ID ${institutionId}:`, uploadError);
+        console.warn(`Error uploading institution logo ${institutionId}.png to bucket ${process.env.SUPABASE_STORAGE_BUCKET_PLAID_ITEM_INSTITUTION_LOGOS}:`, uploadError);
+        institutionLogoStorageName = null; // Set to null if upload fails
       }
     }
 
@@ -109,7 +111,7 @@ export async function POST(request: Request) {
         plaid_item_id: plaidItemId,
         institution_id: institutionId,
         institution_name: institutionName,
-        institution_logo_storage_name: institutionLogoStorageName,
+        institution_logo_storage_name: institutionLogoStorageName || null, // Use null if not set
       })
       .select('id')
       .single();
