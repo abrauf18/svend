@@ -36,15 +36,21 @@ export async function POST(request: Request) {
       client_name: 'Svend',
       country_codes: [CountryCode.Us],
       language: 'en',
-      products: [
+      additional_consented_products: [
         Products.Auth,
-        Products.Transactions,
         Products.Identity,
-        Products.Assets,
-        Products.Transfer,
-        Products.Liabilities
       ],
-      redirect_uri: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/${redirectType}`,
+      optional_products: [
+      ],
+      products: [
+        Products.Liabilities,
+        Products.Transactions,
+        Products.Transfer,
+        Products.Investments,
+      ],
+      required_if_supported_products: [
+      ],
+      redirect_uri: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/${redirectType}`
     });
 
     const nextRes = { 

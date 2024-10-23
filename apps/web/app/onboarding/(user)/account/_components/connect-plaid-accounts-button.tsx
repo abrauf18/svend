@@ -50,7 +50,7 @@ export function ConnectPlaidAccountsButton({ redirectType = 'account', disabled 
 		if (ready) {
 			open();
 		}
-	}, [ready]);
+	}, [open, ready]);
 
 	// create link token
 	const createLinkToken = async () => {
