@@ -1,12 +1,28 @@
-import React, {useEffect, useRef, useState} from 'react';
-import { Card, CardHeader, CardContent, CardFooter } from '@kit/ui/card';
+import React, { useEffect, useRef, useState } from 'react';
+
+import { useOnboardingContext } from '@kit/accounts/components';
+import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
+import { Button } from '@kit/ui/button';
+import { Card, CardContent, CardFooter, CardHeader } from '@kit/ui/card';
 import { Progress } from '@kit/ui/progress';
 import { Trans } from '@kit/ui/trans';
-import { Button } from '@kit/ui/button';
+
 import { PersonalInformation } from './part1-personal-information';
-import { FinancialInformation } from "./part2-financial-information";
+import { FinancialInformation } from './part2-financial-information';
 import { FinancialGoals } from './part3-financial-goals';
-import { useOnboardingContext } from '@kit/accounts/components';
+
+interface ProfileData {
+  full_name: string;
+  age: string;
+  marital_status: string;
+  dependents: string;
+  income_level: string;
+  savings: string;
+  current_debt: string[];
+  primary_financial_goal: string[];
+  goal_timeline: string;
+  monthly_contribution: string;
+}
 
 function OnboardingStep2FinBackground() {
   const [currentSubStep, setCurrentSubStep] = useState(1);
@@ -15,6 +31,7 @@ function OnboardingStep2FinBackground() {
   const [financialInfoValid, setFinancialInfoValid] = useState(false);
   const [financialGoalsValid, setFinancialGoalsValid] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
 
   const submitFormRef = useRef<(() => Promise<boolean>) | null>(null);
 
@@ -34,27 +51,58 @@ function OnboardingStep2FinBackground() {
             setCurrentSubStep(3);
           } else if (currentSubStep === 3) {
             setFinancialGoalsValid(true);
-            console.log("Financial Goals Valid");
+            console.log('Financial Goals Valid');
             accountNextStep();
           }
         } else {
-          console.log("Form submission failed");
+          console.log('Form submission failed');
         }
       } catch (error) {
-        console.error("Error submitting form:", error);
+        console.error('Error submitting form:', error);
       } finally {
         setIsSubmitting(false);
       }
     } else {
-      console.log("Form is not valid");
+      console.log('Form is not valid');
     }
   };
 
+  async function fetchPersonalInfo() {
+    const supabase = getSupabaseBrowserClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const { data, error } = await supabase
+      .from('acct_fin_profile')
+      .select('*')
+      .eq('account_id', user.id)
+      .single();
+
+    if (data) {
+      setProfileData(data);
+    }
+
+    if (error) {
+      console.error('Error fetching personal info:', error);
+      throw error;
+    }
+  }
+
+  useEffect(() => {
+    fetchPersonalInfo();
+  }, []);
+
+  // Renders the appropriate step component
   const renderStep = () => {
     switch (currentSubStep) {
       case 1:
         return (
           <PersonalInformation
+            initialData={profileData}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -62,6 +110,7 @@ function OnboardingStep2FinBackground() {
       case 2:
         return (
           <FinancialInformation
+            initialData={profileData}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -69,6 +118,7 @@ function OnboardingStep2FinBackground() {
       case 3:
         return (
           <FinancialGoals
+            initialData={profileData}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -79,7 +129,7 @@ function OnboardingStep2FinBackground() {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4">
+    <div className="mx-auto w-full max-w-4xl p-4">
       <Card className="w-full">
         <CardHeader className="space-y-4">
           <div className="flex items-center space-x-2">
@@ -109,18 +159,24 @@ function OnboardingStep2FinBackground() {
             <p className="text-sm text-muted-foreground">Step 2 of 3</p>
             <Progress value={66} className="w-full md:w-1/2 lg:w-full" />
           </div>
-          <br/>
+          <br />
           <div>
             <p className="w-full md:w-auto">Part {currentSubStep} of 3</p>
           </div>
           <div className="flex space-x-1">
-            <span className={`h-2 w-2 ${currentSubStep >= 1 ? 'bg-primary' : 'bg-muted'} rounded-full`}></span>
-            <span className={`h-2 w-2 ${currentSubStep >= 2 ? 'bg-primary' : 'bg-muted'} rounded-full`}></span>
-            <span className={`h-2 w-2 ${currentSubStep >= 3 ? 'bg-primary' : 'bg-muted'} rounded-full`}></span>
+            <span
+              className={`h-2 w-2 ${currentSubStep >= 1 ? 'bg-primary' : 'bg-muted'} rounded-full`}
+            ></span>
+            <span
+              className={`h-2 w-2 ${currentSubStep >= 2 ? 'bg-primary' : 'bg-muted'} rounded-full`}
+            ></span>
+            <span
+              className={`h-2 w-2 ${currentSubStep >= 3 ? 'bg-primary' : 'bg-muted'} rounded-full`}
+            ></span>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground max-w-md">
+          <p className="max-w-md text-sm text-muted-foreground">
             <Trans i18nKey={'onboarding:finBackgroundInstructionText'} />
           </p>
           {renderStep()}
@@ -132,7 +188,11 @@ function OnboardingStep2FinBackground() {
             onClick={handleFormSubmit}
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Submitting...' : <Trans i18nKey={'onboarding:finBackgroundNextButtonLabel'} />}
+            {isSubmitting ? (
+              'Submitting...'
+            ) : (
+              <Trans i18nKey={'onboarding:finBackgroundNextButtonLabel'} />
+            )}
           </Button>
         </CardFooter>
       </Card>

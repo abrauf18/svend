@@ -190,12 +190,21 @@ export type Database = {
           current_debt_other: string | null
           dependents: number | null
           full_name: string | null
+          goal_timeline:
+            | Database["public"]["Enums"]["goal_timeline_enum"]
+            | null
           id: string
           income_level: Database["public"]["Enums"]["income_level_enum"] | null
           marital_status:
             | Database["public"]["Enums"]["marital_status_enum"]
             | null
           marital_status_other: string | null
+          monthly_contribution:
+            | Database["public"]["Enums"]["monthly_contribution_enum"]
+            | null
+          primary_financial_goal:
+            | Database["public"]["Enums"]["financial_goal_enum"][]
+            | null
           savings: Database["public"]["Enums"]["savings_enum"] | null
           updated_at: string | null
         }
@@ -207,12 +216,21 @@ export type Database = {
           current_debt_other?: string | null
           dependents?: number | null
           full_name?: string | null
+          goal_timeline?:
+            | Database["public"]["Enums"]["goal_timeline_enum"]
+            | null
           id?: string
           income_level?: Database["public"]["Enums"]["income_level_enum"] | null
           marital_status?:
             | Database["public"]["Enums"]["marital_status_enum"]
             | null
           marital_status_other?: string | null
+          monthly_contribution?:
+            | Database["public"]["Enums"]["monthly_contribution_enum"]
+            | null
+          primary_financial_goal?:
+            | Database["public"]["Enums"]["financial_goal_enum"][]
+            | null
           savings?: Database["public"]["Enums"]["savings_enum"] | null
           updated_at?: string | null
         }
@@ -224,12 +242,21 @@ export type Database = {
           current_debt_other?: string | null
           dependents?: number | null
           full_name?: string | null
+          goal_timeline?:
+            | Database["public"]["Enums"]["goal_timeline_enum"]
+            | null
           id?: string
           income_level?: Database["public"]["Enums"]["income_level_enum"] | null
           marital_status?:
             | Database["public"]["Enums"]["marital_status_enum"]
             | null
           marital_status_other?: string | null
+          monthly_contribution?:
+            | Database["public"]["Enums"]["monthly_contribution_enum"]
+            | null
+          primary_financial_goal?:
+            | Database["public"]["Enums"]["financial_goal_enum"][]
+            | null
           savings?: Database["public"]["Enums"]["savings_enum"] | null
           updated_at?: string | null
         }

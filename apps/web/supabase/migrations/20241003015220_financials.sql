@@ -5,6 +5,34 @@ create type marital_status_enum as enum ('Single', 'Married', 'Married with Kids
 create type income_level_enum as enum ('Less than $25,000', '$25,000 - $50,000', '$50,000 - $75,000', '$75,000 - $100,000', 'More than $100,000');
 create type savings_enum as enum ('Less than $1,000', '$1,000 - $5,000', '$5,000 - $10,000', '$10,000 - $25,000', 'More than $25,000');
 create type debt_type_enum as enum ('Credit Cards', 'Student Loans', 'Personal Loans', 'Mortgage', 'Auto Loans', 'Other');
+create type financial_goal_enum as enum (
+    'Debt - Loans',
+    'Debt - Credit Cards',
+    'Save - Build an emergency fund',
+    'Save - Save for a house',
+    'Save - Save for retirement',
+    'Save - Save for children''s education',
+    'Save - Save for vacation or a large purchase',
+    'Invest in stocks or bonds',
+    'Donate to charity or tithe regularly',
+    'Manage your money better'
+);
+
+create type goal_timeline_enum as enum (
+    '6 months',
+    '1 year',
+    '3 years',
+    '5 years or more'
+);
+
+create type monthly_contribution_enum as enum (
+    'Less than $100',
+    '$100 - $250',
+    '$250 - $500',
+    '$500 - $1,000',
+    'More than $1,000'
+);
+
 
 -- ============================================================
 -- acct_fin_profile table
@@ -23,6 +51,9 @@ create table if not exists public.acct_fin_profile (
   current_debt debt_type_enum[],
   current_debt_other text,
   savings savings_enum,
+  primary_financial_goal financial_goal_enum[], 
+  goal_timeline goal_timeline_enum,          
+  monthly_contribution monthly_contribution_enum, 
   created_at timestamp with time zone default current_timestamp,
   updated_at timestamp with time zone default current_timestamp
 );
@@ -284,33 +315,7 @@ create policy update_fin_account_transactions
 -- ============================================================
 
 -- Create enums
-create type financial_goal_enum as enum (
-    'Debt - Loans',
-    'Debt - Credit Cards',
-    'Save - Build an emergency fund',
-    'Save - Save for a house',
-    'Save - Save for retirement',
-    'Save - Save for children''s education',
-    'Save - Save for vacation or a large purchase',
-    'Invest in stocks or bonds',
-    'Donate to charity or tithe regularly',
-    'Manage your money better'
-);
 
-create type goal_timeline_enum as enum (
-    '6 months',
-    '1 year',
-    '3 years',
-    '5 years or more'
-);
-
-create type monthly_contribution_enum as enum (
-    'Less than $100',
-    '$100 - $250',
-    '$250 - $500',
-    '$500 - $1,000',
-    'More than $1,000'
-);
 
 create type budget_type as enum (
     'personal',
