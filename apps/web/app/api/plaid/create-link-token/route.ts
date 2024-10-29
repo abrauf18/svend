@@ -29,6 +29,8 @@ export async function POST(request: Request) {
   const client = new PlaidApi(configuration);
 
   try {
+    const isSandbox = process.env.PLAID_ENV === 'sandbox';
+
     const createTokenResponse = await client.linkTokenCreate({
       client_id: process.env.PLAID_CLIENT_ID,
       secret: process.env.PLAID_SECRET,
@@ -36,17 +38,17 @@ export async function POST(request: Request) {
       client_name: 'Svend',
       country_codes: [CountryCode.Us],
       language: 'en',
-      additional_consented_products: [
+      additional_consented_products: isSandbox ? [
         Products.Auth,
         Products.Identity,
-      ],
+      ] : [],
       optional_products: [
+        Products.Investments,
+        ...(isSandbox ? [Products.Liabilities] : []),
       ],
       products: [
-        Products.Liabilities,
         Products.Transactions,
-        Products.Transfer,
-        Products.Investments,
+        ...(isSandbox ? [Products.Assets] : []),
       ],
       required_if_supported_products: [
       ],

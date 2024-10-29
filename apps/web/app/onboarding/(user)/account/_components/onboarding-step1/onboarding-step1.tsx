@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardContent, CardFooter } from '@kit/ui/card';
 import { Progress } from '@kit/ui/progress';
 import { Trans } from '@kit/ui/trans';
-import { ConnectPlaidAccountsButton } from '../connect-plaid-accounts-button';
+import { ConnectPlaidAccountsButton } from './connect-plaid-accounts-button';
 import { Button } from '@kit/ui/button';
 import { AccountOnboardingPlaidConnectionItem, useOnboardingContext } from '@kit/accounts/components';
 import { PlaidConnectionItems } from '../plaid-connection-items';
@@ -57,7 +57,7 @@ function OnboardingStep1ConnectPlaidAccounts() {
 
           <PlaidConnectionItems />
 
-          <ConnectPlaidAccountsButton redirectType="account" disabled={hasPlaidConnection} />
+          <ConnectPlaidAccountsButton redirectType="account" />
         </CardContent>
         <CardFooter>
           <Button variant="outline" className="w-full md:w-auto" disabled={!hasPlaidConnection} onClick={accountNextStep}>
