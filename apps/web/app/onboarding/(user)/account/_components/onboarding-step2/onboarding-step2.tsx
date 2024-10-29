@@ -12,16 +12,16 @@ import { FinancialInformation } from './part2-financial-information';
 import { FinancialGoals } from './part3-financial-goals';
 
 interface ProfileData {
-  full_name: string;
-  age: string;
-  marital_status: string;
-  dependents: string;
-  income_level: string;
-  savings: string;
-  current_debt: string[];
-  primary_financial_goal: string[];
-  goal_timeline: string;
-  monthly_contribution: string;
+  full_name: string | null;
+  age: string | null;
+  marital_status: string | null;
+  dependents: string | null;
+  income_level: string | null;
+  savings: string | null;
+  current_debt: string[] | null;
+  primary_financial_goal: string[] | null;
+  goal_timeline: string | null;
+  monthly_contribution: string | null;
 }
 
 function OnboardingStep2FinBackground() {
@@ -83,7 +83,11 @@ function OnboardingStep2FinBackground() {
       .single();
 
     if (data) {
-      setProfileData(data);
+      setProfileData({
+        ...data,
+        age: data.age?.toString() || '',
+        dependents: data.dependents?.toString() || ''
+      });
     }
 
     if (error) {
@@ -102,7 +106,12 @@ function OnboardingStep2FinBackground() {
       case 1:
         return (
           <PersonalInformation
-            initialData={profileData}
+            initialData={profileData ? {
+              full_name: profileData.full_name || '',
+              age: profileData.age || '',
+              marital_status: profileData.marital_status || '',
+              dependents: profileData.dependents || ''
+            } : null}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -110,7 +119,11 @@ function OnboardingStep2FinBackground() {
       case 2:
         return (
           <FinancialInformation
-            initialData={profileData}
+            initialData={profileData ? {
+              income_level: profileData.income_level || '',
+              savings: profileData.savings || '',
+              current_debt: profileData.current_debt || []
+            } : null}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -118,7 +131,11 @@ function OnboardingStep2FinBackground() {
       case 3:
         return (
           <FinancialGoals
-            initialData={profileData}
+            initialData={profileData ? {
+              primary_financial_goal: profileData.primary_financial_goal || [],
+              goal_timeline: profileData.goal_timeline || '',
+              monthly_contribution: profileData.monthly_contribution || ''
+            } : null}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />

@@ -94,7 +94,7 @@ export function PersonalInformation(props: {
             ? ''
             : Number(props.initialData?.dependents) === 1
               ? 'yes'
-              : Number(props.initialData?.dependents) === 0 && 'no',
+              : 'no',
       });
     }
   }, [props.initialData, reset]);

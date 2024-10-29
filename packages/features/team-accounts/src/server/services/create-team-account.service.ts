@@ -24,6 +24,7 @@ class CreateTeamAccountService {
 
     const { error, data } = await this.client.rpc('create_team_account', {
       account_name: params.name,
+      primary_owner_user_id: params.userId
     });
 
     if (error) {
