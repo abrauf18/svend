@@ -41,6 +41,14 @@ export type Transaction = {
     account_mask: string
 }
 
+const formatCategory = (category: string) => {
+    return category
+        .toLowerCase()
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
 export const columns: ColumnDef<Transaction>[] = [
     {
         id: "select",
@@ -85,16 +93,16 @@ export const columns: ColumnDef<Transaction>[] = [
         accessorKey: "category",
         header: "Category",
         cell: ({ row }) => (
-            <div className="capitalize">{row.getValue("category")}</div>
+            <div className="capitalize">{formatCategory(row.getValue("category"))}</div>
         ),
     },
-    // {
-    //     accessorKey: "payee",
-    //     header: "Payee",
-    //     cell: ({ row }) => (
-    //         <div className="capitalize">{row.getValue("payee")}</div>
-    //     ),
-    // },
+    {
+        accessorKey: "merchant_name",
+        header: "Merchant Name",
+        cell: ({ row }) => (
+            <div className="capitalize">{row.getValue("merchant_name")}</div>
+        ),
+    },
     // {
     //     accessorKey: "description",
     //     header: "Description",
@@ -182,6 +190,7 @@ export function TransactionTable(props: { budgetId: string }) {
         const { data, error } = await supabase.rpc('get_budget_transactions', {
             p_budget_id: props.budgetId
         });
+        console.log('data', data);
 
         if (error) {
             console.error('Error fetching transactions:', error)
@@ -194,6 +203,13 @@ export function TransactionTable(props: { budgetId: string }) {
     useEffect(() => {
         fetchTransactions()
     }, [])
+
+    const { pageSize, pageIndex } = table.getState().pagination
+    const rowRange = {
+        start: pageSize * pageIndex + 1,
+        end: Math.min(pageSize * (pageIndex + 1), table.getFilteredRowModel().rows.length)
+    }
+
 
     return (
         <div className="w-full">
@@ -264,6 +280,9 @@ export function TransactionTable(props: { budgetId: string }) {
                         {table.getFilteredRowModel().rows.length} row(s) selected.
                     </div>
                 )}
+                <div className="text-sm text-muted-foreground">
+                    Showing rows {rowRange.start}-{rowRange.end} of {table.getFilteredRowModel().rows.length}
+                </div>
                 <div className="space-x-2">
                     <Button
                         variant="outline"
