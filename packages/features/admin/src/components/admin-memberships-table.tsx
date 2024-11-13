@@ -7,7 +7,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Tables } from '@kit/supabase/database';
 import { DataTable } from '@kit/ui/enhanced-data-table';
 
-type Membership = Tables<'accounts_memberships'> & {
+type Membership = Tables<'team_memberships'> & {
   account: {
     id: string;
     name: string;
@@ -30,7 +30,7 @@ function getColumns(): ColumnDef<Membership>[] {
         return (
           <Link
             className={'hover:underline'}
-            href={`/admin/accounts/${row.original.account_id}`}
+            href={`/admin/accounts/${row.original.team_account_id}`}
           >
             {row.original.account.name}
           </Link>

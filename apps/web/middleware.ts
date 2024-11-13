@@ -8,7 +8,7 @@ import { createMiddlewareClient } from '@kit/supabase/middleware-client';
 
 import appConfig from '~/config/app.config';
 import pathsConfig from '~/config/paths.config';
-import { AccountOnboardingStepContextKey } from '@kit/accounts/components';
+import { AccountOnboardingStepContextKey } from '~/lib/model/onboarding.types';
 
 const CSRF_SECRET_COOKIE = 'csrfSecret';
 const NEXT_ACTION_HEADER = 'next-action';

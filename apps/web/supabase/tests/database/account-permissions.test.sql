@@ -71,7 +71,7 @@ select throws_ok(
 );
 
 -- update user role to custom role
-update public.accounts_memberships
+update public.team_memberships
     set account_role = 'custom-role'
     where account_id = makerkit.get_account_id_by_slug('test')
         and user_id = tests.get_supabase_uid('test1');

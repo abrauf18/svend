@@ -15,7 +15,7 @@ select tests.create_supabase_user('test', 'test@supabase.com');
 select tests.authenticate_as('owner');
 
 select throws_ok(
-   $$ delete from public.accounts_memberships
+   $$ delete from public.team_memberships
     where account_id = makerkit.get_account_id_by_slug('makerkit')
     and user_id = '31a03e74-1639-45b6-bfa7-77447f1a4762' $$,
    'The primary account owner cannot be actioned'
@@ -23,7 +23,7 @@ select throws_ok(
 
 -- an owner can remove accounts with lower roles
 select lives_ok(
-   $$ delete from public.accounts_memberships
+   $$ delete from public.team_memberships
       where account_id = makerkit.get_account_id_by_slug('makerkit')
       and user_id = '6b83d656-e4ab-48e3-a062-c0c54a427368' $$,
     'Owner should be able to remove a member'
@@ -34,7 +34,7 @@ select tests.authenticate_as('member');
 
 -- delete a membership record where the user is a higher role than the current user
 select throws_ok(
-   $$ delete from public.accounts_memberships
+   $$ delete from public.team_memberships
     where account_id = makerkit.get_account_id_by_slug('makerkit')
     and user_id = '5c064f1b-78ee-4e1c-ac3b-e99aa97c99bf' $$,
     'You do not have permission to action a member from this account'
@@ -44,7 +44,7 @@ select throws_ok(
 select tests.authenticate_as('primary_owner');
 
 select throws_ok(
-    $$ delete from public.accounts_memberships
+    $$ delete from public.team_memberships
        where account_id = makerkit.get_account_id_by_slug('makerkit')
        and user_id = '31a03e74-1639-45b6-bfa7-77447f1a4762' $$,
     'The primary account owner cannot be removed from the account membership list'
@@ -52,7 +52,7 @@ select throws_ok(
 
 -- a primary_owner can remove another member
 select lives_ok(
-   $$ delete from public.accounts_memberships
+   $$ delete from public.team_memberships
     where account_id = makerkit.get_account_id_by_slug('makerkit')
     and user_id = 'b73eb03e-fb7a-424d-84ff-18e2791ce0b4'; $$,
     'Primary owner should be able to remove another member'
@@ -65,7 +65,7 @@ select lives_ok(
 select tests.authenticate_as('test');
 
 select throws_ok(
-    $$ delete from public.accounts_memberships
+    $$ delete from public.team_memberships
       where account_id = '5deaa894-2094-4da3-b4fd-1fada0809d1c'
       and user_id = tests.get_supabase_uid('owner'); $$,
       'You do not have permission to action a member from this account'
@@ -74,7 +74,7 @@ select throws_ok(
 select tests.authenticate_as('owner');
 
 select isnt_empty(
-    $$ select 1 from public.accounts_memberships
+    $$ select 1 from public.team_memberships
     where account_id = '5deaa894-2094-4da3-b4fd-1fada0809d1c'
     and user_id = tests.get_supabase_uid('owner'); $$,
     'Foreigners should not be able to remove members');
@@ -83,7 +83,7 @@ select tests.authenticate_as('test');
 
 -- a user not in the account cannot remove themselves
 select throws_ok(
-   $$ delete from public.accounts_memberships
+   $$ delete from public.team_memberships
    where account_id = makerkit.get_account_id_by_slug('makerkit')
    and user_id = auth.uid(); $$,
     'You do not have permission to action a member from this account'

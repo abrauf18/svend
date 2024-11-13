@@ -1,4 +1,20 @@
 import { defineConfig, devices } from '@playwright/test';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+import fs from 'fs';
+
+// Load environment variables from .env file
+
+const envPath = resolve(__dirname, '../web/.env.test');
+console.log(`Loading environment variables from ${envPath}`);
+if (!fs.existsSync(envPath)) {
+  console.warn(`Environment file not found: ${envPath}`);
+}
+
+config({
+  path: envPath,
+  override: true,
+});
 
 const enableBillingTests = process.env.ENABLE_BILLING_TESTS === 'true';
 
@@ -17,7 +33,7 @@ if (!enableBillingTests) {
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
  */
-// require('dotenv').config();
+require('dotenv').config();
 
 /**
  * See https://playwright.dev/docs/test-configuration.

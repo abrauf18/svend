@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -21,81 +21,79 @@ import {
   SelectValue,
 } from '@kit/ui/select';
 import { Trans } from '@kit/ui/trans';
+import { useOnboardingContext } from '@kit/accounts/components';
+import { ProfileData } from '~/lib/model/fin.types';
+
+// Financial goals options
+const financialGoals: Record<string, string> = {
+  'Debt - Loans': 'Debt - Loans',
+  'Debt - Credit Cards': 'Debt - Credit Cards',
+  'Save - Build an emergency fund': 'Save - Build an emergency fund',
+  'Save - Save for a house': 'Save - Save for a house',
+  'Save - Save for retirement': 'Save - Save for retirement',
+  "Save - Save for children's education": "Save - Save for children's education",
+  'Save - Save for vacation or a large purchase': 'Save - Save for vacation or a large purchase',
+  'Invest in stocks or bonds': 'Invest in stocks or bonds',
+  'Donate to charity or tithe regularly': 'Donate to charity or tithe regularly',
+  'Manage your money better': 'Manage your money better',
+};
+
+// Achieving goals options
+const goalTimelineOptions: Record<string, string> = {
+  '6 months': '6 months',
+  '1 year': '1 year',
+  '3 years': '3 years',
+  '5 years or more': '5 years or more',
+};
+
+// Monthly contribution options
+const monthlyContributionOptions: Record<string, string> = {
+  'Less than $100': 'Less than $100',
+  '$100 - $250': '$100 - $250',
+  '$250 - $500': '$250 - $500',
+  '$500 - $1,000': '$500 - $1,000',
+  'More than $1,000': 'More than $1,000',
+};
 
 // Validation schema
 const FormSchema = z.object({
   primaryFinancialGoals: z
-    .array(z.string())
+    .array(z.string().refine((value) => Object.keys(financialGoals).includes(value), {
+      message: 'Invalid primary financial goal selected',
+    }))
     .min(1, 'At least one Primary goal must be selected'),
-  achievingGoals: z.string().min(1, 'Achieving Goal is required.'),
-  monthlyContributions: z.string().min(1, 'Monthly contribution is required.'),
+  goalTimeline: z.string().refine((value) => Object.keys(goalTimelineOptions).includes(value), {
+    message: 'Invalid achieving goal selected',
+  }),
+  monthlyContribution: z.string().refine((value) => Object.keys(monthlyContributionOptions).includes(value), {
+    message: 'Invalid monthly contribution selected',
+  }),
 });
 
 export function FinancialGoals(props: {
   onValidationChange: (isValid: boolean) => void;
   triggerSubmit: (submitHandler: () => Promise<boolean>) => void;
-  initialData: {
-    primary_financial_goal: string[];
-    goal_timeline: string;
-    monthly_contribution: string;
-  } | null;
+  initialData: any;
 }) {
-  // Financial goals options
-  const financialGoals = [
-    { id: 'Debt - Loans', label: 'Debt - Loans' },
-    { id: 'Debt - Credit Cards', label: 'Debt - Credit Cards' },
-    {
-      id: 'Save - Build an emergency fund',
-      label: 'Save - Build an emergency fund',
-    },
-    { id: 'Save - Save for a house', label: 'Save - Save for a house' },
-    { id: 'Save - Save for retirement', label: 'Save - Save for retirement' },
-    {
-      id: "Save - Save for children's education",
-      label: "Save - Save for children's education",
-    },
-    {
-      id: 'Save - Save for vacation or a large purchase',
-      label: 'Save - Save for vacation or a large purchase',
-    },
-    { id: 'Invest in stocks or bonds', label: 'Invest in stocks or bonds' },
-    {
-      id: 'Donate to charity or tithe regularly',
-      label: 'Donate to charity or tithe regularly',
-    },
-    { id: 'Manage your money better', label: 'Manage your money better' },
-  ];
-
-  // Achieving goals options
-  const achievingGoals = [
-    { id: '6 months', label: '6 months' },
-    { id: '1 year', label: '1 year' },
-    { id: '3 years', label: '3 years' },
-    { id: '5 years or more', label: '5 years or more' },
-  ];
-
-  // Monthly contribution options
-  const monthlyContributions = [
-    { id: 'Less than $100', label: 'Less than $100' },
-    { id: '$100 - $250', label: '$100 - $250' },
-    { id: '$250 - $500', label: '$250 - $500' },
-    { id: '$500 - $1,000', label: '$500 - $1,000' },
-    { id: 'More than $1,000', label: 'More than $1,000' },
-  ];
+  const { state, accountProfileDataUpdate } = useOnboardingContext();
 
   // Set default values using useMemo
   const defaultValues = React.useMemo(() => {
     if (props.initialData) {
+      const primaryFinancialGoals = props.initialData.primaryFinancialGoals || [];
+      const goalTimeline = props.initialData.goalTimeline || '';
+      const monthlyContribution = props.initialData.monthlyContribution || '';
+
       return {
-        primaryFinancialGoals: props.initialData.primary_financial_goal || [],
-        achievingGoals: props.initialData.goal_timeline || '',
-        monthlyContributions: props.initialData.monthly_contribution || '',
+        primaryFinancialGoals,
+        goalTimeline,
+        monthlyContribution,
       };
     } else {
       return {
         primaryFinancialGoals: [],
-        achievingGoals: '',
-        monthlyContributions: '',
+        goalTimeline: '',
+        monthlyContribution: '',
       };
     }
   }, [props.initialData]);
@@ -106,14 +104,18 @@ export function FinancialGoals(props: {
     mode: 'onChange',
   });
 
-  // Reset form when initialData changes
+  const { reset } = form;
+
   useEffect(() => {
     if (props.initialData) {
-      form.reset(defaultValues);
+      reset({
+        primaryFinancialGoals: props.initialData.primaryFinancialGoals || [],
+        goalTimeline: props.initialData.goalTimeline || '',
+        monthlyContribution: props.initialData.monthlyContribution || '',
+      });
     }
-  }, [props.initialData, form.reset, defaultValues]);
+  }, [props.initialData]);
 
-  // Update validation state
   useEffect(() => {
     props.onValidationChange(form.formState.isValid);
   }, [form.formState.isValid]);
@@ -124,16 +126,23 @@ export function FinancialGoals(props: {
       if (form.formState.isValid) {
         try {
           const data = form.getValues();
-          const result = await serverSubmit(data);
-          return result;
+          await serverSubmit(data);
+
+          accountProfileDataUpdate({
+            ...state.account.profileData,
+            primaryFinancialGoals: data.primaryFinancialGoals,
+            goalTimeline: data.goalTimeline,
+            monthlyContribution: data.monthlyContribution,
+          } as ProfileData);
+
+          return true;
         } catch (error) {
-          console.error('Error submitting form:', error);
           return false;
         }
       }
       return false;
     });
-  }, [props.triggerSubmit, form]);
+  }, [form]);
 
   const serverSubmit = async (
     data: z.infer<typeof FormSchema>,
@@ -145,26 +154,24 @@ export function FinancialGoals(props: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          primary_financial_goal: data.primaryFinancialGoals,
-          goal_timeline: data.achievingGoals,
-          monthly_contribution: data.monthlyContributions,
+          primaryFinancialGoals: data.primaryFinancialGoals,
+          goalTimeline: data.goalTimeline,
+          monthlyContribution: data.monthlyContribution,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          errorData.error || 'Failed to update financial profile',
+          'Error updating financial profile - goals info: ' + errorData.error,
         );
       }
-
-      const result = await response.json();
-      console.log('Financial profile updated:', result);
-      return true;
-    } catch (error) {
-      console.error('Error updating financial profile:', error);
-      return false;
+    } catch (error: any) {
+      console.error(error);
+      throw error;
     }
+
+    return true;
   };
 
   return (
@@ -184,27 +191,25 @@ export function FinancialGoals(props: {
                     <FormLabel className="text-base">
                       <Trans i18nKey={'onboarding:financialGoals.label'} />
                     </FormLabel>
-                    {financialGoals.map((item) => (
+                    {Object.entries(financialGoals).map(([key, value]) => (
                       <FormItem
-                        key={item.id}
+                        key={key}
                         className="flex flex-row items-start space-x-3 space-y-0"
                       >
                         <FormControl>
                           <Checkbox
-                            checked={field.value.includes(item.id)}
+                            checked={field.value.includes(key)}
                             onCheckedChange={(checked) => {
                               const newValue = checked
-                                ? [...field.value, item.id]
+                                ? [...field.value, key]
                                 : field.value.filter(
-                                    (value) => value !== item.id,
+                                    (value) => value !== key,
                                   );
                               field.onChange(newValue);
                             }}
                           />
                         </FormControl>
-                        <FormLabel className="font-normal">
-                          {item.label}
-                        </FormLabel>
+                        <FormLabel className="font-normal">{value}</FormLabel>
                       </FormItem>
                     ))}
                     <FormMessage />
@@ -215,12 +220,12 @@ export function FinancialGoals(props: {
 
             <div className={'w-3/5'}>
               <FormField
-                name="achievingGoals"
+                name="goalTimeline"
                 control={form.control}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      <Trans i18nKey={'onboarding:achievingGoals.label'} />
+                      <Trans i18nKey={'onboarding:goalTimeline.label'} />
                     </FormLabel>
                     <FormControl>
                       <Select
@@ -233,13 +238,15 @@ export function FinancialGoals(props: {
                           <SelectValue placeholder="Select Achieving Goal" />
                         </SelectTrigger>
                         <SelectContent>
-                          {achievingGoals.map((goal) => (
-                            <SelectItem key={goal.id} value={goal.id}>
-                              <span className="text-sm capitalize">
-                                {goal.label}
-                              </span>
-                            </SelectItem>
-                          ))}
+                          {Object.entries(goalTimelineOptions).map(
+                            ([key, value]) => (
+                              <SelectItem key={key} value={key}>
+                                <span className="text-sm capitalize">
+                                  {value}
+                                </span>
+                              </SelectItem>
+                            ),
+                          )}
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -251,13 +258,13 @@ export function FinancialGoals(props: {
 
             <div className={'w-3/5'}>
               <FormField
-                name="monthlyContributions"
+                name="monthlyContribution"
                 control={form.control}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
                       <Trans
-                        i18nKey={'onboarding:monthlyContributions.label'}
+                        i18nKey={'onboarding:monthlyContribution.label'}
                       />
                     </FormLabel>
                     <FormControl>
@@ -271,16 +278,15 @@ export function FinancialGoals(props: {
                           <SelectValue placeholder="Select Monthly Contribution" />
                         </SelectTrigger>
                         <SelectContent>
-                          {monthlyContributions.map((contribution) => (
-                            <SelectItem
-                              key={contribution.id}
-                              value={contribution.id}
-                            >
-                              <span className="text-sm capitalize">
-                                {contribution.label}
-                              </span>
-                            </SelectItem>
-                          ))}
+                          {Object.entries(monthlyContributionOptions).map(
+                            ([key, value]) => (
+                              <SelectItem key={key} value={key}>
+                                <span className="text-sm capitalize">
+                                  {value}
+                                </span>
+                              </SelectItem>
+                            ),
+                          )}
                         </SelectContent>
                       </Select>
                     </FormControl>

@@ -37,7 +37,7 @@ class AccountMembersService {
     logger.info(ctx, `Removing member from account...`);
 
     const { data, error } = await this.client
-      .from('accounts_memberships')
+      .from('team_memberships')
       .delete()
       .match({
         account_id: params.accountId,
@@ -112,12 +112,12 @@ class AccountMembersService {
     // for updating accounts_memberships. Instead, we use the can_action_account_member
     // RPC to validate permissions to update the role
     const { data, error } = await adminClient
-      .from('accounts_memberships')
+      .from('team_memberships')
       .update({
-        account_role: params.role,
+        team_role: params.role,
       })
       .match({
-        account_id: params.accountId,
+        team_account_id: params.accountId,
         user_id: params.userId,
       });
 

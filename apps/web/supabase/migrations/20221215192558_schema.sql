@@ -415,7 +415,7 @@ begin
         select
             1
         from
-            public.accounts_memberships
+            public.team_memberships
         where
             target_account_id = account_id
             and user_id = new_owner_id) then
@@ -433,14 +433,14 @@ begin
 
     -- update membership assigning it the hierarchy role
     update
-        public.accounts_memberships
+        public.team_memberships
     set
-        account_role =(
+        team_role =(
             public.get_upper_system_role())
     where
         target_account_id = account_id
         and user_id = new_owner_id
-        and account_role <>(
+        and team_role <>(
             public.get_upper_system_role());
 
 end;
@@ -517,36 +517,32 @@ $$ language plpgsql;
 grant
 execute on function public.get_upper_system_role () to service_role;
 
--- Function "kit.add_current_user_to_new_account"
+-- Function "kit.add_current_user_to_new_team_account"
 -- Trigger to add the current user to a new account as the primary owner
 create
-or replace function kit.add_current_user_to_new_account () returns trigger language plpgsql security definer
+or replace function kit.add_current_user_to_new_team_account () returns trigger language plpgsql security definer
 set
   search_path = '' as $$
 begin
     if new.primary_owner_user_id = auth.uid() then
-        insert into public.accounts_memberships(
-            account_id,
+        insert into public.team_memberships(
+            team_account_id,
             user_id,
-            account_role)
+            team_role)
         values(
             new.id,
             auth.uid(),
             public.get_upper_system_role());
-
     end if;
-
     return NEW;
-
 end;
-
 $$;
 
 -- trigger the function whenever a new account is created
-create trigger "add_current_user_to_new_account"
+create trigger "add_current_user_to_new_team_account"
 after insert on public.accounts for each row
 when (new.is_personal_account = false)
-execute function kit.add_current_user_to_new_account ();
+execute function kit.add_current_user_to_new_team_account ();
 
 -- create a trigger to update the account email when the primary owner email is updated
 create
@@ -613,47 +609,42 @@ alter table public.roles enable row level security;
  */
 -- Account Memberships table
 create table if not exists
-  public.accounts_memberships (
+  public.team_memberships (
     user_id uuid references auth.users on delete cascade not null,
-    account_id uuid references public.accounts (id) on delete cascade not null,
-    account_role varchar(50) references public.roles (name) not null,
+    team_account_id uuid references public.accounts (id) on delete cascade not null,
+    team_role varchar(50) references public.roles (name) not null,
     created_at timestamptz default current_timestamp not null,
     updated_at timestamptz default current_timestamp not null,
     created_by uuid references auth.users,
     updated_by uuid references auth.users,
-    primary key (user_id, account_id)
+    primary key (user_id, team_account_id, team_role),
+    check (kit.check_team_account_by_id(team_account_id))
   );
 
-comment on table public.accounts_memberships is 'The memberships for an account';
+comment on table public.team_memberships is 'The memberships for a team';
 
-comment on column public.accounts_memberships.account_id is 'The account the membership is for';
+comment on column public.team_memberships.team_account_id is 'The account the membership is for';
 
-comment on column public.accounts_memberships.account_role is 'The role for the membership';
+comment on column public.team_memberships.team_role is 'The role for the membership';
 
--- Revoke all on accounts_memberships table from authenticated and service_role
-revoke all on public.accounts_memberships
+-- Revoke all on team_memberships table from authenticated and service_role
+revoke all on public.team_memberships
 from
   authenticated,
   service_role;
 
--- Open up access to accounts_memberships table for authenticated users and service_role
-grant
-select
-,
-  insert,
-update,
-delete on table public.accounts_memberships to authenticated,
-service_role;
+-- Open up access to team_memberships table for authenticated users and service_role
+grant select,insert,update,delete on table public.team_memberships to authenticated,service_role;
 
--- Indexes on the accounts_memberships table
-create index ix_accounts_memberships_account_id on public.accounts_memberships (account_id);
+-- Indexes on the team_memberships table
+create index ix_team_memberships_team_account_id on public.team_memberships (team_account_id);
 
-create index ix_accounts_memberships_user_id on public.accounts_memberships (user_id);
+create index ix_team_memberships_user_id on public.team_memberships (user_id);
 
-create index ix_accounts_memberships_account_role on public.accounts_memberships (account_role);
+create index ix_team_memberships_team_role on public.team_memberships (team_role);
 
--- Enable RLS on the accounts_memberships table
-alter table public.accounts_memberships enable row level security;
+-- Enable RLS on the team_memberships table
+alter table public.team_memberships enable row level security;
 
 -- Function "kit.prevent_account_owner_membership_delete"
 -- Trigger to prevent a primary owner from being removed from an account
@@ -668,7 +659,7 @@ begin
         from
             public.accounts
         where
-            id = old.account_id
+            id = old.team_account_id
             and primary_owner_user_id = old.user_id) then
     raise exception 'The primary account owner cannot be removed from the account membership list';
 
@@ -681,58 +672,54 @@ end;
 $$ language plpgsql;
 
 create
-or replace trigger prevent_account_owner_membership_delete_check before delete on public.accounts_memberships for each row
+or replace trigger prevent_account_owner_membership_delete_check before delete on public.team_memberships for each row
 execute function kit.prevent_account_owner_membership_delete ();
 
 -- Function "kit.prevent_memberships_update"
--- Trigger to prevent updates to account memberships with the exception of the account_role
+-- Trigger to prevent updates to account memberships with the exception of the team_role
 create
 or replace function kit.prevent_memberships_update () returns trigger
 set
   search_path = '' as $$
 begin
-    if new.account_role <> old.account_role then
+    if new.team_role <> old.team_role then
         return new;
     end if;
 
-    raise exception 'Only the account_role can be updated';
+    raise exception 'Only the team_role can be updated';
 
 end; $$ language plpgsql;
 
 create
 or replace trigger prevent_memberships_update_check before
-update on public.accounts_memberships for each row
+update on public.team_memberships for each row
 execute function kit.prevent_memberships_update ();
 
--- Function "public.has_role_on_account"
+-- Function "public.has_role_on_team"
 -- Function to check if a user has a role on an account
-create
-or replace function public.has_role_on_account (
-  account_id uuid,
-  account_role varchar(50) default null
+create or replace function public.has_role_on_team (
+  team_account_id uuid,
+  team_role varchar(50) default null,
+  user_id uuid default auth.uid()
 ) returns boolean language sql security definer
-set
-  search_path = '' as $$
-    select
-        exists(
-            select
-                1
-            from
-                public.accounts_memberships membership
-            where
-                membership.user_id = (select auth.uid())
-                and membership.account_id = has_role_on_account.account_id
-                and((membership.account_role = has_role_on_account.account_role
-                    or has_role_on_account.account_role is null)));
+set search_path = '' as $$
+    select exists(
+        select 1
+        from public.team_memberships membership
+        where membership.user_id = has_role_on_team.user_id
+        and membership.team_account_id = has_role_on_team.team_account_id
+        and (membership.team_role = has_role_on_team.team_role 
+             or has_role_on_team.team_role is null)
+    );
 $$;
 
-grant
-execute on function public.has_role_on_account (uuid, varchar) to authenticated;
+grant execute on function public.has_role_on_team(uuid, varchar, uuid) to authenticated;
+
 
 -- Function "public.is_team_member"
 -- Check if a user is a team member of an account or not
 create
-or replace function public.is_team_member (account_id uuid, user_id uuid) returns boolean language sql security definer
+or replace function public.is_team_member (team_account_id uuid, user_id uuid) returns boolean language sql security definer
 set
   search_path = '' as $$
     select
@@ -740,16 +727,14 @@ set
             select
                 1
             from
-                public.accounts_memberships membership
+                public.team_memberships membership
             where
-                public.has_role_on_account(account_id)
+                public.has_role_on_team(team_account_id)
                 and membership.user_id = is_team_member.user_id
-                and membership.account_id = is_team_member.account_id);
+                and membership.team_account_id = is_team_member.team_account_id);
 $$;
 
-grant
-execute on function public.is_team_member (uuid, uuid) to authenticated,
-service_role;
+grant execute on function public.is_team_member (uuid, uuid) to authenticated, service_role;
 
 -- RLS
 -- SELECT(roles)
@@ -800,7 +785,7 @@ begin
     -- validate the auth user has the required permission on the account
     -- to manage members of the account
     select
- public.has_permission(auth.uid(), target_team_account_id,
+ public.has_team_permission(auth.uid(), target_team_account_id,
      'members.manage'::public.app_permissions) into
      permission_granted;
 
@@ -811,14 +796,14 @@ begin
 
     -- get the role of the target user
     select
-        am.account_role,
+        am.team_role,
         r.hierarchy_level
     from
-        public.accounts_memberships as am
+        public.team_memberships as am
     join
-        public.roles as r on am.account_role = r.name
+        public.roles as r on am.team_role = r.name
     where
-        am.account_id = target_team_account_id
+        am.team_account_id = target_team_account_id
         and am.user_id = target_user_id
     into target_user_role, target_user_hierarchy_level;
 
@@ -828,9 +813,9 @@ begin
     from
         public.roles as r
     join
-        public.accounts_memberships as am on r.name = am.account_role
+        public.team_memberships as am on r.name = am.team_role
     where
-        am.account_id = target_team_account_id
+        am.team_account_id = target_team_account_id
         and am.user_id = auth.uid();
 
     if target_user_role is null then
@@ -857,9 +842,9 @@ execute on function public.can_action_account_member (uuid, uuid) to authenticat
 service_role;
 
 -- RLS
--- SELECT(accounts_memberships):
+-- SELECT(team_memberships):
 -- Users can read their team members account memberships
-create policy accounts_memberships_read on public.accounts_memberships for
+create policy team_memberships_read on public.team_memberships for
 select
   to authenticated using (
     (
@@ -868,22 +853,22 @@ select
           auth.uid ()
       ) = user_id
     )
-    or is_team_member (account_id, user_id)
+    or is_team_member (team_account_id, user_id)
   );
 
 create
-or replace function public.is_account_team_member (target_account_id uuid) returns boolean
+or replace function public.is_any_team_member (user_id uuid) returns boolean
 set
   search_path = '' as $$
     select exists(
         select 1
-        from public.accounts_memberships as membership
-        where public.is_team_member (membership.account_id, target_account_id)
+        from public.team_memberships as membership
+        where public.is_team_member (membership.team_account_id, user_id)
     );
 $$ language sql;
 
 grant
-execute on function public.is_account_team_member (uuid) to authenticated,
+execute on function public.is_any_team_member (uuid) to authenticated,
 service_role;
 
 -- RLS on the accounts table
@@ -901,20 +886,20 @@ select
           auth.uid ()
       ) = primary_owner_user_id
     )
-    or public.has_role_on_account (id)
-    or public.is_account_team_member (id)
+    or public.has_role_on_team (id)
+    or public.is_any_team_member (id)
   );
 
--- DELETE(accounts_memberships):
+-- DELETE(team_memberships):
 -- Users with the required role can remove members from an account or remove their own
-create policy accounts_memberships_delete on public.accounts_memberships for delete to authenticated using (
+create policy team_memberships_delete on public.team_memberships for delete to authenticated using (
   (
     user_id = (
       select
         auth.uid ()
     )
   )
-  or public.can_action_account_member (account_id, user_id)
+  or public.can_action_account_member (team_account_id, user_id)
 );
 
 /*
@@ -961,12 +946,12 @@ grant
 select
   on table public.role_permissions to authenticated;
 
--- Function "public.has_permission"
+-- Function "public.has_team_permission"
 -- Create a function to check if a user has a permission
 create
-or replace function public.has_permission (
+or replace function public.has_team_permission (
   user_id uuid,
-  account_id uuid,
+  team_account_id uuid,
   permission_name public.app_permissions
 ) returns boolean
 set
@@ -976,21 +961,21 @@ begin
         select
             1
         from
-            public.accounts_memberships
+            public.team_memberships
 	    join public.role_permissions on
-		accounts_memberships.account_role =
+		team_memberships.team_role =
 		role_permissions.role
         where
-            accounts_memberships.user_id = has_permission.user_id
-            and accounts_memberships.account_id = has_permission.account_id
-            and role_permissions.permission = has_permission.permission_name);
+            team_memberships.user_id = has_team_permission.user_id
+            and team_memberships.team_account_id = has_team_permission.team_account_id
+            and role_permissions.permission = has_team_permission.permission_name);
 
 end;
 
 $$ language plpgsql;
 
 grant
-execute on function public.has_permission (uuid, uuid, public.app_permissions) to authenticated,
+execute on function public.has_team_permission (uuid, uuid, public.app_permissions) to authenticated,
 service_role;
 
 -- Function "public.has_more_elevated_role"
@@ -1033,11 +1018,11 @@ begin
     where
         name =(
             select
-                account_role
+                team_role
             from
-                public.accounts_memberships
+                public.team_memberships
             where
-                account_id = target_account_id
+                team_account_id = target_account_id
                 and target_user_id = user_id);
 
     if user_role_hierarchy_level is null then
@@ -1108,11 +1093,11 @@ begin
     where
         name =(
             select
-                account_role
+                team_role
             from
-                public.accounts_memberships
+                public.team_memberships
             where
-                account_id = target_account_id
+                team_account_id = target_account_id
                 and target_user_id = user_id);
 
     -- If the user does not have a role in the account, they cannot perform the action
@@ -1243,7 +1228,7 @@ execute procedure kit.check_team_account ();
 -- Users can read invitations to users of an account they are a member of
 create policy invitations_read_self on public.invitations for
 select
-  to authenticated using (public.has_role_on_account (account_id));
+  to authenticated using (public.has_role_on_team (account_id));
 
 -- INSERT(invitations):
 -- Users can create invitations to users of an account they are
@@ -1252,7 +1237,7 @@ create policy invitations_create_self on public.invitations for insert to authen
 with
   check (
     public.is_set ('enable_team_accounts')
-    and public.has_permission (
+    and public.has_team_permission (
       (
         select
           auth.uid ()
@@ -1283,7 +1268,7 @@ with
 create policy invitations_update on public.invitations
 for update
   to authenticated using (
-    public.has_permission (
+    public.has_team_permission (
       (
         select
           auth.uid ()
@@ -1302,7 +1287,7 @@ for update
   )
 with
   check (
-    public.has_permission (
+    public.has_team_permission (
       (
         select
           auth.uid ()
@@ -1323,8 +1308,8 @@ with
 -- DELETE(public.invitations):
 -- Users can delete invitations to users of an account they are a member of and have the 'invites.manage' permission
 create policy invitations_delete on public.invitations for delete to authenticated using (
-  has_role_on_account (account_id)
-  and public.has_permission (
+  has_role_on_team (account_id)
+  and public.has_team_permission (
     (
       select
         auth.uid ()
@@ -1358,10 +1343,10 @@ begin
         raise exception 'Invalid or expired invitation token';
     end if;
 
-    insert into public.accounts_memberships(
+    insert into public.team_memberships(
         user_id,
         account_id,
-        account_role)
+        team_role)
     values (
         accept_invitation.user_id,
         target_account_id,
@@ -1441,7 +1426,7 @@ select
       select
         auth.uid ()
     )
-    or has_role_on_account (account_id)
+    or has_role_on_team (account_id)
   );
 
 /*
@@ -1524,7 +1509,7 @@ create policy subscriptions_read_self on public.subscriptions for
 select
   to authenticated using (
     (
-      has_role_on_account (account_id)
+      has_role_on_team (account_id)
       and public.is_set ('enable_team_account_billing')
     )
     or (
@@ -1779,7 +1764,7 @@ select
             select
               auth.uid ()
           )
-          or has_role_on_account (account_id)
+          or has_role_on_team (account_id)
         )
     )
   );
@@ -1856,7 +1841,7 @@ select
       and public.is_set ('enable_account_billing')
     )
     or (
-      has_role_on_account (account_id)
+      has_role_on_team (account_id)
       and public.is_set ('enable_team_account_billing')
     )
   );
@@ -1935,7 +1920,7 @@ select
             select
               auth.uid ()
           )
-          or has_role_on_account (account_id)
+          or has_role_on_team (account_id)
         )
     )
   );
@@ -2141,7 +2126,7 @@ select
       select
         auth.uid ()
     )
-    or has_role_on_account (account_id)
+    or has_role_on_team (account_id)
   );
 
 -- UPDATE(notifications):
@@ -2153,7 +2138,7 @@ for update
       select
         auth.uid ()
     )
-    or has_role_on_account (account_id)
+    or has_role_on_team (account_id)
   );
 
 -- Function "kit.update_notification_dismissed_status"
@@ -2362,15 +2347,15 @@ begin
     select id into team_account_id from public.create_team_account(new.id, 'My First Budget');
 
     -- Insert new budget
-    insert into public.budgets(account_id)
+    insert into public.budgets(team_account_id)
     values (team_account_id)
     returning id into new_budget_id;
 
     -- Insert membership for the new team account
-    insert into public.accounts_memberships(
+    insert into public.team_memberships(
         user_id,
-        account_id,
-        account_role)
+        team_account_id,
+        team_role)
     values (
         new.id,
         team_account_id,
@@ -2528,20 +2513,17 @@ select
   account.name,
   account.picture_url,
   account.slug,
-  membership.account_role
+  membership.team_role
 from
   public.accounts account
-  join public.accounts_memberships membership on account.id = membership.account_id
+  join public.team_memberships membership on account.id = membership.team_account_id
 where
   membership.user_id = (select auth.uid ())
   and account.is_personal_account = false
   and account.id in (
-    select
-      account_id
-    from
-      public.accounts_memberships
-    where
-      user_id = (select auth.uid ())
+    select team_account_id
+    from public.team_memberships
+    where user_id = (select auth.uid())
   );
 
 grant
@@ -2574,7 +2556,7 @@ begin
         accounts.name,
         accounts.picture_url,
         accounts.slug,
-        accounts_memberships.account_role,
+        team_memberships.team_role,
         roles.hierarchy_level,
         accounts.primary_owner_user_id,
         subscriptions.status,
@@ -2582,18 +2564,18 @@ begin
         budgets.id
     from
         public.accounts
-        join public.budgets on accounts.id = budgets.account_id
-        join public.accounts_memberships on accounts.id = accounts_memberships.account_id
+        join public.budgets on accounts.id = budgets.team_account_id
+        join public.team_memberships on accounts.id = team_memberships.team_account_id
         left join public.subscriptions on accounts.id = subscriptions.account_id
-        join public.roles on accounts_memberships.account_role = roles.name
-        left join public.role_permissions on accounts_memberships.account_role = role_permissions.role
+        join public.roles on team_memberships.team_role = roles.name
+        left join public.role_permissions on team_memberships.team_role = role_permissions.role
     where
         accounts.slug = account_slug
-        and public.accounts_memberships.user_id = (select auth.uid())
+        and public.team_memberships.user_id = (select auth.uid())
     group by
         accounts.id,
         budgets.id,
-        accounts_memberships.account_role,
+        team_memberships.team_role,
         subscriptions.status,
         roles.hierarchy_level;
 end;
@@ -2609,7 +2591,7 @@ create
 or replace function public.get_account_members (account_slug text) returns table (
   id uuid,
   user_id uuid,
-  account_id uuid,
+  team_account_id uuid,
   role varchar(50),
   role_hierarchy_level int,
   primary_owner_user_id uuid,
@@ -2626,8 +2608,8 @@ begin
     select
         acc.id,
         am.user_id,
-        am.account_id,
-        am.account_role,
+        am.team_account_id,
+        am.team_role,
         r.hierarchy_level,
         a.primary_owner_user_id,
         acc.name,
@@ -2636,10 +2618,10 @@ begin
         am.created_at,
         am.updated_at
     from
-        public.accounts_memberships am
-        join public.accounts a on a.id = am.account_id
+        public.team_memberships am
+        join public.accounts a on a.id = am.team_account_id
         join public.accounts acc on acc.id = am.user_id
-        join public.roles r on r.name = am.account_role
+        join public.roles r on r.name = am.team_role
     where
         a.slug = account_slug;
 
@@ -2774,10 +2756,12 @@ service_role;
 
 -- Storage
 -- Account Image
-insert into
-  storage.buckets (id, name, PUBLIC)
-values
-  ('account_image', 'account_image', true);
+insert into storage.buckets (id, name, public)
+values ('account_image', 'account_image', true)
+on conflict (id) do update 
+set 
+    name = excluded.name,
+    public = excluded.public;
 
 -- Function: get the storage filename as a UUID.
 -- Useful if you want to name files with UUIDs related to an account
@@ -2798,21 +2782,22 @@ execute on function kit.get_storage_filename_as_uuid (text) to authenticated,
 service_role;
 
 -- RLS policies for storage bucket account_image
-create policy account_image on storage.objects for all using (
+create policy account_image on storage.objects for all 
+using (
   bucket_id = 'account_image'
   and (
     kit.get_storage_filename_as_uuid(name) = auth.uid()
-    or public.has_role_on_account(kit.get_storage_filename_as_uuid(name))
+    or public.has_role_on_team(kit.get_storage_filename_as_uuid(name))
   )
 )
 with check (
   bucket_id = 'account_image'
   and (
     kit.get_storage_filename_as_uuid(name) = auth.uid()
-    or public.has_permission(
+    or public.has_team_permission(
       auth.uid(),
       kit.get_storage_filename_as_uuid(name),
-      'settings.manage'
+      'settings.manage'::public.app_permissions
     )
   )
 );
@@ -2829,7 +2814,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
 
 CREATE TRIGGER set_timestamp
-BEFORE INSERT OR UPDATE ON public.accounts_memberships
+BEFORE INSERT OR UPDATE ON public.team_memberships
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
 

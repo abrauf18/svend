@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -16,6 +16,8 @@ import { Input } from '@kit/ui/input';
 import { RadioGroup, RadioGroupItem } from '@kit/ui/radio-group';
 import { Trans } from '@kit/ui/trans';
 import { cn } from '@kit/ui/utils';
+import { useOnboardingContext } from '@kit/accounts/components';
+import { ProfileData } from '~/lib/model/fin.types';
 
 const maritalStatusOptions = ['single', 'married', 'marriedWithKids', 'other'];
 const maritalStatusOptionsServer = [
@@ -47,13 +49,10 @@ const FormSchema = z.object({
 export function PersonalInformation(props: {
   onValidationChange: (isValid: boolean) => void;
   triggerSubmit: (submitHandler: () => Promise<boolean>) => void;
-  initialData: {
-    full_name: string;
-    age: string;
-    marital_status: string;
-    dependents: string;
-  } | null;
+  initialData: any;
 }) {
+  const { state, accountProfileDataUpdate } = useOnboardingContext();
+
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -65,7 +64,14 @@ export function PersonalInformation(props: {
     mode: 'onChange',
   });
 
-  const { reset } = form;
+  const { reset, setValue } = form;
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (nameInputRef.current) {
+      nameInputRef.current.focus();
+    }
+  }, []);
 
   const mapMaritalStatus = (status: string | null) => {
     switch (status?.toLowerCase()) {
@@ -86,31 +92,35 @@ export function PersonalInformation(props: {
   useEffect(() => {
     if (props.initialData) {
       reset({
-        name: props.initialData.full_name || '',
-        age: props.initialData.age ? String(props.initialData.age) : '',
-        maritalStatus: mapMaritalStatus(props.initialData.marital_status) || '',
-        dependent:
-          props.initialData.dependents === null
-            ? ''
-            : Number(props.initialData?.dependents) === 1
-              ? 'yes'
-              : 'no',
+        name: props.initialData.fullName || '',
+        age: props.initialData.age || '',
+        maritalStatus: mapMaritalStatus(props.initialData.maritalStatus) || '',
+        dependent: props.initialData.dependents ? (props.initialData.dependents === '1' ? 'yes' : 'no') : ''
       });
     }
-  }, [props.initialData, reset]);
+  }, [props.initialData]);
 
+  // Ensure form validation state is updated
   useEffect(() => {
     props.onValidationChange(form.formState.isValid);
-  }, [form.formState.isValid, props]);
+  }, [form.formState.isValid]);
 
   useEffect(() => {
-    props.onValidationChange(form.formState.isValid);
     props.triggerSubmit(async () => {
       if (form.formState.isValid) {
         try {
           const data = form.getValues();
-          const result = await serverSubmit(data);
-          return result;
+          await serverSubmit(data);
+
+          accountProfileDataUpdate({
+            ...state.account.profileData,
+            fullName: data.name,
+            age: data.age,
+            maritalStatus: data.maritalStatus || null,
+            dependents: data.dependent === 'yes' ? '1' : '0'
+          } as ProfileData);
+
+          return true;
         } catch (error) {
           console.error('Error submitting form:', error);
           return false;
@@ -118,7 +128,7 @@ export function PersonalInformation(props: {
       }
       return false;
     });
-  }, [form, props]);
+  }, [form]);
 
   const serverSubmit = async (
     data: z.infer<typeof FormSchema>,
@@ -143,18 +153,15 @@ export function PersonalInformation(props: {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          errorData.error || 'Failed to update financial profile',
+          'Error updating financial profile - personal info: ' + errorData.error,
         );
       }
-
-      const result = await response.json();
-      console.log('Financial profile updated:', result);
-
-      return true;
-    } catch (error) {
-      console.error('Error updating financial profile:', error);
-      return false;
+    } catch (error: any) {
+      console.error(error);
+      throw error;
     }
+    
+    return true;
   };
 
   return (
@@ -183,6 +190,7 @@ export function PersonalInformation(props: {
                         required
                         type={'text'}
                         {...field}
+                        ref={nameInputRef}
                       />
                     </FormControl>
                     <FormMessage />
@@ -207,9 +215,8 @@ export function PersonalInformation(props: {
                       <Input
                         data-test={'personal-information-form-age-input'}
                         required
-                        type={'string'}
+                        type={'text'}
                         {...field}
-                        value={field.value ?? ''}
                       />
                     </FormControl>
                     <FormMessage />
@@ -233,8 +240,9 @@ export function PersonalInformation(props: {
                         name={field.name}
                         value={field.value}
                         onValueChange={(value) =>
-                          form.setValue('maritalStatus', value, {
-                            shouldValidate: true, // Ensures the field is validated
+                          setValue('maritalStatus', value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
                           })
                         }
                       >
@@ -292,8 +300,9 @@ export function PersonalInformation(props: {
                         name={field.name}
                         value={field.value}
                         onValueChange={(value) =>
-                          form.setValue('dependent', value, {
-                            shouldValidate: true, // Ensures the field is validated
+                          setValue('dependent', value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
                           })
                         }
                       >

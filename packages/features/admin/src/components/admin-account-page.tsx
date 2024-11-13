@@ -33,7 +33,7 @@ import { AdminMembershipsTable } from './admin-memberships-table';
 import { AdminReactivateUserDialog } from './admin-reactivate-user-dialog';
 
 type Account = Tables<'accounts'>;
-type Membership = Tables<'accounts_memberships'>;
+type Membership = Tables<'team_memberships'>;
 
 export function AdminAccountPage(props: {
   account: Account & { memberships: Membership[] };
@@ -343,7 +343,7 @@ async function getMemberships(userId: string) {
   const client = getSupabaseServerAdminClient();
 
   const memberships = await client
-    .from('accounts_memberships')
+    .from('team_memberships')
     .select<
       string,
       Membership & {

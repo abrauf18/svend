@@ -13,7 +13,7 @@ import {
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table"
-import {Bookmark} from "lucide-react"
+import {Bookmark, ChevronRight, ChevronDown, Check} from "lucide-react"
 
 import { Button } from "@kit/ui/button"
 import { Checkbox } from "@kit/ui/checkbox"
@@ -27,8 +27,14 @@ import {
     TableRow,
 } from "@kit/ui/table"
 import {useState, useEffect, use} from "react";
-import { useParams } from "next/navigation"
 import { getSupabaseBrowserClient } from "@kit/supabase/browser-client"
+import {
+    DropdownMenu,
+    DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSub,
+    DropdownMenuSubContent, DropdownMenuSubTrigger,
+    DropdownMenuTrigger
+} from "@kit/ui/dropdown-menu";
+import {CategoryDropdown} from "~/home/[account]/manage/_components/category-dropdown";
 
 export type Transaction = {
     id: string,
@@ -39,14 +45,6 @@ export type Transaction = {
     amount: number,
     account_name: string,
     account_mask: string
-}
-
-const formatCategory = (category: string) => {
-    return category
-        .toLowerCase()
-        .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
 }
 
 export const columns: ColumnDef<Transaction>[] = [
@@ -89,11 +87,24 @@ export const columns: ColumnDef<Transaction>[] = [
             return <div>{formattedDate}</div>;
         },
     },
+    // {
+    //     accessorKey: "category",
+    //     header: "Category",
+    //     cell: ({ row }) => (
+    //         <div className="capitalize">{formatCategory(row.getValue("category"))}</div>
+    //     ),
+    // },
     {
         accessorKey: "category",
         header: "Category",
-        cell: ({ row }) => (
-            <div className="capitalize">{formatCategory(row.getValue("category"))}</div>
+        cell: ({ row, table }) => (
+            <CategoryDropdown
+                category={row.getValue("category")}
+                onCategoryChange={(rowId, newCategory) =>
+                    (table.options.meta as any)?.updateData(rowId, { category: newCategory })
+                }
+                rowId={row.id}
+            />
         ),
     },
     {
@@ -159,7 +170,13 @@ export const columns: ColumnDef<Transaction>[] = [
     }
 ]
 
-export function TransactionTable(props: { budgetId: string }) {
+interface TransactionTableProps {
+    budgetId: string
+    onSelectedTransaction: (row: any) => void
+    onOpenChange: (open: boolean) => void
+}
+
+export function TransactionTable({ budgetId, onSelectedTransaction,  onOpenChange}: TransactionTableProps) {
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [sorting, setSorting] = useState<SortingState>([])
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -188,7 +205,7 @@ export function TransactionTable(props: { budgetId: string }) {
     async function fetchTransactions() {
         const supabase = getSupabaseBrowserClient()
         const { data, error } = await supabase.rpc('get_budget_transactions', {
-            p_budget_id: props.budgetId
+            p_budget_id: budgetId
         });
         console.log('data', data);
 
@@ -249,6 +266,10 @@ export function TransactionTable(props: { budgetId: string }) {
                                 <TableRow
                                     key={row.id}
                                     data-state={row.getIsSelected() && "selected"}
+                                    onClick={() => {
+                                        onSelectedTransaction(row.original)
+                                        onOpenChange(true)
+                                    }}
                                 >
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell key={cell.id}>

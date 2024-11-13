@@ -18,7 +18,7 @@ export function ConnectPlaidAccountsButton({ redirectType = 'account', disabled 
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					budgetId: state?.account.budgetId,
+					budgetId: state?.account.budget?.id,
 					plaidPublicToken: public_token,
 				}),
 			});
@@ -54,7 +54,7 @@ export function ConnectPlaidAccountsButton({ redirectType = 'account', disabled 
 
 	// create link token
 	const createLinkToken = async () => {
-		if (!state?.account.budgetId) {
+		if (!state?.account.budget?.id) {
 			console.error('Budget ID not found');
 			return;
 		}
@@ -64,7 +64,7 @@ export function ConnectPlaidAccountsButton({ redirectType = 'account', disabled 
 				headers: {
 					'Content-Type': 'application/json',
 				},
-				body: JSON.stringify({ budgetId: state?.account.budgetId, redirectType: redirectType }),
+				body: JSON.stringify({ budgetId: state?.account.budget?.id, redirectType: redirectType }),
 			});
 
 			if (!response.ok) {

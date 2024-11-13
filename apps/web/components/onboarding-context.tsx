@@ -8,78 +8,20 @@ import React, {
   useState,
 } from 'react';
 
+import {
+  OnboardingState,
+  AccountOnboardingPlaidConnectionItem,
+  AccountOnboardingStepContextKey,
+  accountOnboardingSteps,
+  accountOnboardingStepContextKeys,
+  AccountOnboardingPlaidItemAccount,
+  AccountOnboardingState,
+} from '../lib/model/onboarding.types';
+
+import { ProfileData } from '../lib/model/fin.types';
+import { Budget, BudgetGoal } from '../lib/model/budget.types';
+
 import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
-
-// Define the enum for onboarding steps
-export type AccountOnboardingStepContextKey =
-  | 'start'
-  | 'plaid'
-  | 'profile_goals'
-  | 'analyze_spending'
-  | 'analyze_spending_in_progress'
-  | 'budget_setup'
-  | 'end';
-
-export const AccountOnboardingStepContextKeys: Readonly<
-  Array<AccountOnboardingStepContextKey>
-> = [
-  'start',
-  'plaid',
-  'profile_goals',
-  'analyze_spending',
-  'analyze_spending_in_progress',
-  'budget_setup',
-  'end',
-];
-
-export const accountOnboardingSteps: Array<{
-  contextKeys: Array<AccountOnboardingStepContextKey>;
-}> = [
-  {
-    contextKeys: ['start', 'plaid'],
-  },
-  {
-    contextKeys: ['profile_goals'],
-  },
-  {
-    contextKeys: ['analyze_spending', 'analyze_spending_in_progress'],
-  },
-  {
-    contextKeys: ['budget_setup', 'end'],
-  },
-];
-
-export type AccountOnboardingPlaidConnectionItem = {
-  svendItemId: string;
-  plaidItemId: string;
-  institutionName: string;
-  institutionLogoSignedUrl: string;
-  accessToken?: string;
-  nextCursor?: string;
-  itemAccounts: AccountOnboardingPlaidItemAccount[];
-};
-
-export type AccountOnboardingPlaidItemAccount = {
-  svendAccountId: string;
-  svendItemId: string;
-  ownerAccountId: string;
-  plaidAccountId: string;
-  accountName: string;
-  accountType: string;
-  accountSubType: string;
-  mask: string;
-};
-
-export type AccountOnboardingState = {
-  budgetId?: string;
-  contextKey?: AccountOnboardingStepContextKey;
-  userId?: string;
-  plaidConnectionItems?: AccountOnboardingPlaidConnectionItem[];
-};
-
-export type OnboardingState = {
-  account: AccountOnboardingState;
-};
 
 export type OnboardingContextType = {
   state: OnboardingState;
@@ -89,9 +31,17 @@ export type OnboardingContextType = {
   accountPlaidConnItemAddOne: (
     plaidConnectionItem: AccountOnboardingPlaidConnectionItem,
   ) => void;
-  accountPlaidConnItemAccountRemoveOne: (
-    svendItemId: string,
-    svendPlaidAccountId: string,
+  accountPlaidConnItemRemoveOne: (svendItemId: string) => void;
+  accountPlaidItemAccountLinkOne: (svendItemId: string, svendAccountId: string, budgetFinAccountId: string) => void;
+  accountPlaidItemAccountUnlinkOne: (svendItemId: string, svendAccountId: string) => void;
+  accountProfileDataUpdate: (
+    profileData: ProfileData,
+  ) => void;
+  accountBudgetUpdate: (
+    budget: Budget,
+  ) => void;
+  accountBudgetGoalsAddOne: (
+    budgetGoal: BudgetGoal,
   ) => void;
   accountChangeStepContextKey: (
     contextKey: AccountOnboardingStepContextKey,
@@ -120,9 +70,15 @@ export function OnboardingContextProvider({
   const [state, setState] = useState<OnboardingState>({
     account: {
       contextKey: undefined,
-      budgetId: undefined,
+      budget: {
+        id: '',
+        budgetType: '',
+        categoryGroupSpending: {},
+        recommendedCategoryGroupSpending: {},
+        goals: [],
+      } as Budget,
       userId: undefined,
-    },
+    } as AccountOnboardingState,
   });
 
   useEffect(() => {
@@ -136,13 +92,13 @@ export function OnboardingContextProvider({
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        setState((prevState) => ({
-          ...prevState,
-          account: {
-            ...prevState.account,
-            userId: user.id,
-          },
-        }));
+        // setState((prevState) => ({
+        //   ...prevState,
+        //   account: {
+        //     ...prevState.account,
+        //     userId: user.id,
+        //   },
+        // }));
 
         const response = await fetch('/api/onboarding/account/state');
         if (!response.ok) {
@@ -160,7 +116,7 @@ export function OnboardingContextProvider({
   useEffect(() => {
     fetchAccountOnboardingState().then((accountOnboardingState) => {
       if (accountOnboardingState) {
-        setState((prevState) => ({
+        setState((prevState: OnboardingState) => ({
           ...prevState,
           account: accountOnboardingState,
         }));
@@ -171,14 +127,14 @@ export function OnboardingContextProvider({
   const accountNextStep = async () => {
     const prevState = state.account;
     console.log('updating state >> prevState.contextKey', prevState.contextKey);
-    const prevStepIdx = accountOnboardingSteps.findIndex((step) =>
+    const prevStepIdx = accountOnboardingSteps.findIndex((step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
       step.contextKeys.includes(
         prevState.contextKey as AccountOnboardingStepContextKey,
       ),
     );
     const nextStepIndex = Math.min(
       prevStepIdx + 1,
-      AccountOnboardingStepContextKeys.length - 1,
+      accountOnboardingStepContextKeys.length - 1,
     );
     let newStateAccount = {
       ...prevState,
@@ -229,27 +185,27 @@ export function OnboardingContextProvider({
     }
 
     // udpate state
-    setState((prevState) => ({
+    setState((prevState: OnboardingState) => ({
       ...prevState,
       account: newStateAccount,
     }));
   };
 
   const accountPrevStep = () => {
-    setState((prevState) => {
-      const currentIndex = AccountOnboardingStepContextKeys.indexOf(
+    setState((prevState: OnboardingState) => {
+      const currentIndex = accountOnboardingStepContextKeys.indexOf(
         prevState.account.contextKey as AccountOnboardingStepContextKey,
       );
-      let currentStep = accountOnboardingSteps.find((step) =>
+      let currentStep = accountOnboardingSteps.find((step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
         step.contextKeys.includes(
           prevState.account.contextKey as AccountOnboardingStepContextKey,
         ),
       );
       let prevIndex = currentIndex - 1;
       while (
-        prevIndex < AccountOnboardingStepContextKeys.length &&
+        prevIndex < accountOnboardingStepContextKeys.length &&
         !currentStep?.contextKeys.includes(
-          AccountOnboardingStepContextKeys[
+          accountOnboardingStepContextKeys[
             prevIndex
           ] as AccountOnboardingStepContextKey,
         )
@@ -260,7 +216,7 @@ export function OnboardingContextProvider({
       let newStateAccount = {
         ...prevState.account,
         currentStepIdx: prevIndex,
-        contextKey: AccountOnboardingStepContextKeys[prevIndex],
+        contextKey: accountOnboardingStepContextKeys[prevIndex],
       };
       return {
         ...prevState,
@@ -272,7 +228,7 @@ export function OnboardingContextProvider({
   const accountPlaidConnItemAddOne = (
     plaidConnectionItem: AccountOnboardingPlaidConnectionItem,
   ) => {
-    setState((prevState) => {
+    setState((prevState: OnboardingState) => {
       let newStateAccount = {
         ...prevState.account,
         plaidConnectionItems: [
@@ -287,43 +243,114 @@ export function OnboardingContextProvider({
     });
   };
 
-  const accountPlaidConnItemAccountRemoveOne = (
-    svendItemId: string,
-    svendPlaidAccountId: string,
-  ) => {
-    setState((prevState) => {
-      let newStateAccount = {
+  const accountPlaidConnItemRemoveOne = (svendItemId: string) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
         ...prevState.account,
-        plaidConnectionItems: (
-          prevState.account.plaidConnectionItems || []
-        ).map((item) => {
-          // Check if the current item matches the given plaidAccountItemId
-          if (item.svendItemId === svendItemId) {
-            return {
-              ...item,
-              // Filter out the account with the given plaidAccountId
-              itemAccounts: (item.itemAccounts || []).filter(
-                (account) => account.svendAccountId !== svendPlaidAccountId,
-              ),
-            };
-          }
-          // Return the item unchanged if it doesn't match the plaidAccountItemId
-          return item;
-        }),
-      };
-      return {
+        plaidConnectionItems: (prevState.account.plaidConnectionItems ?? []).filter(
+          (item: AccountOnboardingPlaidConnectionItem) => item.svendItemId !== svendItemId
+        ),
+      },
+    }));
+  };
+
+  const accountPlaidItemAccountLinkOne = (svendItemId: string, svendAccountId: string, budgetFinAccountId: string) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        plaidConnectionItems: (prevState.account.plaidConnectionItems ?? []).map((item: AccountOnboardingPlaidConnectionItem) =>
+          item.svendItemId === svendItemId
+            ? {
+                ...item,
+                itemAccounts: item.itemAccounts.map((account: AccountOnboardingPlaidItemAccount) =>
+                  account.svendAccountId === svendAccountId
+                    ? { ...account, budgetFinAccountId: budgetFinAccountId }
+                    : account
+                ),
+              }
+            : item
+        ),
+      },
+    }));
+  };
+
+  const accountPlaidItemAccountUnlinkOne = (svendItemId: string, svendAccountId: string) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        plaidConnectionItems: (prevState.account.plaidConnectionItems ?? []).map((item: AccountOnboardingPlaidConnectionItem) =>
+          item.svendItemId === svendItemId
+            ? {
+                ...item,
+                itemAccounts: item.itemAccounts.map((account: AccountOnboardingPlaidItemAccount) =>
+                  account.svendAccountId === svendAccountId
+                    ? { ...account, budgetFinAccountId: null }
+                    : account
+                ),
+              }
+            : item
+        ),
+      },
+    }));
+  };
+
+  const accountProfileDataUpdate = (
+    profileData: ProfileData,
+  ) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        profileData,
+      },
+    }));
+  };
+
+  const accountBudgetUpdate = (
+    budget: Budget,
+  ) => {
+    setState((prevState: OnboardingState) => {
+      const newState = {
         ...prevState,
-        account: newStateAccount,
+        account: {
+          ...prevState.account,
+          budget
+        },
       };
+
+      console.log('onboarding context >> accountBudgetUpdateSpending, newState', newState);
+
+      return newState;
     });
+  };
+
+  const accountBudgetGoalsAddOne = (
+    budgetGoal: BudgetGoal,
+  ) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        budget: {
+          ...prevState.account.budget,
+          goals: [
+            ...(prevState.account.budget?.goals || []),
+            budgetGoal,
+          ],
+        },
+      },
+    }));
   };
 
   const accountChangeStepContextKey = (
     contextKey: AccountOnboardingStepContextKey,
   ): boolean => {
     let success = false;
-    setState((prevState) => {
-      const currentStep = accountOnboardingSteps.find((step) =>
+    setState((prevState: OnboardingState) => {
+      const currentStep = accountOnboardingSteps.find((step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
         step.contextKeys.includes(
           prevState.account.contextKey as AccountOnboardingStepContextKey,
         ),
@@ -351,7 +378,12 @@ export function OnboardingContextProvider({
         accountNextStep,
         accountPrevStep,
         accountPlaidConnItemAddOne,
-        accountPlaidConnItemAccountRemoveOne,
+        accountPlaidConnItemRemoveOne,
+        accountPlaidItemAccountLinkOne,
+        accountPlaidItemAccountUnlinkOne,
+        accountProfileDataUpdate,
+        accountBudgetUpdate,
+        accountBudgetGoalsAddOne,
         accountChangeStepContextKey,
       }}
     >

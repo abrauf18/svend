@@ -25,6 +25,6 @@
     "components/**/*",
     "lib/**/*.ts",
     "app"
-, "components/onboarding-context.tsx"  ],
+  ],
   "exclude": ["node_modules", ".next", "tests"]
 }

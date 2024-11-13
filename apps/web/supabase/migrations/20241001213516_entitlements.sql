@@ -41,7 +41,7 @@ create policy select_feature_usage
     for select
     to authenticated
     using (
-        public.has_role_on_account(account_id) or (select auth.uid()) = account_id
+        public.has_role_on_team(account_id) or (select auth.uid()) = account_id
     );
  
 -- Index for faster lookups

@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { Configuration, PlaidApi, PlaidEnvironments, CountryCode } from 'plaid';
-import { AccountOnboardingPlaidConnectionItem } from '@kit/accounts/components';
+import { AccountOnboardingPlaidConnectionItem } from '~/lib/model/onboarding.types';
 
+// POST /api/onboarding/account/plaid/item
+// Add a new Plaid connection item to the database
 export async function POST(request: Request) {
   const supabaseClient = getSupabaseServerClient();
   const { data: { user } } = await supabaseClient.auth.getUser();
@@ -106,7 +108,7 @@ export async function POST(request: Request) {
     const { data: insertedData, error } = await supabaseAdminClient
       .from('plaid_connection_items')
       .insert({
-        account_id: user.id,
+        owner_account_id: user.id,
         access_token: accessToken,
         plaid_item_id: plaidItemId,
         institution_id: institutionId,
@@ -160,7 +162,7 @@ export async function POST(request: Request) {
         console.error(`Error inserting Plaid account ${plaidAccount.account_id}:`, error);
         return { error };
       }
-      return { id: data, plaidAccount };
+      return { data, plaidAccount };
     }));
 
     const accountsInsertError = accountInsertResults.find(result => result.error);
@@ -195,16 +197,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to update onboarding state' }, { status: 500 });
     }
 
-    const resPlaidItemAccounts = plaidItemAccountsResponse.data.accounts.map((plaidAccount) => ({
-      svendAccountId: accountInsertResults.find(result => result.plaidAccount?.account_id === plaidAccount.account_id)?.id || '',
-      svendItemId: newPlaidConnectionSvendItemId,
-      plaidAccountId: plaidAccount.account_id,
-      ownerAccountId: user.id,
-      accountName: plaidAccount.name,
-      accountType: plaidAccount.type.toString(),
-      accountSubType: plaidAccount.subtype?.toString() || '',
-      mask: plaidAccount.mask || '',
-    }));
+    const resPlaidItemAccounts = plaidItemAccountsResponse.data.accounts.map((plaidAccount) => {
+      const insertedAccount = accountInsertResults.find(result => result.plaidAccount?.account_id === plaidAccount.account_id);
+      return {
+        svendAccountId: insertedAccount?.data?.plaid_account_id as string,
+        svendItemId: newPlaidConnectionSvendItemId,
+        plaidAccountId: plaidAccount.account_id,
+        ownerAccountId: user.id,
+        accountName: plaidAccount.name,
+        accountType: plaidAccount.type.toString(),
+        accountSubType: plaidAccount.subtype?.toString() || '',
+        mask: plaidAccount.mask || '',
+        budgetFinAccountId: insertedAccount?.data?.budget_fin_account_id as string,
+        plaidPersistentAccountId: plaidAccount.persistent_account_id || '',
+        officialName: plaidAccount.official_name || '',
+        balanceAvailable: plaidAccount.balances.available || 0,
+        balanceCurrent: plaidAccount.balances.current || 0,
+        balanceLimit: plaidAccount.balances.limit || 0,
+        isoCurrencyCode: plaidAccount.balances.iso_currency_code || '',
+        createdAt: insertedAccount?.data?.created_at as string,
+        updatedAt: insertedAccount?.data?.updated_at as string
+      };
+    });
 
     const { data, error: err } = await supabaseAdminClient
       .storage
@@ -212,13 +226,16 @@ export async function POST(request: Request) {
       .createSignedUrl(institutionLogoStorageName as string, 3600) // 3600 seconds = 1 hour
     console.log('signedUrl', data?.signedUrl);
 
-    // Construct the plaidConnectionItems array
+    // Construct the response item
     const resPlaidConnectionItem: AccountOnboardingPlaidConnectionItem = {
       svendItemId: newPlaidConnectionSvendItemId,
       plaidItemId: plaidItemId,
       institutionName: institutionName,
       institutionLogoSignedUrl: data?.signedUrl || '',
-      itemAccounts: resPlaidItemAccounts
+      itemAccounts: resPlaidItemAccounts.map((account) => ({
+        ...account,
+        budgetFinAccountId: account.budgetFinAccountId
+      }))
     };
 
     return NextResponse.json({
@@ -232,46 +249,68 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+// DELETE /api/onboarding/account/plaid/item
+// Remove a Plaid connection item from the database,
+// along with all associated accounts, their transactions and their connections to the onboarding budget
+export async function DELETE(request: Request) {
   const supabaseClient = getSupabaseServerClient();
   const { data: { user } } = await supabaseClient.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // TODO: only allow route if budget exists and is still being onboarded
-  const { svendPlaidAccountId, action } = await request.json();
+  const { svendItemId } = await request.json();
 
-  if (action !== 'remove_account') {
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  }
-
-  // use admin client for remaining operations
+  // Use admin client for remaining operations
   const supabaseAdminClient = getSupabaseServerAdminClient();
 
-  // Fetch the current onboardingstate
-  const { data: dbAccountOnboardingData, error: fetchOnboardingError } = await supabaseAdminClient
-    .from('onboarding')
-    .select('state->account')
-    .eq('account_id', user.id)
+  // Fetch the access token for the item to be deleted
+  const { data: plaidItemData, error: fetchError } = await supabaseAdminClient
+    .from('plaid_connection_items')
+    .select('access_token')
+    .eq('id', svendItemId)
     .single();
 
-  if (fetchOnboardingError) {
-    console.error('Error fetching onboarding state:', fetchOnboardingError);
-    return NextResponse.json({ error: 'Failed to fetch onboarding state' }, { status: 500 });
+  if (fetchError || !plaidItemData) {
+    console.error('Error fetching Plaid item access token:', fetchError);
+    return NextResponse.json({ error: 'Failed to fetch Plaid item access token' }, { status: 500 });
   }
 
-  let dbAccountOnboardingState = dbAccountOnboardingData.account as any;
+  const accessToken = plaidItemData.access_token;
 
-  const { data, error } = await supabaseAdminClient.rpc('remove_plaid_account', {
-    p_budget_id: dbAccountOnboardingState.budgetId,
-    p_plaid_account_id: svendPlaidAccountId
+  // Initialize Plaid client
+  const plaidConfiguration = new Configuration({
+    basePath: PlaidEnvironments[process.env.PLAID_ENV || 'sandbox'],
+    baseOptions: {
+      headers: {
+        'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
+        'PLAID-SECRET': process.env.PLAID_SECRET,
+      },
+    },
   });
 
-  if (error) {
-    console.error('Error removing Plaid account:', error);
-    return NextResponse.json({ error: 'Failed to remove Plaid account' }, { status: 500 });
+  const plaidClient = new PlaidApi(plaidConfiguration);
+
+  try {
+    // Call Plaid API to remove the item
+    await plaidClient.itemRemove({
+      access_token: accessToken,
+    });
+  } catch (plaidError) {
+    console.error('Error removing Plaid item:', plaidError);
+    return NextResponse.json({ error: 'Failed to remove Plaid item from Plaid' }, { status: 500 });
   }
 
-  return NextResponse.json({ message: 'Plaid account removed successfully', data });
+  // Delete the item from the database
+  const { data, error } = await supabaseAdminClient
+    .from('plaid_connection_items')
+    .delete()
+    .eq('id', svendItemId);
+
+  if (error) {
+    console.error('Error removing Plaid connection item:', error);
+    return NextResponse.json({ error: 'Failed to remove Plaid connection item' }, { status: 500 });
+  }
+
+  return NextResponse.json({ message: 'Plaid connection item removed successfully', data });
 }

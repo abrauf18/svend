@@ -101,86 +101,6 @@ export type Database = {
           },
         ]
       }
-      accounts_memberships: {
-        Row: {
-          account_id: string
-          account_role: string
-          created_at: string
-          created_by: string | null
-          updated_at: string
-          updated_by: string | null
-          user_id: string
-        }
-        Insert: {
-          account_id: string
-          account_role: string
-          created_at?: string
-          created_by?: string | null
-          updated_at?: string
-          updated_by?: string | null
-          user_id: string
-        }
-        Update: {
-          account_id?: string
-          account_role?: string
-          created_at?: string
-          created_by?: string | null
-          updated_at?: string
-          updated_by?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "accounts_memberships_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounts_memberships_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "user_account_workspace"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounts_memberships_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "user_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounts_memberships_account_role_fkey"
-            columns: ["account_role"]
-            isOneToOne: false
-            referencedRelation: "roles"
-            referencedColumns: ["name"]
-          },
-          {
-            foreignKeyName: "accounts_memberships_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounts_memberships_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounts_memberships_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       acct_fin_profile: {
         Row: {
           account_id: string
@@ -202,10 +122,11 @@ export type Database = {
           monthly_contribution:
             | Database["public"]["Enums"]["monthly_contribution_enum"]
             | null
-          primary_financial_goal:
+          primary_financial_goals:
             | Database["public"]["Enums"]["financial_goal_enum"][]
             | null
           savings: Database["public"]["Enums"]["savings_enum"] | null
+          state: Database["public"]["Enums"]["fin_profile_state_enum"] | null
           updated_at: string | null
         }
         Insert: {
@@ -228,10 +149,11 @@ export type Database = {
           monthly_contribution?:
             | Database["public"]["Enums"]["monthly_contribution_enum"]
             | null
-          primary_financial_goal?:
+          primary_financial_goals?:
             | Database["public"]["Enums"]["financial_goal_enum"][]
             | null
           savings?: Database["public"]["Enums"]["savings_enum"] | null
+          state?: Database["public"]["Enums"]["fin_profile_state_enum"] | null
           updated_at?: string | null
         }
         Update: {
@@ -254,10 +176,11 @@ export type Database = {
           monthly_contribution?:
             | Database["public"]["Enums"]["monthly_contribution_enum"]
             | null
-          primary_financial_goal?:
+          primary_financial_goals?:
             | Database["public"]["Enums"]["financial_goal_enum"][]
             | null
           savings?: Database["public"]["Enums"]["savings_enum"] | null
+          state?: Database["public"]["Enums"]["fin_profile_state_enum"] | null
           updated_at?: string | null
         }
         Relationships: [
@@ -330,85 +253,42 @@ export type Database = {
           },
         ]
       }
-      budget_goals: {
+      budget_fin_accounts: {
         Row: {
-          budget_id: string
-          created_at: string | null
-          goal_timeline:
-            | Database["public"]["Enums"]["goal_timeline_enum"]
-            | null
+          budget_id: string | null
           id: string
-          monthly_contribution:
-            | Database["public"]["Enums"]["monthly_contribution_enum"]
-            | null
-          primary_goal:
-            | Database["public"]["Enums"]["financial_goal_enum"][]
-            | null
-          updated_at: string | null
+          manual_account_id: string | null
+          plaid_account_id: string | null
         }
         Insert: {
-          budget_id: string
-          created_at?: string | null
-          goal_timeline?:
-            | Database["public"]["Enums"]["goal_timeline_enum"]
-            | null
+          budget_id?: string | null
           id?: string
-          monthly_contribution?:
-            | Database["public"]["Enums"]["monthly_contribution_enum"]
-            | null
-          primary_goal?:
-            | Database["public"]["Enums"]["financial_goal_enum"][]
-            | null
-          updated_at?: string | null
+          manual_account_id?: string | null
+          plaid_account_id?: string | null
         }
         Update: {
-          budget_id?: string
-          created_at?: string | null
-          goal_timeline?:
-            | Database["public"]["Enums"]["goal_timeline_enum"]
-            | null
+          budget_id?: string | null
           id?: string
-          monthly_contribution?:
-            | Database["public"]["Enums"]["monthly_contribution_enum"]
-            | null
-          primary_goal?:
-            | Database["public"]["Enums"]["financial_goal_enum"][]
-            | null
-          updated_at?: string | null
+          manual_account_id?: string | null
+          plaid_account_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "budget_goals_budget_id_fkey"
-            columns: ["budget_id"]
-            isOneToOne: true
-            referencedRelation: "budgets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      budget_plaid_accounts: {
-        Row: {
-          budget_id: string
-          plaid_account_id: string
-        }
-        Insert: {
-          budget_id: string
-          plaid_account_id: string
-        }
-        Update: {
-          budget_id?: string
-          plaid_account_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "budget_plaid_accounts_budget_id_fkey"
+            foreignKeyName: "budget_fin_accounts_budget_id_fkey"
             columns: ["budget_id"]
             isOneToOne: false
             referencedRelation: "budgets"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "budget_plaid_accounts_plaid_account_id_fkey"
+            foreignKeyName: "budget_fin_accounts_manual_account_id_fkey"
+            columns: ["manual_account_id"]
+            isOneToOne: false
+            referencedRelation: "manual_fin_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_fin_accounts_plaid_account_id_fkey"
             columns: ["plaid_account_id"]
             isOneToOne: false
             referencedRelation: "plaid_accounts"
@@ -416,9 +296,80 @@ export type Database = {
           },
         ]
       }
+      budget_goals: {
+        Row: {
+          amount: number
+          budget_id: string
+          created_at: string
+          debt_interest_rate: number | null
+          debt_payment_component:
+            | Database["public"]["Enums"]["budget_goal_debt_payment_component_enum"]
+            | null
+          debt_type: Database["public"]["Enums"]["debt_type_enum"] | null
+          description: string | null
+          fin_account_id: string
+          id: string
+          name: string
+          target_date: string
+          tracking: Json
+          type: Database["public"]["Enums"]["budget_goal_type_enum"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          budget_id: string
+          created_at?: string
+          debt_interest_rate?: number | null
+          debt_payment_component?:
+            | Database["public"]["Enums"]["budget_goal_debt_payment_component_enum"]
+            | null
+          debt_type?: Database["public"]["Enums"]["debt_type_enum"] | null
+          description?: string | null
+          fin_account_id: string
+          id?: string
+          name: string
+          target_date: string
+          tracking?: Json
+          type: Database["public"]["Enums"]["budget_goal_type_enum"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          budget_id?: string
+          created_at?: string
+          debt_interest_rate?: number | null
+          debt_payment_component?:
+            | Database["public"]["Enums"]["budget_goal_debt_payment_component_enum"]
+            | null
+          debt_type?: Database["public"]["Enums"]["debt_type_enum"] | null
+          description?: string | null
+          fin_account_id?: string
+          id?: string
+          name?: string
+          target_date?: string
+          tracking?: Json
+          type?: Database["public"]["Enums"]["budget_goal_type_enum"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_goals_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_goals_fin_account_id_fkey"
+            columns: ["fin_account_id"]
+            isOneToOne: false
+            referencedRelation: "budget_fin_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budgets: {
         Row: {
-          account_id: string
           budget_type: Database["public"]["Enums"]["budget_type"]
           category_spending: Json
           created_at: string | null
@@ -426,11 +377,12 @@ export type Database = {
           end_date: string | null
           id: string
           is_active: boolean
+          recommended_category_spending: Json
           start_date: string
+          team_account_id: string
           updated_at: string | null
         }
         Insert: {
-          account_id: string
           budget_type?: Database["public"]["Enums"]["budget_type"]
           category_spending?: Json
           created_at?: string | null
@@ -438,11 +390,12 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_active?: boolean
+          recommended_category_spending?: Json
           start_date?: string
+          team_account_id: string
           updated_at?: string | null
         }
         Update: {
-          account_id?: string
           budget_type?: Database["public"]["Enums"]["budget_type"]
           category_spending?: Json
           created_at?: string | null
@@ -450,29 +403,121 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_active?: boolean
+          recommended_category_spending?: Json
           start_date?: string
+          team_account_id?: string
           updated_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "budgets_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "budgets_team_account_id_fkey"
+            columns: ["team_account_id"]
             isOneToOne: true
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "budgets_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "budgets_team_account_id_fkey"
+            columns: ["team_account_id"]
             isOneToOne: true
             referencedRelation: "user_account_workspace"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "budgets_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "budgets_team_account_id_fkey"
+            columns: ["team_account_id"]
             isOneToOne: true
             referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      categories: {
+        Row: {
+          budget_id: string | null
+          created_at: string | null
+          description: string | null
+          group_id: string
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          budget_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          group_id: string
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          budget_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          group_id?: string
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categories_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "built_in_categories"
+            referencedColumns: ["group_id"]
+          },
+          {
+            foreignKeyName: "categories_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "category_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      category_groups: {
+        Row: {
+          budget_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_enabled: boolean
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          budget_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          budget_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_groups_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
             referencedColumns: ["id"]
           },
         ]
@@ -557,10 +602,12 @@ export type Database = {
           date: string
           id: string
           iso_currency_code: string | null
+          manual_account_id: string | null
           merchant_name: string | null
           payee: string | null
-          plaid_account_id: string
+          plaid_account_id: string | null
           raw_data: Json | null
+          svend_category_id: string
           updated_at: string | null
         }
         Insert: {
@@ -572,10 +619,12 @@ export type Database = {
           date: string
           id?: string
           iso_currency_code?: string | null
+          manual_account_id?: string | null
           merchant_name?: string | null
           payee?: string | null
-          plaid_account_id: string
+          plaid_account_id?: string | null
           raw_data?: Json | null
+          svend_category_id: string
           updated_at?: string | null
         }
         Update: {
@@ -587,18 +636,41 @@ export type Database = {
           date?: string
           id?: string
           iso_currency_code?: string | null
+          manual_account_id?: string | null
           merchant_name?: string | null
           payee?: string | null
-          plaid_account_id?: string
+          plaid_account_id?: string | null
           raw_data?: Json | null
+          svend_category_id?: string
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fin_account_transactions_manual_account_id_fkey"
+            columns: ["manual_account_id"]
+            isOneToOne: false
+            referencedRelation: "manual_fin_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fin_account_transactions_plaid_account_id_fkey"
             columns: ["plaid_account_id"]
             isOneToOne: false
             referencedRelation: "plaid_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_account_transactions_svend_category_id_fkey"
+            columns: ["svend_category_id"]
+            isOneToOne: false
+            referencedRelation: "built_in_categories"
+            referencedColumns: ["category_id"]
+          },
+          {
+            foreignKeyName: "fin_account_transactions_svend_category_id_fkey"
+            columns: ["svend_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
             referencedColumns: ["id"]
           },
         ]
@@ -672,6 +744,76 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "roles"
             referencedColumns: ["name"]
+          },
+        ]
+      }
+      manual_fin_accounts: {
+        Row: {
+          balance_available: number | null
+          balance_current: number | null
+          balance_limit: number | null
+          created_at: string | null
+          id: string
+          iso_currency_code: string | null
+          mask: string | null
+          name: string
+          official_name: string | null
+          owner_account_id: string
+          subtype: string | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          balance_available?: number | null
+          balance_current?: number | null
+          balance_limit?: number | null
+          created_at?: string | null
+          id?: string
+          iso_currency_code?: string | null
+          mask?: string | null
+          name: string
+          official_name?: string | null
+          owner_account_id: string
+          subtype?: string | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          balance_available?: number | null
+          balance_current?: number | null
+          balance_limit?: number | null
+          created_at?: string | null
+          id?: string
+          iso_currency_code?: string | null
+          mask?: string | null
+          name?: string
+          official_name?: string | null
+          owner_account_id?: string
+          subtype?: string | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_fin_accounts_owner_account_id_fkey"
+            columns: ["owner_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_fin_accounts_owner_account_id_fkey"
+            columns: ["owner_account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_fin_accounts_owner_account_id_fkey"
+            columns: ["owner_account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -884,7 +1026,6 @@ export type Database = {
       }
       plaid_accounts: {
         Row: {
-          account_id: string
           balance_available: number | null
           balance_current: number | null
           balance_limit: number | null
@@ -894,6 +1035,7 @@ export type Database = {
           mask: string | null
           name: string
           official_name: string | null
+          owner_account_id: string
           plaid_account_id: string
           plaid_conn_item_id: string
           plaid_persistent_account_id: string | null
@@ -902,7 +1044,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          account_id: string
           balance_available?: number | null
           balance_current?: number | null
           balance_limit?: number | null
@@ -912,6 +1053,7 @@ export type Database = {
           mask?: string | null
           name: string
           official_name?: string | null
+          owner_account_id: string
           plaid_account_id: string
           plaid_conn_item_id: string
           plaid_persistent_account_id?: string | null
@@ -920,7 +1062,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          account_id?: string
           balance_available?: number | null
           balance_current?: number | null
           balance_limit?: number | null
@@ -930,6 +1071,7 @@ export type Database = {
           mask?: string | null
           name?: string
           official_name?: string | null
+          owner_account_id?: string
           plaid_account_id?: string
           plaid_conn_item_id?: string
           plaid_persistent_account_id?: string | null
@@ -939,22 +1081,22 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "plaid_accounts_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "plaid_accounts_owner_account_id_fkey"
+            columns: ["owner_account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "plaid_accounts_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "plaid_accounts_owner_account_id_fkey"
+            columns: ["owner_account_id"]
             isOneToOne: false
             referencedRelation: "user_account_workspace"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "plaid_accounts_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "plaid_accounts_owner_account_id_fkey"
+            columns: ["owner_account_id"]
             isOneToOne: false
             referencedRelation: "user_accounts"
             referencedColumns: ["id"]
@@ -971,58 +1113,58 @@ export type Database = {
       plaid_connection_items: {
         Row: {
           access_token: string
-          account_id: string
           created_at: string | null
           id: string
           institution_id: string
           institution_logo_storage_name: string | null
           institution_name: string
           next_cursor: string | null
+          owner_account_id: string
           plaid_item_id: string
           updated_at: string | null
         }
         Insert: {
           access_token: string
-          account_id: string
           created_at?: string | null
           id?: string
           institution_id: string
           institution_logo_storage_name?: string | null
           institution_name: string
           next_cursor?: string | null
+          owner_account_id: string
           plaid_item_id: string
           updated_at?: string | null
         }
         Update: {
           access_token?: string
-          account_id?: string
           created_at?: string | null
           id?: string
           institution_id?: string
           institution_logo_storage_name?: string | null
           institution_name?: string
           next_cursor?: string | null
+          owner_account_id?: string
           plaid_item_id?: string
           updated_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "plaid_connection_items_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "plaid_connection_items_owner_account_id_fkey"
+            columns: ["owner_account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "plaid_connection_items_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "plaid_connection_items_owner_account_id_fkey"
+            columns: ["owner_account_id"]
             isOneToOne: false
             referencedRelation: "user_account_workspace"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "plaid_connection_items_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "plaid_connection_items_owner_account_id_fkey"
+            columns: ["owner_account_id"]
             isOneToOne: false
             referencedRelation: "user_accounts"
             referencedColumns: ["id"]
@@ -1227,8 +1369,104 @@ export type Database = {
           },
         ]
       }
+      team_memberships: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          team_account_id: string
+          team_role: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          team_account_id: string
+          team_role: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          team_account_id?: string
+          team_role?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_memberships_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_memberships_team_account_id_fkey"
+            columns: ["team_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_memberships_team_account_id_fkey"
+            columns: ["team_account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_memberships_team_account_id_fkey"
+            columns: ["team_account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_memberships_team_role_fkey"
+            columns: ["team_role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["name"]
+          },
+          {
+            foreignKeyName: "team_memberships_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_memberships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
+      built_in_categories: {
+        Row: {
+          category_created_at: string | null
+          category_description: string | null
+          category_id: string | null
+          category_name: string | null
+          category_updated_at: string | null
+          group_created_at: string | null
+          group_description: string | null
+          group_id: string | null
+          group_is_enabled: boolean | null
+          group_name: string | null
+          group_updated_at: string | null
+        }
+        Relationships: []
+      }
       user_account_workspace: {
         Row: {
           id: string | null
@@ -1250,7 +1488,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "accounts_memberships_account_role_fkey"
+            foreignKeyName: "team_memberships_team_role_fkey"
             columns: ["role"]
             isOneToOne: false
             referencedRelation: "roles"
@@ -1284,7 +1522,7 @@ export type Database = {
           p_plaid_persistent_account_id?: string
           p_subtype?: string
         }
-        Returns: string
+        Returns: Database["public"]["CompositeTypes"]["budget_plaid_account_result"]
       }
       add_invitations_to_account: {
         Args: {
@@ -1297,6 +1535,13 @@ export type Database = {
         Args: {
           target_team_account_id: string
           target_user_id: string
+        }
+        Returns: boolean
+      }
+      can_update_fin_account_transaction: {
+        Args: {
+          transaction_id: string
+          user_id: string
         }
         Returns: boolean
       }
@@ -1369,7 +1614,7 @@ export type Database = {
         Returns: {
           id: string
           user_id: string
-          account_id: string
+          team_account_id: string
           role: string
           role_hierarchy_level: number
           primary_owner_user_id: string
@@ -1378,6 +1623,26 @@ export type Database = {
           picture_url: string
           created_at: string
           updated_at: string
+        }[]
+      }
+      get_budget_categories: {
+        Args: {
+          p_budget_id: string
+        }
+        Returns: {
+          category_id: string
+          category_name: string
+          category_description: string
+          budget_id: string
+          category_created_at: string
+          category_updated_at: string
+          group_id: string
+          group_name: string
+          group_description: string
+          group_is_enabled: boolean
+          group_budget_id: string
+          group_created_at: string
+          group_updated_at: string
         }[]
       }
       get_budget_transactions: {
@@ -1424,18 +1689,11 @@ export type Database = {
         }
         Returns: boolean
       }
-      has_permission: {
+      has_role_on_team: {
         Args: {
-          user_id: string
-          account_id: string
-          permission_name: Database["public"]["Enums"]["app_permissions"]
-        }
-        Returns: boolean
-      }
-      has_role_on_account: {
-        Args: {
-          account_id: string
-          account_role?: string
+          team_account_id: string
+          team_role?: string
+          user_id?: string
         }
         Returns: boolean
       }
@@ -1447,15 +1705,23 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_team_permission: {
+        Args: {
+          user_id: string
+          team_account_id: string
+          permission_name: Database["public"]["Enums"]["app_permissions"]
+        }
+        Returns: boolean
+      }
       is_account_owner: {
         Args: {
           account_id: string
         }
         Returns: boolean
       }
-      is_account_team_member: {
+      is_any_team_member: {
         Args: {
-          target_account_id: string
+          user_id: string
         }
         Returns: boolean
       }
@@ -1467,17 +1733,10 @@ export type Database = {
       }
       is_team_member: {
         Args: {
-          account_id: string
+          team_account_id: string
           user_id: string
         }
         Returns: boolean
-      }
-      remove_plaid_account: {
-        Args: {
-          p_budget_id: string
-          p_plaid_account_id: string
-        }
-        Returns: undefined
       }
       team_account_workspace: {
         Args: {
@@ -1578,6 +1837,11 @@ export type Database = {
         | "budgets.read"
         | "budgets.write"
       billing_provider: "stripe" | "lemon-squeezy" | "paddle"
+      budget_goal_debt_payment_component_enum:
+        | "principal"
+        | "interest"
+        | "principal_interest"
+      budget_goal_type_enum: "debt" | "savings" | "investment"
       budget_type: "personal" | "business"
       debt_type_enum:
         | "Credit Cards"
@@ -1585,7 +1849,9 @@ export type Database = {
         | "Personal Loans"
         | "Mortgage"
         | "Auto Loans"
+        | "Business Loans"
         | "Other"
+      fin_profile_state_enum: "florida" | "california"
       financial_goal_enum:
         | "Debt - Loans"
         | "Debt - Credit Cards"
@@ -1640,6 +1906,12 @@ export type Database = {
         | "paused"
     }
     CompositeTypes: {
+      budget_plaid_account_result: {
+        plaid_account_id: string | null
+        budget_fin_account_id: string | null
+        created_at: string | null
+        updated_at: string | null
+      }
       invitation: {
         email: string | null
         role: string | null

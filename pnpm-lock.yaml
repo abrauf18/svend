@@ -45,9 +45,15 @@ importers:
       '@playwright/test':
         specifier: ^1.47.1
         version: 1.47.1
+      '@supabase/supabase-js':
+        specifier: ^2.45.4
+        version: 2.45.4
       '@types/node':
         specifier: ^22.5.5
         version: 22.5.5
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
       node-html-parser:
         specifier: ^6.1.13
         version: 6.1.13

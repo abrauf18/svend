@@ -73,7 +73,7 @@ select is(
 );
 
 select is_empty(
-  $$ select * from public.accounts_memberships where account_id = makerkit.get_account_id_by_slug('makerkit') $$,
+  $$ select * from public.team_memberships where account_id = makerkit.get_account_id_by_slug('makerkit') $$,
   'The foreigner cannot query the team account memberships'
 );
 

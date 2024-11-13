@@ -60,7 +60,7 @@ class TeamBillingService {
     // verify permissions to manage billing
     const hasPermission = await api.hasPermission({
       userId,
-      accountId,
+      teamAccountId: accountId,
       permission: 'billing.manage',
     });
 
@@ -174,7 +174,7 @@ class TeamBillingService {
     // we require the user to have permissions to manage billing for the account
     const hasPermission = await api.hasPermission({
       userId,
-      accountId,
+      teamAccountId: accountId,
       permission: 'billing.manage',
     });
 

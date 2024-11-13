@@ -121,7 +121,7 @@ Enums are used to ensure data consistency by providing a set of predefined value
   - `start_date`: Date field
   - `end_date`: Date field (optional)
 
-### budget_plaid_accounts
+### budget_fin_accounts
 
 - **Purpose**: Links budgets with Plaid accounts.
 - **Key Fields**:

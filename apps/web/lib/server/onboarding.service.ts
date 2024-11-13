@@ -67,7 +67,7 @@ class AccountOnboardingService {
     const budgetId = dbUpdatedOnboardingState.account.budgetId;
 
     // 'plaid' -> 'profile_goals'
-    // validate plaid - at least one budget_plaid_accounts row is present
+    // validate plaid - at least one budget_fin_accounts row is present
     if (contextKey === 'profile_goals') {
       if (!budgetId) {
         console.error('BudgetId not found in onboarding state');
@@ -75,7 +75,7 @@ class AccountOnboardingService {
       }
 
       const { data: plaidAccounts, error: plaidAccountsError } = await supabase
-        .from('budget_plaid_accounts')
+        .from('budget_fin_accounts')
         .select('*')
         .eq('budget_id', budgetId)
         .limit(1);
@@ -143,7 +143,7 @@ class AccountOnboardingService {
       }
 
       // TODO: improve JSON validation
-      if (!budget || !budget.category_spending || Object.keys(budget.category_spending).length === 0) {
+      if (!budget || !budget.category_spending) {
         return 'Category spending not set for budget';
       }
     }

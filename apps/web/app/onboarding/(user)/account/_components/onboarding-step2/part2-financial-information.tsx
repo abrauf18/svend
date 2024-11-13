@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -21,21 +21,23 @@ import {
   SelectValue,
 } from '@kit/ui/select';
 import { Trans } from '@kit/ui/trans';
+import { useOnboardingContext } from '@kit/accounts/components';
+import { ProfileData } from '~/lib/model/fin.types';
 
 const incomeLevelOptions: Record<string, string> = {
-  'lt_25k': 'Less than $25,000',
+  lt_25k: 'Less than $25,000',
   '25k_50k': '$25,000 - $50,000',
   '50k_75k': '$50,000 - $75,000',
   '75k_100k': '$75,000 - $100,000',
-  'gt_100k': 'More than $100,000',
+  gt_100k: 'More than $100,000',
 };
 
 const savingsLevelOptions: Record<string, string> = {
-  'lt_1k': 'Less than $1,000',
+  lt_1k: 'Less than $1,000',
   '1k_5k': '$1,000 - $5,000',
   '5k_10k': '$5,000 - $10,000',
   '10k_25k': '$10,000 - $25,000',
-  'gt_25k': 'More than $25,000',
+  gt_25k: 'More than $25,000',
 };
 
 const debtTypeOptions: Record<string, string> = {
@@ -72,24 +74,21 @@ const FormSchema = z.object({
 export function FinancialInformation(props: {
   onValidationChange: (isValid: boolean) => void;
   triggerSubmit: (submitHandler: () => Promise<boolean>) => void;
-  initialData: {
-    income_level: string;
-    savings: string;
-    current_debt: string[];
-  } | null;
+  initialData: any;
 }) {
+  const { state, accountProfileDataUpdate } = useOnboardingContext();
+
   const defaultValues = React.useMemo(() => {
     if (props.initialData) {
-      console.log(props.initialData);
       const incomeLevelKey = Object.keys(incomeLevelOptions).find(
-        (key) => incomeLevelOptions[key] === props.initialData?.income_level,
+        (key) => incomeLevelOptions[key] === props.initialData?.incomeLevel,
       );
 
       const savingsLevelKey = Object.keys(savingsLevelOptions).find(
         (key) => savingsLevelOptions[key] === props.initialData?.savings,
       );
 
-      const mappedDebtTypes = props.initialData?.current_debt?.map(
+      const mappedDebtTypes = props.initialData?.currentDebt?.map(
         (debt: string) => {
           const debtKey = Object.keys(debtTypeOptions).find(
             (key) => debtTypeOptions[key] === debt,
@@ -118,26 +117,62 @@ export function FinancialInformation(props: {
     mode: 'onChange',
   });
 
+  const { reset } = form;
+  const incomeLevelInputRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
-    props.onValidationChange(form.formState.isValid);
-  }, [form.formState.isValid, props]);
+    if (incomeLevelInputRef.current) {
+      incomeLevelInputRef.current.focus();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (props.initialData) {
+      reset({
+        incomeLevel: Object.keys(incomeLevelOptions).find(
+          (key) => incomeLevelOptions[key] === props.initialData?.incomeLevel,
+        ) || '',
+        savingsLevel: Object.keys(savingsLevelOptions).find(
+          (key) => savingsLevelOptions[key] === props.initialData?.savings,
+        ) || '',
+        debtTypes: props.initialData?.currentDebt?.map(
+          (debt: string) =>
+            Object.keys(debtTypeOptions).find(
+              (key) => debtTypeOptions[key] === debt,
+            ) || '',
+        ) || [],
+      });
+    }
+  }, [props.initialData]);
 
   useEffect(() => {
     props.onValidationChange(form.formState.isValid);
+  }, [form.formState.isValid]);
+
+  useEffect(() => {
     props.triggerSubmit(async () => {
       if (form.formState.isValid) {
         try {
           const data = form.getValues();
-          const result = await serverSubmit(data);
-          return result;
+          await serverSubmit(data);
+
+          accountProfileDataUpdate({
+            ...state.account.profileData,
+            incomeLevel: incomeLevelOptions[data.incomeLevel],
+            savingsLevel: savingsLevelOptions[data.savingsLevel],
+            debtTypes: data.debtTypes.map(
+              (debtType) => debtTypeOptions[debtType],
+            ),
+          } as ProfileData);
+
+          return true;
         } catch (error) {
-          console.error('Error submitting form:', error);
           return false;
         }
       }
       return false;
     });
-  }, [form, props]);
+  }, [form]);
 
   const serverSubmit = async (
     data: z.infer<typeof FormSchema>,
@@ -160,20 +195,15 @@ export function FinancialInformation(props: {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          errorData.error || 'Failed to update financial profile',
+          'Error updating financial profile - fin info: ' + errorData.error,
         );
       }
-
-      const result = await response.json();
-      console.log('Financial profile updated:', result);
-
-      return true;
-    } catch (error) {
-      console.error('Error updating financial profile:', error);
-      // Handle error (e.g., show error message to user)
+    } catch (error: any) {
+      console.error(error);
+      throw error;
     }
 
-    return false;
+    return true;
   };
 
   return (
@@ -206,10 +236,7 @@ export function FinancialInformation(props: {
                             ([key, value]) => (
                               <SelectItem key={key} value={key}>
                                 <span className="text-sm capitalize">
-                                  <Trans
-                                    i18nKey={`onboarding:incomeLevel.${key}`}
-                                    defaults={value}
-                                  />
+                                  {value}
                                 </span>
                               </SelectItem>
                             ),
@@ -231,7 +258,7 @@ export function FinancialInformation(props: {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-base">
-                      <Trans i18nKey={'onboarding:debtTypes.label'} />
+                      <Trans i18nKey={'onboarding:loanType.label'} />
                     </FormLabel>
                     {Object.entries(debtTypeOptions).map(([key, value]) => (
                       <FormItem
@@ -266,8 +293,8 @@ export function FinancialInformation(props: {
             {/* Savings */}
             <div className={'w-2/5'}>
               <FormField
-                control={form.control}
                 name="savingsLevel"
+                control={form.control}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
@@ -286,10 +313,7 @@ export function FinancialInformation(props: {
                             ([key, value]) => (
                               <SelectItem key={key} value={key}>
                                 <span className="text-sm capitalize">
-                                  <Trans
-                                    i18nKey={`onboarding:savings.${key}`}
-                                    defaults={value}
-                                  />
+                                  {value}
                                 </span>
                               </SelectItem>
                             ),

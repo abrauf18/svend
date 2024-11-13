@@ -36,12 +36,12 @@ export function TransferOwnershipDialog({
   isOpen,
   setIsOpen,
   targetDisplayName,
-  accountId,
+  teamAccountId: accountId,
   userId,
 }: {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
-  accountId: string;
+  teamAccountId: string;
   userId: string;
   targetDisplayName: string;
 }) {

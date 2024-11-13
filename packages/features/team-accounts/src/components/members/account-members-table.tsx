@@ -297,7 +297,7 @@ function ActionsDropdown({
           isOpen
           setIsOpen={setIsTransferring}
           targetDisplayName={member.name ?? member.email}
-          accountId={member.account_id}
+          teamAccountId={member.team_account_id}
           userId={member.user_id}
         />
       </If>

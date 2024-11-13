@@ -139,12 +139,12 @@ export class TeamAccountsApi {
    * @description Check if the user has permission to manage billing for the account.
    */
   async hasPermission(params: {
-    accountId: string;
+    teamAccountId: string;
     userId: string;
     permission: Database['public']['Enums']['app_permissions'];
   }) {
-    const { data, error } = await this.client.rpc('has_permission', {
-      account_id: params.accountId,
+    const { data, error } = await this.client.rpc('has_team_permission', {
+      team_account_id: params.teamAccountId,
       user_id: params.userId,
       permission_name: params.permission,
     });
@@ -163,7 +163,7 @@ export class TeamAccountsApi {
    */
   async getMembersCount(accountId: string) {
     const { count, error } = await this.client
-      .from('accounts_memberships')
+      .from('team_memberships')
       .select('*', {
         head: true,
         count: 'exact',

@@ -41,7 +41,8 @@ async function TeamAccountMembersPage({ params }: Params) {
       />
 
       <PageBody>
-        <div className={'flex w-full max-w-4xl flex-col space-y-4 pb-32'}>
+        {/*<div className={'flex w-full max-w-4xl flex-col space-y-4 pb-32'}>*/}
+        <div className={'flex w-full max-w-full flex-col space-y-4 pb-32'}>
           <TransactionDashboard budgetId={account.budget_id} />
         </div>
       </PageBody>

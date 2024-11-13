@@ -24,6 +24,7 @@
   "createBudgetSubtitleCreateBudgeting": "Create Budgeting",
   "createBudgetCreateBudgetingInstructions": "Helps you track spending, save more, and improve financial well-being. Create now!",
   "createBudgetSaveButtonLabel": "Save",
+  "createBudgetSavingButtonLabel": "Saving...",
   "dependents": {
     "label": "Do you have any dependents (children, elderly parents, etc.)?",
     "yes": "Yes",
@@ -35,6 +36,12 @@
     "married": "Married",
     "marriedWithKids": "Married with Kids",
     "other": "Other (please specify)"
+  },
+  "goals": {
+    "label": "Goals",
+    "savings": "Savings",
+    "payOffDebts": "Pay Off Debts",
+    "investments": "Investments"
   },
   "incomeLevel": {
     "label": "What is your approximate annual income?",
@@ -52,8 +59,8 @@
     "10k_25k": "$10,000 - $25,000",
     "gt_25k": "More than $25,000"
   },
-  "debtTypes": {
-    "label": "Do you have any outstanding debts?",
+  "debtType": {
+    "label": "Debt Type",
     "creditCardDebt": "Credit Card Debt",
     "studentLoans": "Student Loans",
     "personalLoans": "Personal Loans",
@@ -75,19 +82,52 @@
     "donateToCharityOrTitheRegularly": "Donate to charity or tithe regularly",
     "manageYourMoneyBetter": "Manage your money better"
   },
-  "achievingGoals": {
+  "goalTimeline": {
     "label": "When do you want to achieve your primary financial goal?",
     "sixMonth": "6 months",
     "oneYear":  "1 year",
     "threeYear":  "3 years",
     "fiveYearsOrMore": "5 years or more"
   },
-  "monthlyContributions": {
+  "monthlyContribution": {
     "label": "How much can you realistically contribute toward your goal each month?",
     "levelOne": "Less than $100",
     "levelTwo": "$100 - $250",
     "levelThree": "$250 - $500",
     "levelFour": "$500 - $1,000",
     "levelFive": "More than $1,000"
-  }
+  },
+  "states": {
+    "label": "State",
+    "florida": "Florida",
+    "california": "California"
+  },
+  "accounts": {
+    "label": "Associated Account"
+  },
+  "savingsNameLabel": "Saving Goals Name",
+  "budgetGoals": {
+    "savingsAmount": "Goal Amount",
+    "debtBalance": "Current Balance",
+    "investmentAmount": "Goal Amount",
+    "investmentBalance": "Current Balance"
+  },
+  "savingDescriptionLabel": "Description",
+  "loanGoalNameLabel": "Goal name",
+  "loanType": {
+    "label": "Loan type",
+    "business": "Business Loan"
+  },
+  "balanceLabel": "Balance",
+  "paymentComponent": {
+    "label": "Payment component",
+    "principal": "Principal",
+    "interest": "Interest",
+    "principal_interest": "Principal and interest"
+  },
+  "interestRateLabel": "Interest Rate",
+  "targetDateLabel": "Target repayment date",
+  "investmentGoalNameLabel": "Investment goal name",
+  "goalAmountLabel": "Goal amount",
+  "skipBtnLabel": "Skip"
 }

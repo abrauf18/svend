@@ -60,7 +60,7 @@ select lives_ok(
 
 -- check the account owner has been updated
 select row_eq(
-    $$ select account_role from public.accounts_memberships
+    $$ select account_role from public.team_memberships
        where account_id = makerkit.get_account_id_by_slug('makerkit')
        and user_id = tests.get_supabase_uid('member');
     $$,

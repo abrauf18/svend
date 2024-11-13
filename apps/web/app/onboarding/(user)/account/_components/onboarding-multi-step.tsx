@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import OnboardingStep1ConnectPlaidAccounts from './onboarding-step1/onboarding-step1';
-import OnboardingStep2FinBackground from './onboarding-step2/onboarding-step2';
+import OnboardingStep2ProfileGoals from './onboarding-step2/onboarding-step2';
 import OnboardingStep2AnalyzingData from './onboarding-step2-analyzing/onboarding-step2-analyzing';
 import OnboardingStep3CreateBudget from './onboarding-step3/onboarding-step3';
-import { AccountOnboardingStepContextKey, accountOnboardingSteps, useOnboardingContext } from '@kit/accounts/components';
+import { useOnboardingContext } from '@kit/accounts/components';
 import { GlobalLoader } from '@kit/ui/global-loader';
 import { useRouter } from 'next/navigation';
+import { AccountOnboardingStepContextKey, accountOnboardingSteps } from '~/lib/model/onboarding.types';
 
 export const steps: Array<{
     component: React.ComponentType<any>;
@@ -18,7 +19,7 @@ export const steps: Array<{
             contextKeys: accountOnboardingSteps[0]?.contextKeys || []
         },
         {
-            component: OnboardingStep2FinBackground,
+            component: OnboardingStep2ProfileGoals,
             contextKeys: accountOnboardingSteps[1]?.contextKeys || []
         },
         {
@@ -34,7 +35,7 @@ export const steps: Array<{
 export const OnboardingMultiStep = () => {
     const router = useRouter();
 
-    const { state, accountNextStep, accountPrevStep, accountPlaidConnItemAddOne, accountPlaidConnItemAccountRemoveOne } = useOnboardingContext();
+    const { state, accountNextStep, accountPrevStep, accountPlaidConnItemAddOne, accountPlaidItemAccountUnlinkOne } = useOnboardingContext();
 
     const [loading, setLoading] = useState(true);
 
@@ -51,7 +52,7 @@ export const OnboardingMultiStep = () => {
         return <GlobalLoader fullPage />;
     }
 
-    if (!state || !accountNextStep || !accountPrevStep || !accountPlaidConnItemAddOne || !accountPlaidConnItemAccountRemoveOne) {
+    if (!state || !accountNextStep || !accountPrevStep || !accountPlaidConnItemAddOne || !accountPlaidItemAccountUnlinkOne) {
         return <div>Error: OnboardingProvider props are not defined</div>;
     }
     if (!currentStep) {

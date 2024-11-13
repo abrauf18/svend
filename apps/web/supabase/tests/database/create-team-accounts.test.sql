@@ -32,7 +32,7 @@ select
 select
     row_eq($$
         select
-            account_role from public.accounts_memberships
+            account_role from public.team_memberships
             where
                 account_id =(
                     select

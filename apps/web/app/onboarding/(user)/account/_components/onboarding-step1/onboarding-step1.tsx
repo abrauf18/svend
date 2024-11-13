@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader, CardContent, CardFooter } from '@kit/ui/card';
 import { Progress } from '@kit/ui/progress';
 import { Trans } from '@kit/ui/trans';
-import { ConnectPlaidAccountsButton } from './connect-plaid-accounts-button';
 import { Button } from '@kit/ui/button';
-import { AccountOnboardingPlaidConnectionItem, useOnboardingContext } from '@kit/accounts/components';
-import { PlaidConnectionItems } from '../plaid-connection-items';
+import { useOnboardingContext } from '@kit/accounts/components';
+import { PlaidConnectionItems } from './plaid-connection-items';
+import { usePlaidLink, PlaidLinkOptions } from 'react-plaid-link';
 
 function OnboardingStep1ConnectPlaidAccounts() {
   const [hasPlaidConnection, setHasPlaidConnection] = useState(false);
-  const { state, accountNextStep, accountChangeStepContextKey } = useOnboardingContext();
+  const [loading, setLoading] = useState(false);
+  const { state, accountNextStep, accountChangeStepContextKey, accountPlaidConnItemAddOne } = useOnboardingContext();
+  const [linkToken, setLinkToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasPlaidConnection && state?.account.plaidConnectionItems && state.account.plaidConnectionItems.length > 0) {
@@ -17,6 +19,84 @@ function OnboardingStep1ConnectPlaidAccounts() {
       accountChangeStepContextKey('plaid');
     }
   }, [state]);
+
+  const onSuccess = useCallback(async (public_token: string, metadata: any) => {
+    try {
+      const response = await fetch('/api/onboarding/account/plaid/item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          budgetId: state?.account.budget?.id,
+          plaidPublicToken: public_token,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to complete Plaid onboarding:', errorData);
+        throw new Error(`Failed to complete Plaid onboarding: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Plaid onboarding successful:', result);
+
+      accountPlaidConnItemAddOne(result.plaidConnectionItem);
+    } catch (error) {
+      console.error('Error during Plaid onboarding:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [state, accountPlaidConnItemAddOne]);
+
+  const onExit = useCallback(() => {
+    setLoading(false);
+  }, []);
+
+  const config: PlaidLinkOptions = {
+    token: linkToken!,
+    onSuccess: onSuccess,
+    onExit: onExit
+  };
+
+  const { open, ready } = usePlaidLink(config);
+
+  useEffect(() => {
+    if (ready) {
+      open();
+    }
+  }, [open, ready]);
+
+  const createLinkToken = async () => {
+    setLoading(true);
+
+    if (!state?.account.budget?.id) {
+      console.error('Budget ID not found');
+      return;
+    }
+    try {
+      const response = await fetch('/api/plaid/create-link-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ budgetId: state?.account.budget?.id, redirectType: 'account' }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to create Plaid link token:', errorData);
+        throw new Error(`Failed to create Plaid link token: ${response.status} ${response.statusText}`);
+      }
+
+      const { link_token } = await response.json();
+      setLinkToken(link_token);
+    } catch (error) {
+      console.error('Error creating link token:', error);
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
@@ -55,9 +135,11 @@ function OnboardingStep1ConnectPlaidAccounts() {
             <Trans i18nKey={'onboarding:connectAccountsInstructionText'} />
           </p>
 
-          <PlaidConnectionItems />
+          <PlaidConnectionItems loading={loading} />
 
-          <ConnectPlaidAccountsButton redirectType="account" />
+          <Button onClick={() => createLinkToken()} disabled={loading}>
+            <Trans i18nKey={'onboarding:connectAccountsButtonLabel'} />
+          </Button>
         </CardContent>
         <CardFooter>
           <Button variant="outline" className="w-full md:w-auto" disabled={!hasPlaidConnection} onClick={accountNextStep}>

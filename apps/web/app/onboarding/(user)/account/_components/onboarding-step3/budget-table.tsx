@@ -1,20 +1,7 @@
 "use client"
 
-import {
-    ColumnDef,
-    ColumnFiltersState,
-    SortingState,
-    VisibilityState,
-    flexRender,
-    getCoreRowModel,
-    getFilteredRowModel,
-    getPaginationRowModel,
-    getSortedRowModel,
-    useReactTable,
-} from "@tanstack/react-table"
-import { Info, ArrowRight } from "lucide-react"
+import { Info, ArrowRight, ChevronRight, ChevronDown } from "lucide-react"
 
-import { Button } from "@kit/ui/button"
 import { Checkbox } from "@kit/ui/checkbox"
 import { Input } from "@kit/ui/input";
 import {
@@ -25,248 +12,384 @@ import {
     TableHeader,
     TableRow,
 } from "@kit/ui/table"
-import { useEffect, useState } from "react";
-import { getSupabaseBrowserClient } from "@kit/supabase/browser-client"
+import { useEffect, forwardRef } from "react";
 import { useOnboardingContext } from "~/components/onboarding-context"
+import { getSupabaseBrowserClient } from "@kit/supabase/browser-client";
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@kit/ui/form"
+import { cn } from "@kit/ui/utils"
+import { createCategoryService } from '~/lib/server/category.service';
 
-type BudgetCategorySpending = {
-    category: string,
-    spending: number,
-    recommendation: number,
-    target: number,
-    deductions: boolean,
+const CategorySchema = z.object({
+    id: z.string().optional(),
+    categoryName: z.string(),
+    spending: z.number().optional(),
+    recommendation: z.number().optional(),
+    target: z.string()
+        .transform((val) => {
+            const parsed = parseFloat(val.replace(/[^0-9.-]/g, ''));
+            return isNaN(parsed) ? "0.00" : roundCurrency(parsed).toFixed(2);
+        }),
+    isTaxDeductible: z.boolean(),
+});
+
+const CategoryGroupSchema = z.object({
+    groupId: z.string().optional(),
+    groupName: z.string(),
+    spending: z.number().optional(),
+    recommendation: z.number().optional(),
+    target: z.string()
+        .transform((val) => {
+            const parsed = parseFloat(val.replace(/[^0-9.-]/g, ''));
+            return isNaN(parsed) ? "0.00" : roundCurrency(parsed).toFixed(2);
+        }),
+    isTaxDeductible: z.boolean(),
+    targetSource: z.enum(['group', 'category']),
+    categories: z.array(CategorySchema)
+});
+
+export const BudgetFormSchema = z.object({
+    categoryGroups: z.array(CategoryGroupSchema)
+});
+
+interface BudgetTableProps {
+    onSubmit: (data: z.infer<typeof BudgetFormSchema>) => void;
 }
 
-export function BudgetTable() {
+const roundCurrency = (amount: number): number => {
+    return Math.round(amount * 100) / 100;
+};
+
+export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props, ref) => {
     const { state } = useOnboardingContext();
-    const [budgetCategories, setBudgetCategories] = useState([] as BudgetCategorySpending[])
-    const [sorting, setSorting] = useState<SortingState>([])
-    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-    const [columnVisibility, setColumnVisibility] =
-        useState<VisibilityState>({})
-    const [rowSelection, setRowSelection] = useState({})
 
-    const columns: ColumnDef<BudgetCategorySpending>[] = [
-        {
-            accessorKey: "category",
-            header: "Category",
-            cell: ({ row }) => (
-                <div className="capitalize text-xs">{row.getValue("category")}</div>
-            ),
-            size: 200
-        },
-        {
-            accessorKey: "spending",
-            header: () =>
-                <div className="flex flex-col gap-1 items-center justify-center col-span-1">
-                    <div className="text-center">
-                        Spending
-                    </div>
-                    <div className="text-xs text-center inline-flex flex-row gap-1 items-center justify-center">
-                        <div>(Average</div>
-                        <ArrowRight className="h-4 w-4" />
-                        <div>Recommeded)</div>
-                    </div>
-                </div>,
-            cell: ({ row }) => {
-                const averageAmount = parseFloat(row.getValue("spending"));
-                const recommendedAmount = parseFloat(String(row.original.recommendation));
-                // Format the amount as a dollar amount
-                const averageFormatted = new Intl.NumberFormat("en-US", {
-                    style: "currency",
-                    currency: "USD",
-                }).format(averageAmount)
-
-                const recommededFormatted = new Intl.NumberFormat("en-US", {
-                    style: "currency",
-                    currency: "USD",
-                }).format(recommendedAmount)
-
-                return <div className="text-xs inline-flex flex-row gap-1 items-center justify-center w-full">
-                    {averageFormatted}
-                    <ArrowRight className="h-4 w-4" />
-                    {recommededFormatted}
-                </div>
-            },
-        },
-        {
-            accessorKey: "target",
-            header: () =>
-                <div className="text-center">
-                    Budget Target
-                </div>,
-            cell: ({ row }) => {
-                const target = parseFloat(row.getValue("target"));
-                const [value, setValue] = useState(target)
-
-                const onBlur = () => {
-                    // table.options.meta?.updateData(row.index, "target", value)
-                }
-
-                return (
-                    <div className="text-xs">
-                        <Input
-                            // type="number"
-                            value={value}
-                            onChange={(e) => setValue(Number(e.target.value))}
-                            onBlur={onBlur}
-                            className="w-full text-right px-6"
-                        />
-                    </div>
-                )
-            },
-            size: 150
-        },
-        {
-            accessorKey: "deductions",
-            header: () =>
-                <div className="text-center flex flex-row gap-1 items-center justify-end">
-                    Tax Deductible
-                    <Info className="h-4 w-4" />
-                </div>,
-            cell: ({ row }) => {
-                return (
-                    <div className="text-center font-medium flex items-center justify-center h-full">
-                        <Checkbox
-                            checked={row.getValue("deductions")}
-                            onCheckedChange={(value) => updateDeductions(row.index, !!value)}
-                            className="h-4 w-4 transition-none transform-none"
-                        />
-                    </div>
-                )
-            },
-            size: 70
+    const form = useForm<z.infer<typeof BudgetFormSchema>>({
+        resolver: zodResolver(BudgetFormSchema),
+        defaultValues: {
+            categoryGroups: []
         }
-    ]
+    });
 
-    const table = useReactTable<BudgetCategorySpending>({
-        data: budgetCategories,
-        columns,
-        onSortingChange: setSorting,
-        onColumnFiltersChange: setColumnFilters,
-        getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        onColumnVisibilityChange: setColumnVisibility,
-        onRowSelectionChange: setRowSelection,
-        state: {
-            sorting,
-            columnFilters,
-            columnVisibility,
-            rowSelection,
-        },
-    })
-
-    const updateDeductions = (rowIndex: number, value: boolean) => {
-        setBudgetCategories(prev => prev.map((category, index) =>
-            index === rowIndex ? { ...category, deductions: value } : category
-        ));
-    };
-
-    async function fetchBudget() {
-        const supabase = getSupabaseBrowserClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            throw new Error('User not authenticated');
-        }
-
-        const { data, error } = await supabase
-            .from('budgets')
-            .select('*')
-            .eq('id', state.account.budgetId as string)
-            .single();
-
-        if (error) {
-            console.error('Error fetching budget:', error);
-            throw error;
-        }
-
-        setBudgetCategories(Object.entries(data.category_spending as Record<string, number>).map(([category, spending]) => ({
-            category,
-            spending,
-            recommendation: spending,
-            target: spending,
-            deductions: false
-        })));
-    }
+    const supabase = getSupabaseBrowserClient();
+    const categoryService = createCategoryService(supabase);
 
     useEffect(() => {
-        fetchBudget();
-    }, []);
+        const subscription = form.watch((value) => {
+            console.log('Form values:', JSON.stringify(value, null, 2));
+        });
+
+        return () => subscription.unsubscribe();
+    }, [form]);
+
+    useEffect(() => {
+        async function initializeCategories() {
+            const allCategories = await categoryService.getBudgetCategoryGroups(state.account.budget?.id);
+            const categoryGroupSpending = state.account.budget?.categoryGroupSpending || {};
+
+            // Map and process all groups first
+            const spendings = Object.entries(allCategories).map(([groupId, group]) => {
+                const groupSpending = categoryGroupSpending[group.name]
+                    ? {
+                        ...categoryGroupSpending[group.name],
+                        target: categoryGroupSpending[group.name]!.target.toFixed(2)
+                    }
+                    : {
+                        groupId: group.id,
+                        groupName: group.name,
+                        spending: 0,
+                        recommendation: 0,
+                        target: "0.00",
+                        isTaxDeductible: false,
+                        targetSource: 'group' as const,
+                        categories: []
+                    };
+
+                // Map all categories from allCategories, merging with existing spending data
+                const categories = group.categories.map(category => {
+                    const existingCategory = groupSpending?.categories?.find(c => c.categoryName === category.name);
+                    return {
+                        id: category.id,
+                        categoryName: category.name,
+                        spending: existingCategory?.spending ?? 0,
+                        recommendation: existingCategory?.recommendation ?? 0,
+                        target: (existingCategory?.target
+                            ? existingCategory.target.toFixed(2)
+                            : "0.00"),
+                        isTaxDeductible: existingCategory?.isTaxDeductible ?? false
+                    };
+                });
+
+                return {
+                    groupId: group.id,
+                    groupName: group.name,
+                    spending: groupSpending?.spending ?? 0,
+                    recommendation: groupSpending?.recommendation ?? 0,
+                    target: groupSpending.target ?? "0.00",
+                    isTaxDeductible: groupSpending?.isTaxDeductible ?? false,
+                    targetSource: groupSpending?.targetSource ?? 'group' as const,
+                    categories
+                };
+            });
+
+            // Sort the groups according to the requirements
+            const sortedSpendings = spendings.sort((a, b) => {
+                // Income group always comes first
+                if (a.groupName === "Income") return -1;
+                if (b.groupName === "Income") return 1;
+
+                // Sort by spending (descending)
+                const spendingDiff = Math.abs(b.spending) - Math.abs(a.spending);
+
+                // If spending is equal, sort alphabetically
+                if (spendingDiff === 0) {
+                    return a.groupName.localeCompare(b.groupName);
+                }
+
+                return spendingDiff;
+            });
+
+            form.reset({ categoryGroups: sortedSpendings });
+        }
+        initializeCategories();
+    }, [state.account.budget?.categoryGroupSpending, state.account.budget?.id]);
+
+    const toggleGroup = (groupName: string) => {
+        const currentValues = form.getValues();
+        const updatedGroups = currentValues.categoryGroups.map(group => {
+            if (group.groupName === groupName) {
+                return {
+                    ...group,
+                    targetSource: group.targetSource === 'group' ? 'category' as const : 'group' as const
+                };
+            }
+            return group;
+        });
+        form.reset({ categoryGroups: updatedGroups });
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newValue = e.target.value;
+        if (newValue === '' || /^-?\d*\.?\d*$/.test(newValue)) {
+            return newValue;
+        }
+        return e.target.defaultValue;
+    };
+
+    const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>, spending: number, isIncome: boolean) => {
+        const numericValue = parseFloat(e.target.value.replace(/[^0-9.-]/g, ''));
+        if (isNaN(numericValue)) return "0.00";
+
+        const finalValue = roundCurrency(numericValue);
+
+        // Handle validation based on Income group
+        if (isIncome && finalValue > 0) {
+            return (-Math.abs(finalValue)).toFixed(2);
+        } else if (!isIncome && finalValue < 0) {
+            return Math.abs(finalValue).toFixed(2);
+        }
+
+        return finalValue.toFixed(2);
+    };
+
+    const handleSubmit = (data: z.infer<typeof BudgetFormSchema>) => {
+        props.onSubmit({ categoryGroups: data.categoryGroups });
+    };
+
+    const formatCurrency = (amount: string | number, currency: string = "USD"): string => {
+        const numberAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+        return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: currency,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(numberAmount);
+    };
 
     return (
-        <div className="w-full">
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id}>
-                                {headerGroup.headers.map((header) => {
-                                    return (
-                                        <TableHead key={header.id}>
-                                            {header.isPlaceholder
-                                                ? null
-                                                : flexRender(
-                                                    header.column.columnDef.header,
-                                                    header.getContext()
-                                                )}
-                                        </TableHead>
-                                    )
-                                })}
-                            </TableRow>
-                        ))}
-                    </TableHeader>
-                    <TableBody>
-                        {table.getRowModel().rows?.length ? (
-                            table.getRowModel().rows.map((row) => (
-                                <TableRow
-                                    key={row.id}
-                                    data-state={row.getIsSelected() && "selected"}
-                                >
-                                    {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id}>
-                                            {flexRender(
-                                                cell.column.columnDef.cell,
-                                                cell.getContext()
-                                            )}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            ))
-                        ) : (
+        <Form {...form}>
+            <form ref={ref} onSubmit={form.handleSubmit(handleSubmit)} className="w-full">
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell
-                                    colSpan={columns.length}
-                                    className="h-24 text-center"
-                                >
-                                    No results.
-                                </TableCell>
+                                <TableHead>Category</TableHead>
+                                <TableHead>
+                                    <div className="flex flex-col gap-1 items-center justify-center">
+                                        <div>Spending</div>
+                                        <div className="text-xs inline-flex flex-row gap-1 items-center">
+                                            (Current <ArrowRight className="h-4 w-4" /> Recommended)
+                                        </div>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-center">Budget Target</TableHead>
+                                <TableHead>
+                                    <div className="text-center flex flex-row gap-1 items-center justify-end">
+                                        Tax Deductible <Info className="h-4 w-4" />
+                                    </div>
+                                </TableHead>
                             </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
-            <div className="flex items-center justify-end space-x-2 py-4">
-                <div className="space-x-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => table.previousPage()}
-                        disabled={!table.getCanPreviousPage()}
-                    >
-                        Previous
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => table.nextPage()}
-                        disabled={!table.getCanNextPage()}
-                    >
-                        Next
-                    </Button>
+                        </TableHeader>
+                        <TableBody>
+                            {form.watch('categoryGroups').map((spending, groupIndex) => (
+                                <>
+                                    <TableRow key={spending.groupId}>
+                                        <TableCell className="capitalize font-bold">
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleGroup(spending.groupName)}
+                                                    className="p-1 hover:bg-gray-100 rounded-full hover:bg-secondary/80 transition-colors"
+                                                >
+                                                    {spending.targetSource === 'group'
+                                                        ? <ChevronRight className="h-4 w-4" />
+                                                        : <ChevronDown className="h-4 w-4" />
+                                                    }
+                                                </button>
+                                                {spending.groupName}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="font-bold">
+                                            <div className="inline-flex flex-row gap-1 items-center justify-center w-full">
+                                                {formatCurrency(spending.spending!)}
+                                                <ArrowRight className="h-4 w-4" />
+                                                <span className={cn({
+                                                    'text-red-500': spending.recommendation! < spending.spending!,
+                                                    'text-green-500': spending.recommendation! > spending.spending!
+                                                })}>
+                                                    {formatCurrency(spending.recommendation!)}
+                                                </span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className={cn(
+                                            "font-bold relative",
+                                            form.formState.errors.categoryGroups?.[groupIndex]?.target && "pb-6"
+                                        )}>
+                                            <FormField
+                                                control={form.control}
+                                                name={`categoryGroups.${groupIndex}.target`}
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-0">
+                                                        <FormControl>
+                                                            <Input
+                                                                {...field}
+                                                                disabled={spending.targetSource === 'category'}
+                                                                value={spending.targetSource === 'category'
+                                                                    ? (spending.categories?.reduce((sum, cat, catIndex) => {
+                                                                        const catTarget = parseFloat(form.watch(`categoryGroups.${groupIndex}.categories.${catIndex}.target`)) || 0;
+                                                                        return sum + catTarget;
+                                                                    }, 0) || 0).toFixed(2)
+                                                                    : field.value
+                                                                }
+                                                                className={cn(
+                                                                    "w-full text-right px-6",
+                                                                    form.formState.errors.categoryGroups?.[groupIndex]?.target && "border-red-500",
+                                                                    spending.targetSource === 'category' && "bg-muted"
+                                                                )}
+                                                                onChange={(e) => field.onChange(handleInputChange(e))}
+                                                                onBlur={(e) => field.onChange(handleInputBlur(e, spending.spending!, spending.groupName === "Income"))}
+                                                            />
+                                                        </FormControl>
+                                                        <FormMessage className="absolute text-xs bottom-1 left-0 right-0 text-center" />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </TableCell>
+                                        <TableCell className="font-bold">
+                                            <FormField
+                                                control={form.control}
+                                                name={`categoryGroups.${groupIndex}.isTaxDeductible`}
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormControl>
+                                                            <div className="text-center font-medium flex items-center justify-center h-full">
+                                                                <Checkbox
+                                                                    checked={field.value}
+                                                                    onCheckedChange={field.onChange}
+                                                                    className="h-4 w-4 transition-none transform-none"
+                                                                />
+                                                            </div>
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                    {spending.targetSource === 'category' && spending.categories?.map((category, childIndex) => (
+                                        <TableRow key={`${spending.groupId}-${category.id}`} className="bg-muted/50">
+                                            <TableCell className="capitalize pl-10">
+                                                {category.categoryName}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="inline-flex flex-row gap-1 items-center justify-center w-full">
+                                                    {formatCurrency(category.spending!)}
+                                                    <ArrowRight className="h-4 w-4" />
+                                                    <span className={cn({
+                                                        'text-red-500': category.recommendation! < category.spending!,
+                                                        'text-green-500': category.recommendation! > category.spending!
+                                                    })}>
+                                                        {formatCurrency(category.recommendation!)}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className={cn(
+                                                "relative",
+                                                form.formState.errors.categoryGroups?.[groupIndex]?.categories?.[childIndex]?.target && "pb-6"
+                                            )}>
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`categoryGroups.${groupIndex}.categories.${childIndex}.target`}
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-0">
+                                                            <FormControl>
+                                                                <Input
+                                                                    {...field}
+                                                                    disabled={spending.targetSource === 'group'}
+                                                                    value={field.value}
+                                                                    className={cn(
+                                                                        "w-full text-right px-6",
+                                                                        form.formState.errors.categoryGroups?.[groupIndex]?.categories?.[childIndex]?.target && "border-red-500",
+                                                                        spending.targetSource === 'group' && "bg-muted"
+                                                                    )}
+                                                                    onChange={(e) => field.onChange(handleInputChange(e))}
+                                                                    onBlur={(e) => field.onChange(handleInputBlur(e, category.spending!, category.categoryName === "Income"))}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage className="absolute text-xs bottom-1 left-0 right-0 text-center" />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`categoryGroups.${groupIndex}.categories.${childIndex}.isTaxDeductible`}
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormControl>
+                                                                <div className="text-center font-medium flex items-center justify-center h-full">
+                                                                    <Checkbox
+                                                                        checked={field.value}
+                                                                        onCheckedChange={field.onChange}
+                                                                        className="h-4 w-4 transition-none transform-none"
+                                                                    />
+                                                                </div>
+                                                            </FormControl>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </div>
-            </div>
-        </div>
-    )
-}
+            </form>
+        </Form>
+    );
+});
+
+BudgetTable.displayName = 'BudgetTable';

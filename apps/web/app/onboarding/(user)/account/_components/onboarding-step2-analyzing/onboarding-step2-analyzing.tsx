@@ -3,27 +3,12 @@ import { Card, CardHeader, CardContent } from '@kit/ui/card';
 import { Progress } from '@kit/ui/progress';
 import { Trans } from '@kit/ui/trans';
 import { useOnboardingContext } from '@kit/accounts/components';
+import { OnboardingState } from '~/lib/model/onboarding.types';
+import { Budget } from '~/lib/model/budget.types';
+import { BudgetRecommendation } from '~/lib/server/budget.service';
 
-const analyzeSpending = async () => {
-  const response = await fetch('/api/onboarding/account/budget', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    }
-  });
-  if (response.status === 409) {
-    console.log('Budget spending analysis already in progress. Subscribing to events to detect completion...');
-    // TODO: Implement event subscription logic here
-    throw new Error('Analysis subscription not yet implemented');
-  } else if (!response.ok) {
-    let errorRes = await response.json();
-    console.log('Error analyzing spending:', errorRes);
-    throw new Error(errorRes.message);
-  }
-}
-
-function OnboardingStep2AnalyzingData() {
-  const { accountNextStep } = useOnboardingContext();
+export default function OnboardingStep2AnalyzingData() {
+  const { state, accountBudgetUpdate, accountNextStep } = useOnboardingContext();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -32,7 +17,6 @@ function OnboardingStep2AnalyzingData() {
     const runAnalysis = async () => {
       try {
         await analyzeSpending();
-        accountNextStep();
       } catch (error) {
         console.error('Error analyzing spending:', error);
       }
@@ -46,6 +30,51 @@ function OnboardingStep2AnalyzingData() {
       setIsMounted(false);
     };
   }, [isMounted]);
+
+  useEffect(() => {
+    if (Object.keys(state.account.budget.categoryGroupSpending).length > 0) {
+      accountNextStep();
+    }
+  }, [state]);
+
+  const analyzeSpending = async () => {
+    const response = await fetch('/api/onboarding/account/budget/analysis', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (response.status === 409) {
+      console.log('Budget spending analysis already in progress. Subscribing to events to detect completion...');
+      // TODO: Implement event subscription logic here
+      throw new Error('Analysis subscription not yet implemented');
+    } else if (!response.ok) {
+      let errorRes = await response.json();
+      console.log('Error analyzing spending:', errorRes);
+      throw new Error(errorRes.message);
+    }
+  
+    // update local state
+    const { analysisResult } = await response.json();
+    const handleBudgetUpdate = () => {
+      const newBudget: Budget = {
+        id: state.account.budget.id,
+        budgetType: state.account.budget.budgetType,
+        categoryGroupSpending: analysisResult.balanced.spending,
+        recommendedCategoryGroupSpending: {
+          balanced: analysisResult.balanced.spending,
+          conservative: analysisResult.conservative.spending,
+          relaxed: analysisResult.relaxed.spending
+        },
+        goals: state.account.budget.goals
+      } as Budget;
+  
+      console.log('Updating budget with:', newBudget); // Log the new budget
+      accountBudgetUpdate(newBudget);
+
+    };
+    handleBudgetUpdate();
+  }
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
@@ -88,5 +117,3 @@ function OnboardingStep2AnalyzingData() {
     </div>
   )
 }
-
-export default OnboardingStep2AnalyzingData;

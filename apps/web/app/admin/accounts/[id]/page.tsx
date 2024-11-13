@@ -38,7 +38,7 @@ async function accountLoader(id: string) {
 
   const { data, error } = await client
     .from('accounts')
-    .select('*, memberships: accounts_memberships (*)')
+    .select('*, memberships: team_memberships (*)')
     .eq('id', id)
     .single();
 

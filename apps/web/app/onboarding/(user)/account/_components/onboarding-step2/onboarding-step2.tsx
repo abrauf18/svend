@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 import { useOnboardingContext } from '@kit/accounts/components';
-import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
 import { Button } from '@kit/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@kit/ui/card';
 import { Progress } from '@kit/ui/progress';
@@ -10,28 +9,15 @@ import { Trans } from '@kit/ui/trans';
 import { PersonalInformation } from './part1-personal-information';
 import { FinancialInformation } from './part2-financial-information';
 import { FinancialGoals } from './part3-financial-goals';
+import { GoalsSavings } from './part4-goals-savings';
+import { GoalsDebt } from './part5-goals-debt';
+import { GoalsInvestment } from './part6-goals-investment';
 
-interface ProfileData {
-  full_name: string | null;
-  age: string | null;
-  marital_status: string | null;
-  dependents: string | null;
-  income_level: string | null;
-  savings: string | null;
-  current_debt: string[] | null;
-  primary_financial_goal: string[] | null;
-  goal_timeline: string | null;
-  monthly_contribution: string | null;
-}
 
-function OnboardingStep2FinBackground() {
+function OnboardingStep2ProfileGoals() {
   const [currentSubStep, setCurrentSubStep] = useState(1);
   const [isFormValid, setIsFormValid] = useState(false);
-  const [personalInfoValid, setPersonalInfoValid] = useState(false);
-  const [financialInfoValid, setFinancialInfoValid] = useState(false);
-  const [financialGoalsValid, setFinancialGoalsValid] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [profileData, setProfileData] = useState<ProfileData | null>(null);
 
   const submitFormRef = useRef<(() => Promise<boolean>) | null>(null);
 
@@ -43,15 +29,9 @@ function OnboardingStep2FinBackground() {
       try {
         const success = await submitFormRef.current();
         if (success) {
-          if (currentSubStep === 1) {
-            setPersonalInfoValid(true);
-            setCurrentSubStep(2);
-          } else if (currentSubStep === 2) {
-            setFinancialInfoValid(true);
-            setCurrentSubStep(3);
-          } else if (currentSubStep === 3) {
-            setFinancialGoalsValid(true);
-            console.log('Financial Goals Valid');
+          if (currentSubStep < 6) {
+            setCurrentSubStep((prev) => prev + 1);
+          } else {
             accountNextStep();
           }
         } else {
@@ -67,38 +47,13 @@ function OnboardingStep2FinBackground() {
     }
   };
 
-  async function fetchPersonalInfo() {
-    const supabase = getSupabaseBrowserClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
+  const handleSkipStep = () => {
+    if (currentSubStep < 6) {
+      setCurrentSubStep((prev) => prev + 1);
+    } else {
+      accountNextStep();
     }
-
-    const { data, error } = await supabase
-      .from('acct_fin_profile')
-      .select('*')
-      .eq('account_id', user.id)
-      .single();
-
-    if (data) {
-      setProfileData({
-        ...data,
-        age: data.age?.toString() || '',
-        dependents: data.dependents?.toString() || ''
-      });
-    }
-
-    if (error) {
-      console.error('Error fetching personal info:', error);
-      throw error;
-    }
-  }
-
-  useEffect(() => {
-    fetchPersonalInfo();
-  }, []);
+  };
 
   // Renders the appropriate step component
   const renderStep = () => {
@@ -106,12 +61,7 @@ function OnboardingStep2FinBackground() {
       case 1:
         return (
           <PersonalInformation
-            initialData={profileData ? {
-              full_name: profileData.full_name || '',
-              age: profileData.age || '',
-              marital_status: profileData.marital_status || '',
-              dependents: profileData.dependents || ''
-            } : null}
+            initialData={state.account.profileData}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -119,11 +69,7 @@ function OnboardingStep2FinBackground() {
       case 2:
         return (
           <FinancialInformation
-            initialData={profileData ? {
-              income_level: profileData.income_level || '',
-              savings: profileData.savings || '',
-              current_debt: profileData.current_debt || []
-            } : null}
+            initialData={state.account.profileData}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -131,11 +77,31 @@ function OnboardingStep2FinBackground() {
       case 3:
         return (
           <FinancialGoals
-            initialData={profileData ? {
-              primary_financial_goal: profileData.primary_financial_goal || [],
-              goal_timeline: profileData.goal_timeline || '',
-              monthly_contribution: profileData.monthly_contribution || ''
-            } : null}
+            initialData={state.account.profileData}
+            onValidationChange={setIsFormValid}
+            triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
+          />
+        );
+      case 4:
+        return (
+          <GoalsSavings
+            initialData={state.account.budget.goals?.find(goal => goal.type === 'savings')}
+            onValidationChange={setIsFormValid}
+            triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
+          />
+        );
+      case 5:
+        return (
+          <GoalsDebt
+            initialData={state.account.budget.goals?.find(goal => goal.type === 'debt')}
+            onValidationChange={setIsFormValid}
+            triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
+          />
+        );
+      case 6:
+        return (
+          <GoalsInvestment
+            initialData={state.account.budget.goals?.find(goal => goal.type === 'investment')}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -174,22 +140,22 @@ function OnboardingStep2FinBackground() {
           </h2>
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">Step 2 of 3</p>
-            <Progress value={66} className="w-full md:w-1/2 lg:w-full" />
+            <Progress
+              value={33 + (currentSubStep / 6) * 33}
+              className="w-full md:w-1/2 lg:w-full"
+            />
           </div>
           <br />
           <div>
-            <p className="w-full md:w-auto">Part {currentSubStep} of 3</p>
+            <p className="w-full md:w-auto">Part {currentSubStep} of 6</p>
           </div>
           <div className="flex space-x-1">
-            <span
-              className={`h-2 w-2 ${currentSubStep >= 1 ? 'bg-primary' : 'bg-muted'} rounded-full`}
-            ></span>
-            <span
-              className={`h-2 w-2 ${currentSubStep >= 2 ? 'bg-primary' : 'bg-muted'} rounded-full`}
-            ></span>
-            <span
-              className={`h-2 w-2 ${currentSubStep >= 3 ? 'bg-primary' : 'bg-muted'} rounded-full`}
-            ></span>
+            {[1, 2, 3, 4, 5, 6].map((step) => (
+              <span
+                key={step}
+                className={`h-2 w-2 ${currentSubStep >= step ? 'bg-primary' : 'bg-muted'} rounded-full`}
+              ></span>
+            ))}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -199,22 +165,33 @@ function OnboardingStep2FinBackground() {
           {renderStep()}
         </CardContent>
         <CardFooter>
-          <Button
-            variant="outline"
-            className="w-full md:w-auto"
-            onClick={handleFormSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              'Submitting...'
-            ) : (
-              <Trans i18nKey={'onboarding:finBackgroundNextButtonLabel'} />
+          <div className="flex space-x-4">
+            <Button
+              variant="outline"
+              className="w-full md:w-auto"
+              onClick={handleFormSubmit}
+              disabled={isSubmitting || !isFormValid}
+            >
+              {isSubmitting ? (
+                'Saving...'
+              ) : (
+                <Trans i18nKey={'onboarding:finBackgroundNextButtonLabel'} />
+              )}
+            </Button>
+            {currentSubStep >= 4 && currentSubStep <= 6 && (
+              <Button
+                variant="outline"
+                className="w-full md:w-auto"
+                onClick={handleSkipStep}
+              >
+                <Trans i18nKey="skip" />
+              </Button>
             )}
-          </Button>
+          </div>
         </CardFooter>
       </Card>
     </div>
   );
 }
 
-export default OnboardingStep2FinBackground;
+export default OnboardingStep2ProfileGoals;

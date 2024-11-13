@@ -45,7 +45,7 @@ class LeaveTeamAccountService {
     const { accountId, userId } = Schema.parse(params);
 
     const { error } = await this.adminClient
-      .from('accounts_memberships')
+      .from('team_memberships')
       .delete()
       .match({
         account_id: accountId,

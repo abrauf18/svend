@@ -81,5 +81,6 @@
     "reject": "Reject",
     "accept": "Accept"
   },
-  "transactionTabAddToGoalsBtn": "Add Transaction to Goals"
+  "transactionTabAddToGoalsBtn": "Add Transaction to Goals",
+  "addGoalsBtn": "Add Goals"
 }

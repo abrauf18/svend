@@ -23,6 +23,8 @@
     "lint:fix": "turbo lint --cache-dir=.turbo --continue -- --fix --cache --cache-location 'node_modules/.cache/.eslintcache' && manypkg fix",
     "typecheck": "turbo typecheck --cache-dir=.turbo",
     "test": "turbo test --cache-dir=.turbo",
+    "test:web:last-report": "pnpm --filter web-e2e exec playwright show-report",
+    "test:web:budgets": "pnpm test --filter web-e2e -- --grep 'budgets'",
     "update": "pnpm update -r",
     "supabase:web:start": "pnpm --filter web supabase:start",
     "supabase:web:stop": "pnpm --filter web supabase:stop",
