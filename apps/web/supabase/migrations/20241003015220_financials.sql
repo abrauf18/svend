@@ -273,7 +273,9 @@ RETURNS TABLE (
     payee TEXT,
     amount NUMERIC,
     account_name TEXT,
-    account_mask TEXT
+    account_mask TEXT,
+    notes TEXT,
+    attachments_storage_names text[]
 ) AS $$
 BEGIN
     -- Check if the user has permission to access this budget
@@ -293,11 +295,13 @@ BEGIN
         fat.id,
         fat.date,
         COALESCE(fat.category_detailed, 'Uncategorized') AS category,
-        fat.merchant_name AS payee,
-        fat.payee AS description,
+        fat.merchant_name,
+        fat.payee,
         fat.amount,
         pa.name AS account,
-        pa.mask AS account_mask
+        pa.mask AS account_mask,
+        COALESCE(fat.notes, '') AS notes,
+        fat.attachments_storage_names
     FROM 
         fin_account_transactions fat
     JOIN 
@@ -580,6 +584,8 @@ create table if not exists public.fin_account_transactions (
   date date not null,
   merchant_name text,
   payee text,
+  notes text,
+  attachments_storage_names text[], 
 --   category_id text,
 --   counterparties jsonb,
 --   datetime timestamp with time zone,
@@ -684,11 +690,135 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION can_update_fin_account_transaction TO service_role;
 
+
+-- Save fin account transaction function
+CREATE OR REPLACE FUNCTION save_fin_account_transaction(
+    transaction_id UUID, 
+    new_category TEXT, 
+    p_merchant_name TEXT, 
+    p_notes TEXT, 
+    category_id UUID, 
+    attachments TEXT[]
+)
+RETURNS BOOLEAN AS $$
+BEGIN
+    UPDATE fin_account_transactions
+    SET 
+        category_detailed = new_category,
+        svend_category_id = category_id,
+        merchant_name = p_merchant_name,
+        notes = p_notes,
+        attachments_storage_names = attachments
+    WHERE id = transaction_id;
+    
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+
 -- Grant necessary permissions
 grant select on public.fin_account_transactions to authenticated;
 grant select, update, insert on public.fin_account_transactions to service_role;
 
+
+-- Storage bucket for fin account transaction attachments
+insert into storage.buckets (id, name, public)
+values ('fin_account_transaction_attachments', 'fin_account_transaction_attachments', true)
+on conflict (id) do update 
+set 
+    name = excluded.name,
+    public = excluded.public;
+
+-- Storage bucket policies for fin_account_transaction_attachments
+create policy download_fin_account_transaction_attachments
+on storage.objects for select
+using (
+    bucket_id = 'fin_account_transaction_attachments'
+    and (
+        -- Extract transaction ID from the file path (everything before the first slash)
+        exists (
+            select 1
+            from public.fin_account_transactions fat
+            where substring(storage.objects.name from '^[^/]+') = fat.id::text
+            and (
+                -- Budget member can read (with budget.read permission)
+                exists (
+                    select 1
+                    from public.budget_fin_accounts bfa
+                    join public.budgets b on bfa.budget_id = b.id
+                    where (bfa.plaid_account_id = fat.plaid_account_id and bfa.plaid_account_id is not null)
+                        or (bfa.manual_account_id = fat.manual_account_id and bfa.manual_account_id is not null)
+                    and public.is_team_member(b.team_account_id, auth.uid())
+                )
+                -- Account owner can read
+                or (
+                    (fat.plaid_account_id is not null and exists (
+                        select 1 
+                        from public.plaid_accounts
+                        where id = fat.plaid_account_id
+                        and owner_account_id = auth.uid()
+                    ))
+                    or 
+                    (fat.manual_account_id is not null and exists (
+                        select 1 
+                        from public.manual_fin_accounts
+                        where id = fat.manual_account_id
+                        and owner_account_id = auth.uid()
+                    ))
+                )
+            )
+        )
+    )
+);
+
+create policy upload_fin_account_transaction_attachments
+on storage.objects for insert
+with check (
+    bucket_id = 'fin_account_transaction_attachments'
+    and (
+        -- Extract transaction ID from the file path (everything before the first slash)
+        exists (
+            select 1
+            from public.fin_account_transactions fat
+            where substring(storage.objects.name from '^[^/]+') = fat.id::text
+            and exists (
+                -- User must have budget.write permission
+                select 1
+                from public.budget_fin_accounts bfa
+                join public.budgets b on bfa.budget_id = b.id
+                where (bfa.plaid_account_id = fat.plaid_account_id and bfa.plaid_account_id is not null)
+                    or (bfa.manual_account_id = fat.manual_account_id and bfa.manual_account_id is not null)
+                and public.has_team_permission(auth.uid(), b.team_account_id, 'budgets.write')
+            )
+        )
+    )
+);
+
+create policy delete_fin_account_transaction_attachments
+on storage.objects for delete
+using (
+    bucket_id = 'fin_account_transaction_attachments'
+    and (
+        -- Extract transaction ID from the file path (everything before the first slash)
+        exists (
+            select 1
+            from public.fin_account_transactions fat
+            where substring(storage.objects.name from '^[^/]+') = fat.id::text
+            and exists (
+                -- User must have budget.write permission
+                select 1
+                from public.budget_fin_accounts bfa
+                join public.budgets b on bfa.budget_id = b.id
+                where (bfa.plaid_account_id = fat.plaid_account_id and bfa.plaid_account_id is not null)
+                    or (bfa.manual_account_id = fat.manual_account_id and bfa.manual_account_id is not null)
+                and public.has_team_permission(auth.uid(), b.team_account_id, 'budgets.write')
+            )
+        )
+    )
+);
+
 -- End of fin_account_transactions table
+
 
 CREATE TYPE budget_plaid_account_result AS (
     plaid_account_id UUID,

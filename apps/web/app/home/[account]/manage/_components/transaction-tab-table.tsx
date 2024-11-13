@@ -26,7 +26,7 @@ import {
     TableHeader,
     TableRow,
 } from "@kit/ui/table"
-import {useState, useEffect, use} from "react";
+import {useState, useEffect} from "react";
 import { getSupabaseBrowserClient } from "@kit/supabase/browser-client"
 import {
     DropdownMenu,
@@ -38,13 +38,14 @@ import {CategoryDropdown} from "~/home/[account]/manage/_components/category-dro
 
 export type Transaction = {
     id: string,
-    date: string,
+    date: Date,
     category: string,
     merchant_name: string,
     payee: string,
     amount: number,
     account_name: string,
-    account_mask: string
+    account_mask: string,
+    notes: string
 }
 
 export const columns: ColumnDef<Transaction>[] = [
@@ -84,7 +85,7 @@ export const columns: ColumnDef<Transaction>[] = [
                 month: 'short',
                 year: 'numeric'
             });
-            return <div>{formattedDate}</div>;
+            return <div className="w-[100px]">{formattedDate}</div>;
         },
     },
     // {
@@ -97,21 +98,15 @@ export const columns: ColumnDef<Transaction>[] = [
     {
         accessorKey: "category",
         header: "Category",
-        cell: ({ row, table }) => (
-            <CategoryDropdown
-                category={row.getValue("category")}
-                onCategoryChange={(rowId, newCategory) =>
-                    (table.options.meta as any)?.updateData(rowId, { category: newCategory })
-                }
-                rowId={row.id}
-            />
+        cell: ({ row }) => (
+            <div className="capitalize ">{row.getValue("category")}</div>
         ),
     },
     {
         accessorKey: "merchant_name",
         header: "Merchant Name",
         cell: ({ row }) => (
-            <div className="capitalize">{row.getValue("merchant_name")}</div>
+            <div className="capitalize w-[120px]">{row.getValue("merchant_name")}</div>
         ),
     },
     // {
@@ -121,6 +116,19 @@ export const columns: ColumnDef<Transaction>[] = [
     //         <div>{row.getValue("description")}</div>
     //     ),
     // },
+   {
+        accessorKey: "notes",
+        header: "Notes",
+        cell: ({ row }) => {
+            const notes = (row.getValue("notes") as string) || '';
+            const truncatedNotes = notes.length > 50 ? `${notes.slice(0, 50)}...` : notes;
+            return (
+                <div className="w-[300px] whitespace-nowrap overflow-hidden text-ellipsis">
+                    {truncatedNotes}
+                </div>
+            );
+        },
+    },
     {
         accessorKey: "amount",
         header: () =>
@@ -160,7 +168,7 @@ export const columns: ColumnDef<Transaction>[] = [
             <div className="text-center flex flex-row gap-1 items-center justify-end">
                 <Bookmark  className="h-4 w-4"/>
             </div>,
-        cell: ({ row }) => {
+        cell: () => {
             return (
                 <div className="text-center font-medium flex flex-row gap-1 items-center justify-end">
                     <Bookmark  className="h-4 w-4"/>
@@ -172,17 +180,19 @@ export const columns: ColumnDef<Transaction>[] = [
 
 interface TransactionTableProps {
     budgetId: string
-    onSelectedTransaction: (row: any) => void
+    onSelectedTransaction: (row: Transaction) => void
     onOpenChange: (open: boolean) => void
+    onSelectedRowData: (row: Transaction) => void
+    refreshTrigger: number
 }
 
-export function TransactionTable({ budgetId, onSelectedTransaction,  onOpenChange}: TransactionTableProps) {
+export function TransactionTable({ budgetId, onSelectedTransaction,  onOpenChange, onSelectedRowData, refreshTrigger}: TransactionTableProps) {
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [sorting, setSorting] = useState<SortingState>([])
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
     const [rowSelection, setRowSelection] = useState({})
-
+    
     const table = useReactTable({
         data: transactions,
         columns,
@@ -207,19 +217,26 @@ export function TransactionTable({ budgetId, onSelectedTransaction,  onOpenChang
         const { data, error } = await supabase.rpc('get_budget_transactions', {
             p_budget_id: budgetId
         });
-        console.log('data', data);
 
         if (error) {
             console.error('Error fetching transactions:', error)
             return
         }
 
-        setTransactions(data)
+        // Transform the date strings to Date objects
+        const transformedData = data.map(tx => ({
+            ...tx,
+            date: new Date(tx.date)
+        }))
+
+        setTransactions(transformedData)
     }
 
     useEffect(() => {
-        fetchTransactions()
-    }, [])
+        void (async () => {
+            await fetchTransactions()
+        })()
+    }, [refreshTrigger])
 
     const { pageSize, pageIndex } = table.getState().pagination
     const rowRange = {
@@ -269,6 +286,7 @@ export function TransactionTable({ budgetId, onSelectedTransaction,  onOpenChang
                                     onClick={() => {
                                         onSelectedTransaction(row.original)
                                         onOpenChange(true)
+                                        onSelectedRowData(row.original)
                                     }}
                                 >
                                     {row.getVisibleCells().map((cell) => (

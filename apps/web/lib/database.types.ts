@@ -595,6 +595,7 @@ export type Database = {
       fin_account_transactions: {
         Row: {
           amount: number
+          attachments_storage_names: string[] | null
           category_confidence: string | null
           category_detailed: string | null
           category_primary: string | null
@@ -604,6 +605,7 @@ export type Database = {
           iso_currency_code: string | null
           manual_account_id: string | null
           merchant_name: string | null
+          notes: string | null
           payee: string | null
           plaid_account_id: string | null
           raw_data: Json | null
@@ -612,6 +614,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          attachments_storage_names?: string[] | null
           category_confidence?: string | null
           category_detailed?: string | null
           category_primary?: string | null
@@ -621,6 +624,7 @@ export type Database = {
           iso_currency_code?: string | null
           manual_account_id?: string | null
           merchant_name?: string | null
+          notes?: string | null
           payee?: string | null
           plaid_account_id?: string | null
           raw_data?: Json | null
@@ -629,6 +633,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          attachments_storage_names?: string[] | null
           category_confidence?: string | null
           category_detailed?: string | null
           category_primary?: string | null
@@ -638,6 +643,7 @@ export type Database = {
           iso_currency_code?: string | null
           manual_account_id?: string | null
           merchant_name?: string | null
+          notes?: string | null
           payee?: string | null
           plaid_account_id?: string | null
           raw_data?: Json | null
@@ -1658,6 +1664,8 @@ export type Database = {
           amount: number
           account_name: string
           account_mask: string
+          notes: string
+          attachments_storage_names: string[]
         }[]
       }
       get_config: {
@@ -1735,6 +1743,17 @@ export type Database = {
         Args: {
           team_account_id: string
           user_id: string
+        }
+        Returns: boolean
+      }
+      save_fin_account_transaction: {
+        Args: {
+          transaction_id: string
+          new_category: string
+          p_merchant_name: string
+          p_notes: string
+          category_id: string
+          attachments: string[]
         }
         Returns: boolean
       }
