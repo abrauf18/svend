@@ -2545,7 +2545,17 @@ returns table (
   primary_owner_user_id uuid,
   subscription_status public.subscription_status,
   permissions public.app_permissions[],
-  budget_id uuid
+  budget_id uuid,
+  budget_team_account_id uuid,
+  budget_type text,
+  budget_category_spending jsonb,
+  budget_recommended_category_spending jsonb,
+  budget_is_active boolean,
+  budget_start_date date,
+  budget_end_date date,
+  budget_current_onboarding_step text,
+  budget_created_at timestamp with time zone,
+  budget_updated_at timestamp with time zone
 )
 set search_path to ''
 as $$
@@ -2561,7 +2571,17 @@ begin
         accounts.primary_owner_user_id,
         subscriptions.status,
         array_agg(role_permissions.permission),
-        budgets.id
+        budgets.id,
+        budgets.team_account_id,
+        budgets.budget_type::text,
+        budgets.category_spending,
+        budgets.recommended_category_spending,
+        budgets.is_active,
+        budgets.start_date,
+        budgets.end_date,
+        budgets.current_onboarding_step::text,
+        budgets.created_at,
+        budgets.updated_at
     from
         public.accounts
         join public.budgets on accounts.id = budgets.team_account_id
@@ -2575,6 +2595,16 @@ begin
     group by
         accounts.id,
         budgets.id,
+        budgets.team_account_id,
+        budgets.budget_type,
+        budgets.category_spending,
+        budgets.recommended_category_spending,
+        budgets.is_active,
+        budgets.start_date,
+        budgets.end_date,
+        budgets.current_onboarding_step,
+        budgets.created_at,
+        budgets.updated_at,
         team_memberships.team_role,
         subscriptions.status,
         roles.hierarchy_level;

@@ -1,3 +1,4 @@
+import { Database } from '@kit/supabase/database';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { NextResponse } from 'next/server';
@@ -26,16 +27,15 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: 'missing required fields' }, { status: 400 });
     }
 
+    // Update both profile and account name in a transaction
     const { data, error } = await supabaseAdmin
-        .from('acct_fin_profile')
-        .update({
-            full_name: fullName,
-            age,
-            marital_status: maritalStatus,
-            dependents
-        })
-        .eq('account_id', user.id)
-        .select();
+        .rpc('update_account_profile', {
+            p_user_id: user.id,
+            p_full_name: fullName,
+            p_age: age,
+            p_marital_status: maritalStatus as Database['public']['Enums']['marital_status_enum'],
+            p_dependents: dependents
+        });
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });

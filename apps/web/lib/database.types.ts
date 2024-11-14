@@ -77,29 +77,7 @@ export type Database = {
           updated_at?: string | null
           updated_by?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "accounts_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounts_primary_owner_user_id_fkey"
-            columns: ["primary_owner_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounts_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       acct_fin_profile: {
         Row: {
@@ -373,7 +351,7 @@ export type Database = {
           budget_type: Database["public"]["Enums"]["budget_type"]
           category_spending: Json
           created_at: string | null
-          current_onboarding_step: Database["public"]["Enums"]["onboarding_step_enum"]
+          current_onboarding_step: Database["public"]["Enums"]["budget_onboarding_step_enum"]
           end_date: string | null
           id: string
           is_active: boolean
@@ -386,7 +364,7 @@ export type Database = {
           budget_type?: Database["public"]["Enums"]["budget_type"]
           category_spending?: Json
           created_at?: string | null
-          current_onboarding_step?: Database["public"]["Enums"]["onboarding_step_enum"]
+          current_onboarding_step?: Database["public"]["Enums"]["budget_onboarding_step_enum"]
           end_date?: string | null
           id?: string
           is_active?: boolean
@@ -399,7 +377,7 @@ export type Database = {
           budget_type?: Database["public"]["Enums"]["budget_type"]
           category_spending?: Json
           created_at?: string | null
-          current_onboarding_step?: Database["public"]["Enums"]["onboarding_step_enum"]
+          current_onboarding_step?: Database["public"]["Enums"]["budget_onboarding_step_enum"]
           end_date?: string | null
           id?: string
           is_active?: boolean
@@ -735,13 +713,6 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "user_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invitations_invited_by_fkey"
-            columns: ["invited_by"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -1405,13 +1376,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "team_memberships_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "team_memberships_team_account_id_fkey"
             columns: ["team_account_id"]
             isOneToOne: false
@@ -1438,20 +1402,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "roles"
             referencedColumns: ["name"]
-          },
-          {
-            foreignKeyName: "team_memberships_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_memberships_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -1772,12 +1722,32 @@ export type Database = {
           subscription_status: Database["public"]["Enums"]["subscription_status"]
           permissions: Database["public"]["Enums"]["app_permissions"][]
           budget_id: string
+          budget_team_account_id: string
+          budget_type: string
+          budget_category_spending: Json
+          budget_recommended_category_spending: Json
+          budget_is_active: boolean
+          budget_start_date: string
+          budget_end_date: string
+          budget_current_onboarding_step: string
+          budget_created_at: string
+          budget_updated_at: string
         }[]
       }
       transfer_team_account_ownership: {
         Args: {
           target_account_id: string
           new_owner_id: string
+        }
+        Returns: undefined
+      }
+      update_account_profile: {
+        Args: {
+          p_user_id: string
+          p_full_name: string
+          p_age: number
+          p_marital_status: Database["public"]["Enums"]["marital_status_enum"]
+          p_dependents: number
         }
         Returns: undefined
       }
@@ -1861,6 +1831,15 @@ export type Database = {
         | "interest"
         | "principal_interest"
       budget_goal_type_enum: "debt" | "savings" | "investment"
+      budget_onboarding_step_enum:
+        | "start"
+        | "plaid"
+        | "profile_goals"
+        | "analyze_spending"
+        | "analyze_spending_in_progress"
+        | "budget_setup"
+        | "invite_members"
+        | "end"
       budget_type: "personal" | "business"
       debt_type_enum:
         | "Credit Cards"
@@ -2334,5 +2313,20 @@ export type Enums<
   ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
     ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof PublicSchema["CompositeTypes"]
+    | { schema: keyof Database },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
+    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 

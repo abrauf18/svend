@@ -59,7 +59,6 @@ function OnboardingStep3CreateBudget() {
       router.push(`/home/${data.budgetSlug}`);
     } catch (error) {
       console.error('Error saving budget:', error);
-    } finally {
       setIsLoading(false);
     }
   };

@@ -20,6 +20,7 @@ import { TeamAccountLayoutMobileNavigation } from './_components/team-account-la
 import { TeamAccountLayoutSidebar } from './_components/team-account-layout-sidebar';
 import { TeamAccountNavigationMenu } from './_components/team-account-navigation-menu';
 import { loadTeamWorkspace } from './_lib/server/team-account-workspace.loader';
+import FirstTimeInviteMembersModal from './_components/first-time-invite-members-modal';
 
 interface Params {
   account: string;
@@ -71,6 +72,11 @@ function TeamWorkspaceLayout({
       </PageMobileNavigation>
 
       <TeamAccountWorkspaceContextProvider value={data}>
+        <FirstTimeInviteMembersModal
+          params={{
+            accountSlug: data.account.slug,
+          }}
+        />
         {children}
       </TeamAccountWorkspaceContextProvider>
     </Page>

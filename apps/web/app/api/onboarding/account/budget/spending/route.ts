@@ -121,6 +121,18 @@ export async function PUT(request: Request) {
   // ----------------------------------------
   // Complete onboarding
   // ----------------------------------------
+  const { error: updateOnboardingStepError } = await supabaseAdminClient
+    .from('budgets')
+    .update({ 
+      current_onboarding_step: 'invite_members'
+    })
+    .eq('id', budgetId);
+
+  if (updateOnboardingStepError) {
+    console.error('Error updating current onboarding step:', updateOnboardingStepError);
+    return NextResponse.json({ error: 'Failed to update current onboarding step' }, { status: 500 });
+  }
+
   const onboardingService = createAccountOnboardingService();
 
   try {

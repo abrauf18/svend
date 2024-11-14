@@ -128,7 +128,18 @@ export class TeamAccountsApi {
     return {
       data: {
         account: accountData,
-        accounts: accountsResult.data
+        accounts: accountsResult.data,
+        budget: {
+          id: accountData.budget_id,
+          team_account_id: accountData.budget_team_account_id,
+          budget_type: accountData.budget_type as Database['public']['Enums']['budget_type'],
+          category_spending: accountData.budget_category_spending,
+          recommended_category_spending: accountData.budget_recommended_category_spending,
+          is_active: accountData.budget_is_active,
+          start_date: accountData.budget_start_date,
+          end_date: accountData.budget_end_date,
+          current_onboarding_step: accountData.budget_current_onboarding_step as Database['public']['Enums']['budget_onboarding_step_enum'],
+        } as Database['public']['Tables']['budgets']['Row'],
       },
       error: null,
     };

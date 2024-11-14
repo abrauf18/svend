@@ -83,6 +83,32 @@ create policy read_acct_fin_profile
 
 -- End of acct_fin_profile table
 
+create or replace function update_account_profile(
+    p_user_id uuid,
+    p_full_name text,
+    p_age int,
+    p_marital_status marital_status_enum,
+    p_dependents int
+) returns void as $$
+begin
+    -- Update the financial profile
+    update acct_fin_profile
+    set 
+        full_name = p_full_name,
+        age = p_age,
+        marital_status = p_marital_status,
+        dependents = p_dependents
+    where account_id = p_user_id;
+
+    -- Update the account name
+    update accounts
+    set name = p_full_name
+    where primary_owner_user_id = p_user_id and is_personal_account;
+end;
+$$ language plpgsql;
+
+grant execute on function update_account_profile(uuid, text, int, marital_status_enum, int) to service_role;
+
 -- ============================================================
 -- plaid_connection_items table
 -- ============================================================
@@ -229,6 +255,17 @@ create type budget_type as enum (
     'business'
 );
 
+create type budget_onboarding_step_enum as enum (
+    'start',
+    'plaid',
+    'profile_goals',
+    'analyze_spending',
+    'analyze_spending_in_progress',
+    'budget_setup',
+    'invite_members',
+    'end'
+);
+
 -- Create table
 create table if not exists public.budgets (
   id uuid primary key default uuid_generate_v4(),
@@ -240,7 +277,7 @@ create table if not exists public.budgets (
   is_active boolean not null default true,
   start_date date not null default current_date,
   end_date date,
-  current_onboarding_step onboarding_step_enum not null default 'start',
+  current_onboarding_step budget_onboarding_step_enum not null default 'start',
   created_at timestamp with time zone default current_timestamp,
   updated_at timestamp with time zone default current_timestamp
 );
