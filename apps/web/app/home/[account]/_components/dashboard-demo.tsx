@@ -206,6 +206,15 @@ function Chart(
           tickLine={false}
           axisLine={false}
           tickMargin={8}
+          scale="auto"
+          padding={{ left: 0, right: 0 }}
+          allowDataOverflow={false}
+          allowDecimals={true}
+          allowDuplicatedCategory={true}
+          hide={false}
+          mirror={false}
+          reversed={false}
+          xAxisId={0}
         />
         <ChartTooltip
           cursor={false}
