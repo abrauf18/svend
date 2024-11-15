@@ -43,6 +43,15 @@ const FormSchema = z.object({
     .refine(
       (val) => val === undefined || /^\d{4}-\d{2}-\d{2}$/.test(val),
       'Invalid date format. Use yyyy-MM-dd format.',
+    )
+    .refine(
+      (val) => {
+        if (!val) return true;
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0]!; // Gets YYYY-MM-DD in local timezone
+        return val >= todayStr;
+      },
+      'Target date cannot be in the past.',
     ),
   description: z.string().optional(),
 });
@@ -161,6 +170,7 @@ export function SavingsInformation(props: {
             name: data.name,
             amount: data.amount,
             budgetFinAccountId: data.budgetFinAccountId,
+            balance: data.balance,
             targetDate: data.targetDate,
             description: data.description
           })

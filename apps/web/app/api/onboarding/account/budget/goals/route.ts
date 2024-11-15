@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
   const supabaseAdminClient = getSupabaseServerAdminClient();
 
-  const { budgetId, type, name, amount, budgetFinAccountId, targetDate, description, debtType, debtPaymentComponent, debtInterestRate } = body;
+  const { budgetId, type, name, amount, budgetFinAccountId, balance, targetDate, description, debtType, debtPaymentComponent, debtInterestRate } = body;
 
   // Check for required fields
   if (!budgetId) {
@@ -35,11 +35,14 @@ export async function POST(request: Request) {
   if (!name) {
     return NextResponse.json({ error: 'Name is a required field' }, { status: 400 });
   }
-  if (!amount && type !== 'debt') {
+  if (!amount) {
     return NextResponse.json({ error: 'Amount is a required field' }, { status: 400 });
   }
   if (!budgetFinAccountId) {
     return NextResponse.json({ error: 'Budget Financial Account ID is a required field' }, { status: 400 });
+  }
+  if (!balance) {
+    return NextResponse.json({ error: 'Balance is a required field' }, { status: 400 });
   }
   if (!targetDate) {
     return NextResponse.json({ error: 'Target Date is a required field' }, { status: 400 });
@@ -92,7 +95,7 @@ export async function POST(request: Request) {
       budget_id: budgetId,
       type,
       name,
-      amount: amount,
+      amount,
       fin_account_id: budgetFinAccountId,
       description,
       target_date: targetDate,
@@ -100,7 +103,7 @@ export async function POST(request: Request) {
       debt_payment_component: debtPaymentComponent,
       debt_interest_rate: debtInterestRate,
       tracking: {
-        startingBalance: amount,
+        startingBalance: balance,
         allocations: []
       }
     })

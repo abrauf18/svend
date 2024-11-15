@@ -254,7 +254,7 @@ class BudgetService {
         // Zero out all goal trackings
         for (const goal of goals) {
           recommendations[recType]!.goalTrackings[goal.id] = {
-            startingBalance: goal.tracking.startingBalance,
+            ...goal.tracking,
             allocations: createGoalAllocations(goal, 0, 1)
           };
         }
@@ -349,7 +349,7 @@ class BudgetService {
                 const originalTracking = goalTrackings[goal.id];
                 const originalAmount = originalTracking?.allocations[0]?.plannedAmount!;
                 recommendations[strategy]!.goalTrackings[goal.id] = {
-                  startingBalance: goal.tracking.startingBalance,
+                  ...goal.tracking,
                   allocations: createGoalAllocations(goal, originalAmount, reductionRatio)
                 };
               }
@@ -421,7 +421,7 @@ class BudgetService {
                 const originalTracking = goalTrackings[goal.id];
                 const originalAmount = originalTracking?.allocations[0]?.plannedAmount!;
                 recommendations[strategy]!.goalTrackings[goal.id] = {
-                  startingBalance: goal.tracking.startingBalance,
+                  ...goal.tracking,
                   allocations: createGoalAllocations(goal, originalAmount, increaseRatio)
                 };
               }
@@ -432,7 +432,7 @@ class BudgetService {
                 const originalTracking = goalTrackings[goal.id];
                 const originalAmount = originalTracking?.allocations[0]?.plannedAmount!;
                 recommendations[strategy]!.goalTrackings[goal.id] = {
-                  startingBalance: goal.tracking.startingBalance,
+                  ...goal.tracking,
                   allocations: createGoalAllocations(goal, originalAmount, reductionRatio)
                 };
               }
@@ -495,7 +495,7 @@ class BudgetService {
                 const originalTracking = goalTrackings[goal.id];
                 const originalAmount = originalTracking?.allocations[0]?.plannedAmount!;
                 recommendations[strategy]!.goalTrackings[goal.id] = {
-                  startingBalance: goal.tracking.startingBalance,
+                  ...goal.tracking,
                   allocations: createGoalAllocations(goal, originalAmount, reductionRatio)
                 };
               }
@@ -609,7 +609,7 @@ class BudgetService {
         debtPaymentComponent: raw.debt_payment_component ?? undefined,
         debtType: raw.debt_type ?? undefined,
         createdAt: raw.created_at,
-        tracking: { startingBalance: (raw.tracking as any).starting_balance, allocations },
+        tracking: raw.tracking as any,
         description: raw.description ?? undefined,
       } as BudgetGoal;
     } catch (error) {
