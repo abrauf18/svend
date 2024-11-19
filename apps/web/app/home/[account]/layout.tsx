@@ -81,6 +81,7 @@ function TeamWorkspaceLayout({
         account: data.account,
         budget: budgetService.parseBudget(data.budget)!,
         budgetTransactions: budgetService.parseBudgetTransactions(data.budgetTransactions),
+        budgetCategories: data.budgetCategories,
       }}>
         <FirstTimeInviteMembersModal
           params={{

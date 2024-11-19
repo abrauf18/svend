@@ -55,6 +55,7 @@
     "@makerkit/data-loader-supabase-nextjs": "^1.2.3",
     "@marsidev/react-turnstile": "^1.0.2",
     "@radix-ui/react-icons": "^1.3.0",
+    "@radix-ui/react-select": "^2.1.1",
     "@supabase/supabase-js": "^2.45.4",
     "@tanstack/react-query": "5.56.2",
     "@tanstack/react-table": "^8.20.5",

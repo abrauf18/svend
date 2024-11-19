@@ -4,7 +4,7 @@ import { User } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Database } from '~/lib/database.types';
 import { Budget } from '~/lib/model/budget.types';
-import { FinAccountTransaction } from '~/lib/model/fin.types';
+import { CategoryGroup, FinAccountTransaction } from '~/lib/model/fin.types';
 
 interface BudgetWorkspace {
   accounts: Database['public']['Views']['user_accounts']['Row'][];
@@ -12,6 +12,7 @@ interface BudgetWorkspace {
   user: User;
   budget: Budget;
   budgetTransactions: FinAccountTransaction[];
+  budgetCategories: Record<string, CategoryGroup>;
 }
 
 interface BudgetWorkspaceContextValue {

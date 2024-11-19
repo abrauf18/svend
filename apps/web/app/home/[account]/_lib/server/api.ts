@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
 import { Database } from '@kit/supabase/database';
+import { createCategoryService } from '~/lib/server/category.service';
 
 /**
  * Class representing an API for interacting with team accounts.
@@ -9,6 +10,8 @@ import { Database } from '@kit/supabase/database';
  */
 export class TeamBudgetsApi {
   constructor(private readonly client: SupabaseClient<Database>) {}
+
+  private categoryService = createCategoryService(this.client);
 
   /**
    * @name getBudgetWorkspace
@@ -30,12 +33,14 @@ export class TeamBudgetsApi {
       p_team_account_slug: slug,
     });
 
+    const budgetCategoriesPromise = this.categoryService.getBudgetCategoryGroupsByTeamAccountSlug(slug);
 
-    const [accountResult, accountsResult, budgetResult, budgetTransactionsResult] = await Promise.all([
+    const [accountResult, accountsResult, budgetResult, budgetTransactionsResult, budgetCategoriesResult] = await Promise.all([
       accountPromise,
       accountsPromise,
       budgetPromise,
       budgetTransactionsPromise,
+      budgetCategoriesPromise,
     ]);
 
     if (accountResult.error) {
@@ -81,6 +86,7 @@ export class TeamBudgetsApi {
         accounts: accountsResult.data,
         budget: budgetResult.data[0]!,
         budgetTransactions: budgetTransactionsResult.data,
+        budgetCategories: budgetCategoriesResult,
       },
       error: null,
     };

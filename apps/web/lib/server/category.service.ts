@@ -60,6 +60,32 @@ class CategoryService {
    * Fetches the default category groups from the Supabase database.
    * @returns A promise that resolves to a record of category groups.
    */
+  async getBudgetCategoryGroupsByTeamAccountSlug(team_account_slug: string): Promise<Record<string, CategoryGroup>> {
+    const { data, error } = await this.supabase
+      .from('budgets')
+      .select('budget_id:id, accounts!inner(slug)')
+      .eq('accounts.slug', team_account_slug)
+      .single();
+
+    if (error) {
+      console.error('Error fetching budget by team account slug:', error);
+      return {};
+    }
+
+    const budget_id = data?.budget_id;
+
+    if (!budget_id) {
+      console.error('No budget found for team account slug:', team_account_slug);
+      return {};
+    }
+    
+    return this.getBudgetCategoryGroups(budget_id);
+  }
+  
+    /**
+   * Fetches the default category groups from the Supabase database.
+   * @returns A promise that resolves to a record of category groups.
+   */
   async getBudgetCategoryGroups(budget_id: string): Promise<Record<string, CategoryGroup>> {
     const { data, error } = await this.supabase.rpc('get_budget_categories', {
       p_budget_id: budget_id

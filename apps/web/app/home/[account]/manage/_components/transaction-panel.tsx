@@ -25,6 +25,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@kit/ui/sheet';
 import { Textarea } from '@kit/ui/textarea';
 import { FinAccountTransaction, FinAccountTransactionBudgetTag } from '~/lib/model/fin.types';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
+import { CategorySelect } from './category-select';
 
 interface DisabledFields {
   date?: boolean;
@@ -68,6 +69,25 @@ const parseDate = (dateString: string): Date => {
   return date;
 };
 
+const highlightMatch = (text: string, query: string) => {
+  if (!query) return text;
+  
+  const parts = text.split(new RegExp(`(${query})`, 'gi'));
+  return (
+    <>
+      {parts.map((part, i) => 
+        part.toLowerCase() === query.toLowerCase() ? (
+          <span key={i} className="font-bold">
+            {part}
+          </span>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+};
+
 export function TransactionPanel({
   open,
   onOpenChange,
@@ -109,51 +129,34 @@ export function TransactionPanel({
 
   useEffect(() => {
     if (selectedRowData) {
-      // Find matching category in nested categories
-      if (categoryGroups.length > 0) {
-        const matchingCategoryGroup = categoryGroups?.find((group) =>
-          group.categories?.some(
-            (category) => category?.name === selectedRowData?.svendCategory,
-          ),
-        );
-        const matchingCategory = matchingCategoryGroup?.categories?.find(
-          (category) => category.name === selectedRowData?.svendCategory,
-        );
-        setSelectedCategory(matchingCategory);
-
-        // Only set attachments if they exist, otherwise set empty array
-        setAttachments(selectedRowData.budgetAttachmentsStorageNames ?? []);
+      setCategoryGroups(Object.values(workspace?.budgetCategories ?? {}));
+      
+      // Find and set the initial category
+      const matchingCategoryGroup = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
+        group.categories?.some(
+          (category) => category?.name === selectedRowData?.svendCategory,
+        ),
+      );
+      const matchingCategory = matchingCategoryGroup?.categories?.find(
+        (category) => category.name === selectedRowData?.svendCategory,
+      );
+      if (matchingCategory) {
+        setSelectedCategory({
+          id: matchingCategory.id,
+          name: matchingCategory.name,
+        });
       }
+
+      // Only set attachments if they exist, otherwise set empty array
+      setAttachments(selectedRowData.budgetAttachmentsStorageNames ?? []);
     }
-  }, [categoryGroups]);
+  }, [selectedRowData, workspace?.budgetCategories]);
 
   const [selectedCategory, setSelectedCategory] = React.useState<
     Category | undefined
   >();
   const supabase = getSupabaseBrowserClient();
   const [tags, setTags] = React.useState<FinAccountTransactionBudgetTag[]>([]);
-
-  React.useEffect(() => {
-    const fetchCategoryGroups = async () => {
-      const { data, error } = await supabase.from('category_groups').select(`
-          id,
-          name,
-          categories (
-            id,
-            name
-          )
-        `);
-
-      if (error) {
-        console.error('Error fetching category groups:', error);
-      } else {
-        console.log('Category groups:', data);
-        setCategoryGroups(data);
-      }
-    };
-
-    void fetchCategoryGroups();
-  }, [supabase]);
 
   React.useEffect(() => {
     const fetchTags = async () => {
@@ -452,58 +455,20 @@ export function TransactionPanel({
 
           <div className="space-y-2">
             <Label htmlFor="category">Category*</Label>
-            <Select
-              value={selectedCategory?.name ?? ''}
+            <CategorySelect
+              value={selectedCategory?.id}
               onValueChange={(value) => {
-                // Find the selected category by its name
                 const selected = categoryGroups
-                  .flatMap((group) => group.categories) // Flatten the category arrays
-                  .find((category) => category.name === value); // Find the category by name
+                  .flatMap((group) => group.categories)
+                  .find((category) => category.id === value);
 
                 if (selected) {
-                  console.log('Selected category:', selected);
-                  // Store both name and id of the selected category
                   setSelectedCategory({ name: selected.name, id: selected.id });
                 }
               }}
+              categoryGroups={categoryGroups}
               disabled={disabledFields.category ?? isReadOnly}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search categories..."
-                  className="mb-2"
-                />
-                {categoryGroups.map((group) => (
-                  <SelectGroup key={group.id} className="mb-4">
-                    <div className="mb-2 text-lg font-semibold">
-                      {group.name}
-                    </div>
-                    <div className="space-y-1 pl-4">
-                      {group.categories
-                        .filter((category) =>
-                          category.name
-                            .toLowerCase()
-                            .includes(searchQuery.toLowerCase()),
-                        )
-                        .map((category) => (
-                          <SelectItem
-                            key={category.id}
-                            value={category.name}
-                            className="pl-6 hover:text-black"
-                          >
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                    </div>
-                  </SelectGroup>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
 
           <div className="space-y-2">
