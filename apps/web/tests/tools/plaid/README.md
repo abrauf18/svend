@@ -22,30 +22,51 @@ The CLI tool takes up to 2 arguments:
 
 ```json
 {
-    "transactions": 100,
-    "output": "plaid_data.json",
-    "accounts": [
-      {
-        "type": "depository",
-        "subtype": "checking",
-        "starting_balance": 2682.09,
-        "name": "Plaid Checking",
-        "official_name": "Plaid Instant Daily Checking Account"
-      },
-      {
-        "type": "depository",
-        "subtype": "savings",
-        "starting_balance": 2000.09,
-        "name": "Plaid Savings",
-        "official_name": "Plaid Instant Savings Account"
-      },
-      {
-        "type": "credit",
-        "subtype": "credit_card",
-        "starting_balance": 10000
-      }
-    ]
-  }
+  "transactions": 20,
+  "output": "plaid_data.json",
+  "numChecking": 2,
+  "numSavings": 2,
+  "numCredit": 1,
+  "accounts": [
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "starting_balance": 3250.75,
+      "name": "Chase Checking",
+      "official_name": "Chase Total Checking Account"
+    },
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "starting_balance": 2100.50,
+      "name": "Bank of America Checking",
+      "official_name": "Bank of America Advantage Plus Checking"
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "starting_balance": 7500.00,
+      "name": "Chase Savings",
+      "official_name": "Chase Premier Savings"
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "starting_balance": 12000.00,
+      "name": "Wells Fargo Savings",
+      "official_name": "Wells Fargo Way2Save Savings"
+    },
+    {
+      "type": "credit",
+      "subtype": "credit card",
+      "starting_balance": 0,
+      "credit_limit": 15000,
+      "name": "Capital One Credit Card",
+      "official_name": "Capital One Venture Rewards Credit Card"
+    }
+  ]
+}
+
 ```
 
 ## Example Usage

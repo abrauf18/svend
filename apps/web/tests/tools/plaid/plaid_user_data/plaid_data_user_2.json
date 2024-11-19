@@ -1,0 +1,1787 @@
+{
+  "override_accounts": [
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "transactions": [
+        {
+          "date_transacted": "2024-09-24",
+          "date_posted": "2024-09-25",
+          "amount": 3435.29,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": 1388.39,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-20",
+          "date_posted": "2024-10-21",
+          "amount": 516.46,
+          "description": "Freelance Deposits - Freelance Client A8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-02",
+          "date_posted": "2024-09-03",
+          "amount": 1510.03,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-25",
+          "date_posted": "2024-08-26",
+          "amount": 802.47,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 2",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-20",
+          "date_posted": "2024-10-21",
+          "amount": 1239.61,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 2",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-03",
+          "date_posted": "2024-10-04",
+          "amount": 1724.25,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-05",
+          "date_posted": "2024-11-06",
+          "amount": 549.04,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-24",
+          "date_posted": "2024-09-25",
+          "amount": 907.4,
+          "description": "Freelance Deposits - Freelance Client A10",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-03",
+          "date_posted": "2024-09-04",
+          "amount": 684.7,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-29",
+          "date_posted": "2024-08-30",
+          "amount": 1055.66,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 7",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-04",
+          "date_posted": "2024-11-05",
+          "amount": 450.07,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-31",
+          "date_posted": "2024-11-01",
+          "amount": 1272.43,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-03",
+          "date_posted": "2024-09-04",
+          "amount": 705.19,
+          "description": "Freelance Deposits - Freelance Client A2",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-11",
+          "date_posted": "2024-09-12",
+          "amount": 1600.34,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 4",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-22",
+          "date_posted": "2024-10-23",
+          "amount": 1232.55,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-25",
+          "date_posted": "2024-09-26",
+          "amount": 1169.24,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-08",
+          "date_posted": "2024-09-09",
+          "amount": 176.38,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-24",
+          "date_posted": "2024-09-25",
+          "amount": 1596.47,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-19",
+          "date_posted": "2024-10-20",
+          "amount": 669.18,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-02",
+          "date_posted": "2024-09-03",
+          "amount": 1559.1,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-30",
+          "date_posted": "2024-08-31",
+          "amount": 1312.89,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-16",
+          "date_posted": "2024-10-17",
+          "amount": 719.12,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-25",
+          "date_posted": "2024-08-26",
+          "amount": 1686.92,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-05",
+          "date_posted": "2024-11-06",
+          "amount": 1875.15,
+          "description": "Freelance Deposits - Freelance Client A4",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-19",
+          "date_posted": "2024-10-20",
+          "amount": 187.41,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-09",
+          "date_posted": "2024-09-10",
+          "amount": 1985.93,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-26",
+          "date_posted": "2024-09-27",
+          "amount": 1528.83,
+          "description": "Freelance Deposits - Freelance Client A1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": 1078.47,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 10",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": 200.06,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 4",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-27",
+          "date_posted": "2024-10-28",
+          "amount": 1275.82,
+          "description": "Freelance Deposits - Freelance Client A9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-07",
+          "date_posted": "2024-08-08",
+          "amount": 1739.03,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-13",
+          "date_posted": "2024-08-14",
+          "amount": 1868.36,
+          "description": "Freelance Deposits - Freelance Client A2",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-10",
+          "date_posted": "2024-10-11",
+          "amount": 1586.76,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-19",
+          "date_posted": "2024-08-20",
+          "amount": 1875.17,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-16",
+          "date_posted": "2024-08-17",
+          "amount": 166.81,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-07",
+          "date_posted": "2024-10-08",
+          "amount": 1554.66,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-02",
+          "date_posted": "2024-10-03",
+          "amount": 1205.74,
+          "description": "Freelance Deposits - Freelance Client A7",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": 604.71,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-16",
+          "date_posted": "2024-08-17",
+          "amount": 1051.43,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-29",
+          "date_posted": "2024-10-30",
+          "amount": 3393.11,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-02",
+          "date_posted": "2024-11-03",
+          "amount": 1045.46,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 5",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-04",
+          "date_posted": "2024-09-05",
+          "amount": 619.03,
+          "description": "Freelance Deposits - Freelance Client A5",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-10",
+          "date_posted": "2024-09-11",
+          "amount": 212.65,
+          "description": "Freelance Deposits - Freelance Client A7",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-09",
+          "date_posted": "2024-09-10",
+          "amount": 1795.91,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-18",
+          "date_posted": "2024-09-19",
+          "amount": 1935.27,
+          "description": "Gift Deposits - Gift Source 1 - Occasion 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-31",
+          "date_posted": "2024-09-01",
+          "amount": 970.11,
+          "description": "Reimbursements - Reimbursement Type 1 - Reason 5",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-20",
+          "date_posted": "2024-09-21",
+          "amount": 1754.36,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 7",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-23",
+          "date_posted": "2024-10-24",
+          "amount": 1482.25,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-13",
+          "date_posted": "2024-08-14",
+          "amount": 1765.4,
+          "description": "Bonus Payments - Bonus Source 1 - Occasion 2",
+          "currency": "USD"
+        }
+      ],
+      "starting_balance": 9989.05,
+      "identity": {
+        "names": [
+          "John Smith"
+        ],
+        "addresses": [
+          {
+            "primary": true,
+            "data": {
+              "country": "US",
+              "city": "New York",
+              "street": "10003 Broadway Road",
+              "postal_code": "10003",
+              "region": "NY"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "transactions": [
+        {
+          "date_transacted": "2024-09-11",
+          "date_posted": "2024-09-12",
+          "amount": 5013.16,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-30",
+          "date_posted": "2024-08-31",
+          "amount": 798.24,
+          "description": "Bonus Payments - Bonus Source 2 - Occasion 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-18",
+          "date_posted": "2024-10-19",
+          "amount": 1928.66,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-28",
+          "date_posted": "2024-08-29",
+          "amount": 1434.15,
+          "description": "Bonus Payments - Bonus Source 2 - Occasion 7",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-31",
+          "date_posted": "2024-09-01",
+          "amount": 448.18,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-07",
+          "date_posted": "2024-10-08",
+          "amount": 546.81,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-16",
+          "date_posted": "2024-09-17",
+          "amount": 1665.3,
+          "description": "Freelance Deposits - Freelance Client B10",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-20",
+          "date_posted": "2024-10-21",
+          "amount": 1327.48,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 2",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-10",
+          "date_posted": "2024-08-11",
+          "amount": 629.07,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 4",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-18",
+          "date_posted": "2024-10-19",
+          "amount": 884.89,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-14",
+          "date_posted": "2024-10-15",
+          "amount": 1271.02,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": 115.54,
+          "description": "Freelance Deposits - Freelance Client B6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-08",
+          "date_posted": "2024-10-09",
+          "amount": 245.44,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 4",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-13",
+          "date_posted": "2024-10-14",
+          "amount": 1836.43,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-21",
+          "date_posted": "2024-08-22",
+          "amount": 1197.36,
+          "description": "Bonus Payments - Bonus Source 2 - Occasion 9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-27",
+          "date_posted": "2024-09-28",
+          "amount": 1153.85,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-11",
+          "date_posted": "2024-09-12",
+          "amount": 1229.55,
+          "description": "Freelance Deposits - Freelance Client B6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-09",
+          "date_posted": "2024-09-10",
+          "amount": 1020.91,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 4",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-25",
+          "date_posted": "2024-09-26",
+          "amount": 429.08,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": 418.37,
+          "description": "Bonus Payments - Bonus Source 2 - Occasion 8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-10",
+          "date_posted": "2024-08-11",
+          "amount": 6350.67,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-18",
+          "date_posted": "2024-09-19",
+          "amount": 1289.68,
+          "description": "Freelance Deposits - Freelance Client B10",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-28",
+          "date_posted": "2024-10-29",
+          "amount": 1756.97,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-18",
+          "date_posted": "2024-10-19",
+          "amount": 1986.76,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-30",
+          "date_posted": "2024-08-31",
+          "amount": 207.87,
+          "description": "Freelance Deposits - Freelance Client B10",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-14",
+          "date_posted": "2024-09-15",
+          "amount": 1616.21,
+          "description": "Bonus Payments - Bonus Source 2 - Occasion 4",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-04",
+          "date_posted": "2024-10-05",
+          "amount": 1832.62,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-19",
+          "date_posted": "2024-10-20",
+          "amount": 1943.58,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 4",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-08",
+          "date_posted": "2024-09-09",
+          "amount": 395.92,
+          "description": "Freelance Deposits - Freelance Client B9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-04",
+          "date_posted": "2024-09-05",
+          "amount": 1070.93,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 5",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-08",
+          "date_posted": "2024-09-09",
+          "amount": 949.14,
+          "description": "Freelance Deposits - Freelance Client B1",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-02",
+          "date_posted": "2024-09-03",
+          "amount": 1532.4,
+          "description": "Freelance Deposits - Freelance Client B7",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-26",
+          "date_posted": "2024-08-27",
+          "amount": 1432.77,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-29",
+          "date_posted": "2024-09-30",
+          "amount": 830.68,
+          "description": "Bonus Payments - Bonus Source 2 - Occasion 7",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-11",
+          "date_posted": "2024-08-12",
+          "amount": 1018.28,
+          "description": "Bonus Payments - Bonus Source 2 - Occasion 5",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-09",
+          "date_posted": "2024-09-10",
+          "amount": 1014.31,
+          "description": "Bonus Payments - Bonus Source 2 - Occasion 8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-18",
+          "date_posted": "2024-09-19",
+          "amount": 1040.38,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 5",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-20",
+          "date_posted": "2024-08-21",
+          "amount": 349.31,
+          "description": "Freelance Deposits - Freelance Client B9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": 1420.15,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-18",
+          "date_posted": "2024-09-19",
+          "amount": 1143.22,
+          "description": "Freelance Deposits - Freelance Client B8",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-10",
+          "date_posted": "2024-10-11",
+          "amount": 3811.16,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-16",
+          "date_posted": "2024-10-17",
+          "amount": 762.53,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 7",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-30",
+          "date_posted": "2024-10-31",
+          "amount": 1656.28,
+          "description": "Reimbursements - Reimbursement Type 2 - Reason 6",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-03",
+          "date_posted": "2024-11-04",
+          "amount": 1159.12,
+          "description": "Bonus Payments - Bonus Source 2 - Occasion 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-11",
+          "date_posted": "2024-08-12",
+          "amount": 1029.65,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 9",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-11",
+          "date_posted": "2024-08-12",
+          "amount": 1157.02,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-14",
+          "date_posted": "2024-10-15",
+          "amount": 1671.68,
+          "description": "Freelance Deposits - Freelance Client B2",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-04",
+          "date_posted": "2024-09-05",
+          "amount": 419.94,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 4",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": 1700.18,
+          "description": "Gift Deposits - Gift Source 2 - Occasion 3",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-02",
+          "date_posted": "2024-11-03",
+          "amount": 1046.53,
+          "description": "Freelance Deposits - Freelance Client B3",
+          "currency": "USD"
+        }
+      ],
+      "starting_balance": 8611.28,
+      "identity": {
+        "names": [
+          "John Smith"
+        ],
+        "addresses": [
+          {
+            "primary": true,
+            "data": {
+              "country": "US",
+              "city": "New York",
+              "street": "10003 Broadway Road",
+              "postal_code": "10003",
+              "region": "NY"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "transactions": [
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": 1395.94,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-22",
+          "date_posted": "2024-09-23",
+          "amount": 1942.81,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-20",
+          "date_posted": "2024-08-21",
+          "amount": 1583.3,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-03",
+          "date_posted": "2024-09-04",
+          "amount": 1247.65,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-29",
+          "date_posted": "2024-09-30",
+          "amount": 997.55,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-13",
+          "date_posted": "2024-09-14",
+          "amount": 9.37,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-09",
+          "date_posted": "2024-09-10",
+          "amount": 1730.48,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-12",
+          "date_posted": "2024-08-13",
+          "amount": 1879.18,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-14",
+          "date_posted": "2024-08-15",
+          "amount": 1407.38,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-11",
+          "date_posted": "2024-09-12",
+          "amount": 1928.36,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-18",
+          "date_posted": "2024-09-19",
+          "amount": 1005.25,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-12",
+          "date_posted": "2024-09-13",
+          "amount": 1784.82,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-29",
+          "date_posted": "2024-10-30",
+          "amount": 1578.55,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-08",
+          "date_posted": "2024-09-09",
+          "amount": 1084.16,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-23",
+          "date_posted": "2024-10-24",
+          "amount": 924.83,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-06",
+          "date_posted": "2024-08-07",
+          "amount": 808.54,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-08",
+          "date_posted": "2024-09-09",
+          "amount": 976.82,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-11",
+          "date_posted": "2024-10-12",
+          "amount": 1047.38,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-12",
+          "date_posted": "2024-10-13",
+          "amount": 1625.75,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-15",
+          "date_posted": "2024-09-16",
+          "amount": 850.47,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-29",
+          "date_posted": "2024-08-30",
+          "amount": 1650.44,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-09",
+          "date_posted": "2024-09-10",
+          "amount": 1130.2,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-15",
+          "date_posted": "2024-08-16",
+          "amount": 1864.27,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-17",
+          "date_posted": "2024-09-18",
+          "amount": 22.21,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": 903.77,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-05",
+          "date_posted": "2024-11-06",
+          "amount": 1294.74,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-05",
+          "date_posted": "2024-11-06",
+          "amount": 1507.05,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-14",
+          "date_posted": "2024-08-15",
+          "amount": 1929.03,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-23",
+          "date_posted": "2024-09-24",
+          "amount": 639.91,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-18",
+          "date_posted": "2024-08-19",
+          "amount": 562.37,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": 1645.07,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-17",
+          "date_posted": "2024-10-18",
+          "amount": 1270.62,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-07",
+          "date_posted": "2024-09-08",
+          "amount": 1444.11,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-24",
+          "date_posted": "2024-09-25",
+          "amount": 897.34,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-28",
+          "date_posted": "2024-09-29",
+          "amount": 629.42,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-07",
+          "date_posted": "2024-10-08",
+          "amount": 1109.18,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-14",
+          "date_posted": "2024-10-15",
+          "amount": 40.17,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-10",
+          "date_posted": "2024-08-11",
+          "amount": 17.33,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-23",
+          "date_posted": "2024-08-24",
+          "amount": 1476.43,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-16",
+          "date_posted": "2024-08-17",
+          "amount": 1929.87,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-02",
+          "date_posted": "2024-10-03",
+          "amount": 36.96,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-25",
+          "date_posted": "2024-09-26",
+          "amount": 1106.82,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-21",
+          "date_posted": "2024-08-22",
+          "amount": 1854.09,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-23",
+          "date_posted": "2024-09-24",
+          "amount": 1520.24,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-13",
+          "date_posted": "2024-09-14",
+          "amount": 11.81,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-27",
+          "date_posted": "2024-10-28",
+          "amount": 1334.05,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-12",
+          "date_posted": "2024-08-13",
+          "amount": 605.75,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-22",
+          "date_posted": "2024-08-23",
+          "amount": 810.32,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-14",
+          "date_posted": "2024-08-15",
+          "amount": 1099.64,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-15",
+          "date_posted": "2024-10-16",
+          "amount": 45.04,
+          "description": "Interest Income",
+          "currency": "USD"
+        }
+      ],
+      "starting_balance": 6074.37,
+      "identity": {
+        "names": [
+          "John Smith"
+        ],
+        "addresses": [
+          {
+            "primary": true,
+            "data": {
+              "country": "US",
+              "city": "New York",
+              "street": "10003 Broadway Road",
+              "postal_code": "10003",
+              "region": "NY"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "transactions": [
+        {
+          "date_transacted": "2024-09-17",
+          "date_posted": "2024-09-18",
+          "amount": 1508.13,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-06",
+          "date_posted": "2024-11-07",
+          "amount": 1669.13,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-12",
+          "date_posted": "2024-09-13",
+          "amount": 13.25,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": 1095.76,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-12",
+          "date_posted": "2024-09-13",
+          "amount": 597.34,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-30",
+          "date_posted": "2024-08-31",
+          "amount": 26.13,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-31",
+          "date_posted": "2024-11-01",
+          "amount": 1555.04,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-08",
+          "date_posted": "2024-08-09",
+          "amount": 26.88,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-03",
+          "date_posted": "2024-10-04",
+          "amount": 1093.71,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-15",
+          "date_posted": "2024-09-16",
+          "amount": 651.17,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-28",
+          "date_posted": "2024-09-29",
+          "amount": 1111.41,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-03",
+          "date_posted": "2024-10-04",
+          "amount": 47.27,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-13",
+          "date_posted": "2024-08-14",
+          "amount": 651.1,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-28",
+          "date_posted": "2024-08-29",
+          "amount": 621.37,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-28",
+          "date_posted": "2024-09-29",
+          "amount": 1383.3,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-10",
+          "date_posted": "2024-09-11",
+          "amount": 1007.88,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-06",
+          "date_posted": "2024-11-07",
+          "amount": 1511.51,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-13",
+          "date_posted": "2024-10-14",
+          "amount": 635.34,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-22",
+          "date_posted": "2024-09-23",
+          "amount": 1657.88,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-06",
+          "date_posted": "2024-10-07",
+          "amount": 1285.58,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-08",
+          "date_posted": "2024-09-09",
+          "amount": 17.41,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-04",
+          "date_posted": "2024-09-05",
+          "amount": 1642.45,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-19",
+          "date_posted": "2024-08-20",
+          "amount": 1296.3,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-08",
+          "date_posted": "2024-08-09",
+          "amount": 1027.54,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-24",
+          "date_posted": "2024-08-25",
+          "amount": 1075.98,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-25",
+          "date_posted": "2024-08-26",
+          "amount": 1737.66,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-15",
+          "date_posted": "2024-08-16",
+          "amount": 1855.39,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-20",
+          "date_posted": "2024-09-21",
+          "amount": 21.24,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-24",
+          "date_posted": "2024-10-25",
+          "amount": 614.54,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-10",
+          "date_posted": "2024-08-11",
+          "amount": 750.26,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-16",
+          "date_posted": "2024-09-17",
+          "amount": 1679.03,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-07",
+          "date_posted": "2024-10-08",
+          "amount": 1591.23,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": 1499.62,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-31",
+          "date_posted": "2024-11-01",
+          "amount": 873.33,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": 1181.89,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-05",
+          "date_posted": "2024-10-06",
+          "amount": 1555.5,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-21",
+          "date_posted": "2024-10-22",
+          "amount": 1827.95,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-07",
+          "date_posted": "2024-10-08",
+          "amount": 1459.02,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-13",
+          "date_posted": "2024-08-14",
+          "amount": 791.21,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-06",
+          "date_posted": "2024-10-07",
+          "amount": 8.54,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": 1992.84,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": 1294.31,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-03",
+          "date_posted": "2024-11-04",
+          "amount": 37.97,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-04",
+          "date_posted": "2024-10-05",
+          "amount": 44.34,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-26",
+          "date_posted": "2024-10-27",
+          "amount": 944.52,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-06",
+          "date_posted": "2024-11-07",
+          "amount": 766.56,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-13",
+          "date_posted": "2024-08-14",
+          "amount": 1410.45,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-02",
+          "date_posted": "2024-10-03",
+          "amount": 1722.91,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-16",
+          "date_posted": "2024-09-17",
+          "amount": 809.32,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-06",
+          "date_posted": "2024-10-07",
+          "amount": 823.74,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        }
+      ],
+      "starting_balance": 7227.99,
+      "identity": {
+        "names": [
+          "John Smith"
+        ],
+        "addresses": [
+          {
+            "primary": true,
+            "data": {
+              "country": "US",
+              "city": "New York",
+              "street": "10003 Broadway Road",
+              "postal_code": "10003",
+              "region": "NY"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "credit",
+      "subtype": "credit card",
+      "transactions": [
+        {
+          "date_transacted": "2024-09-25",
+          "date_posted": "2024-09-26",
+          "amount": -84.88,
+          "description": "Supermarket Grocery",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-09",
+          "date_posted": "2024-10-10",
+          "amount": -48.56,
+          "description": "Gas Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-12",
+          "date_posted": "2024-10-13",
+          "amount": -44.41,
+          "description": "Gas Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-06",
+          "date_posted": "2024-11-07",
+          "amount": -61.68,
+          "description": "Gas Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-25",
+          "date_posted": "2024-08-26",
+          "amount": -61.13,
+          "description": "Bike Installment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-04",
+          "date_posted": "2024-10-05",
+          "amount": -398.07,
+          "description": "Car Installment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-23",
+          "date_posted": "2024-09-24",
+          "amount": -15.54,
+          "description": "SonyLiv",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-16",
+          "date_posted": "2024-09-17",
+          "amount": -12.16,
+          "description": "Netflix",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-21",
+          "date_posted": "2024-10-22",
+          "amount": -54.45,
+          "description": "Organic Store",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-28",
+          "date_posted": "2024-10-29",
+          "amount": -59.74,
+          "description": "Water Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-30",
+          "date_posted": "2024-10-31",
+          "amount": -15.81,
+          "description": "Netflix",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": -10.25,
+          "description": "Netflix",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-20",
+          "date_posted": "2024-09-21",
+          "amount": -13.55,
+          "description": "Amazon Prime",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-02",
+          "date_posted": "2024-11-03",
+          "amount": -44.01,
+          "description": "Water Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-19",
+          "date_posted": "2024-09-20",
+          "amount": -17.71,
+          "description": "SonyLiv",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-02",
+          "date_posted": "2024-10-03",
+          "amount": -135.06,
+          "description": "Supermarket Grocery",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-24",
+          "date_posted": "2024-08-25",
+          "amount": -12.75,
+          "description": "SonyLiv",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-13",
+          "date_posted": "2024-09-14",
+          "amount": -357.87,
+          "description": "Car Installment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-13",
+          "date_posted": "2024-08-14",
+          "amount": -90.47,
+          "description": "Internet Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-31",
+          "date_posted": "2024-09-01",
+          "amount": -31.9,
+          "description": "Farmers Market",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-16",
+          "date_posted": "2024-08-17",
+          "amount": -19.46,
+          "description": "Netflix",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-16",
+          "date_posted": "2024-09-17",
+          "amount": -14.06,
+          "description": "Amazon Prime",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-18",
+          "date_posted": "2024-09-19",
+          "amount": -34.26,
+          "description": "Water Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-29",
+          "date_posted": "2024-10-30",
+          "amount": -22.77,
+          "description": "Convenience Store",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-31",
+          "date_posted": "2024-09-01",
+          "amount": -196.08,
+          "description": "Co-Working Space",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-03",
+          "date_posted": "2024-10-04",
+          "amount": -133.32,
+          "description": "Bike Installment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-18",
+          "date_posted": "2024-08-19",
+          "amount": -12.19,
+          "description": "Netflix",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-09",
+          "date_posted": "2024-09-10",
+          "amount": -13.35,
+          "description": "SonyLiv",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-15",
+          "date_posted": "2024-10-16",
+          "amount": -135.02,
+          "description": "Bike Installment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": -109.41,
+          "description": "Farmers Market",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-18",
+          "date_posted": "2024-10-19",
+          "amount": -537.82,
+          "description": "Car Installment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-03",
+          "date_posted": "2024-10-04",
+          "amount": -114.94,
+          "description": "Co-Working Space",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": -37.03,
+          "description": "Farmers Market",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-07",
+          "date_posted": "2024-09-08",
+          "amount": -48.14,
+          "description": "Water Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-08-23",
+          "date_posted": "2024-08-24",
+          "amount": -1350.07,
+          "description": "Home Rent",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-18",
+          "date_posted": "2024-09-19",
+          "amount": -109.28,
+          "description": "Bike Installment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-27",
+          "date_posted": "2024-10-28",
+          "amount": -102.97,
+          "description": "Co-Working Space",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-03",
+          "date_posted": "2024-10-04",
+          "amount": -60.65,
+          "description": "Electricity Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-23",
+          "date_posted": "2024-09-24",
+          "amount": -100.03,
+          "description": "Organic Store",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-18",
+          "date_posted": "2024-09-19",
+          "amount": -33.69,
+          "description": "Water Bill",
+          "currency": "USD"
+        }
+      ],
+      "starting_balance": 0
+    }
+  ]
+}

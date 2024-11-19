@@ -27,136 +27,138 @@ import {
     TableRow,
 } from "@kit/ui/table"
 import {useState, useEffect, use} from "react";
-import { useParams } from "next/navigation"
-import { getSupabaseBrowserClient } from "@kit/supabase/browser-client"
+import { useBudgetWorkspace } from "~/components/budget-workspace-context"
+import { FinAccountTransaction } from "~/lib/model/fin.types"
 
-export type Transaction = {
-    id: string,
-    date: string,
-    category: string,
-    merchant_name: string,
-    payee: string,
-    amount: number,
-    account_name: string,
-    account_mask: string
-}
 
-export const columns: ColumnDef<Transaction>[] = [
-    {
-        id: "select",
-        header: ({ table }) => (
-            <div className="flex items-center justify-center">
-                <Checkbox
-                    checked={
-                        table.getIsAllPageRowsSelected() ||
-                        (table.getIsSomePageRowsSelected() && "indeterminate")
-                    }
-                    onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-                    aria-label="Select all"
-                />
-            </div>
-        ),
-        cell: ({ row }) => (
-            <div className="flex items-center justify-center">
-                <Checkbox
-                    checked={row.getIsSelected()}
-                    onCheckedChange={(value) => row.toggleSelected(!!value)}
-                    aria-label="Select row"
-                />
-            </div>
-        ),
-        enableSorting: false,
-        enableHiding: false
-    },
-    {
-        accessorKey: "date",
-        header: "Date",
-        cell: ({ row }) => {
-            const date = new Date(row.getValue("date"));
-            const formattedDate = date.toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-            });
-            return <div>{formattedDate}</div>;
-        },
-    },
-    {
-        accessorKey: "category",
-        header: "Category",
-        cell: ({ row }) => (
-            <div className="capitalize">{row.getValue("category")}</div>
-        ),
-    },
-    // {
-    //     accessorKey: "payee",
-    //     header: "Payee",
-    //     cell: ({ row }) => (
-    //         <div className="capitalize">{row.getValue("payee")}</div>
-    //     ),
-    // },
-    // {
-    //     accessorKey: "description",
-    //     header: "Description",
-    //     cell: ({ row }) => (
-    //         <div>{row.getValue("description")}</div>
-    //     ),
-    // },
-    {
-        accessorKey: "amount",
-        header: () =>
-            <div className="flex flex-row gap-1 items-center justify-center">
-                Amount
-            </div>,
-        cell: ({ row }) => {
-            const amount = parseFloat(row.getValue("amount"));
-            // Format the amount as a dollar amount
-            const formatted = new Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: "USD",
-            }).format(amount)
-
-            return <div className="font-medium inline-flex flex-row gap-1 items-center justify-end w-full">
-                {formatted}
-            </div>
-        },
-    },
-    {
-        accessorKey: "account",
-        header: "Account",
-        cell: ({ row }) => {
-            const account_name = row.original.account_name;
-            const account_mask = row.original.account_mask;
-            return (
-                <div>
-                    <div className="font-medium">{account_name}</div>
-                    <div className="text-sm text-muted-foreground">****{account_mask}</div>
-                </div>
-            );
-        },
-    },
-    {
-        accessorKey: "isSave",
-        header: () =>
-            <div className="text-center flex flex-row gap-1 items-center justify-end">
-                <Bookmark  className="h-4 w-4"/>
-            </div>,
-        cell: ({ row }) => {
-            return (
-                <div className="text-center font-medium flex flex-row gap-1 items-center justify-end">
-                    <Bookmark  className="h-4 w-4"/>
-                </div>
-            )
-        },
-    }
-]
-
-export function RecurringTable(props: { budgetId: string }) {
-    const [transactions, setTransactions] = useState<Transaction[]>([])
+export function RecurringTable() {
+    const [transactions, setTransactions] = useState<FinAccountTransaction[]>([])
     const [sorting, setSorting] = useState<SortingState>([])
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
     const [rowSelection, setRowSelection] = useState({})
+
+
+    const { workspace } = useBudgetWorkspace();
+
+    const columns: ColumnDef<FinAccountTransaction>[] = [
+        {
+            id: "select",
+            header: ({ table }) => (
+                <div className="flex items-center justify-center">
+                    <Checkbox
+                        checked={
+                            table.getIsAllPageRowsSelected() ||
+                            (table.getIsSomePageRowsSelected() && "indeterminate")
+                        }
+                        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                        aria-label="Select all"
+                    />
+                </div>
+            ),
+            cell: ({ row }) => (
+                <div className="flex items-center justify-center">
+                    <Checkbox
+                        checked={row.getIsSelected()}
+                        onCheckedChange={(value) => row.toggleSelected(!!value)}
+                        aria-label="Select row"
+                    />
+                </div>
+            ),
+            enableSorting: false,
+            enableHiding: false
+        },
+        {
+            accessorKey: "date",
+            header: "Date",
+            cell: ({ row }) => {
+                const date = new Date(row.getValue("date"));
+                const formattedDate = date.toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                });
+                return <div>{formattedDate}</div>;
+            },
+        },
+        {
+            accessorKey: "category",
+            header: "Category",
+            cell: ({ row }) => (
+                <div className="capitalize">{row.getValue("category")}</div>
+            ),
+        },
+        // {
+        //     accessorKey: "payee",
+        //     header: "Payee",
+        //     cell: ({ row }) => (
+        //         <div className="capitalize">{row.getValue("payee")}</div>
+        //     ),
+        // },
+        // {
+        //     accessorKey: "description",
+        //     header: "Description",
+        //     cell: ({ row }) => (
+        //         <div>{row.getValue("description")}</div>
+        //     ),
+        // },
+        {
+            accessorKey: "amount",
+            header: () =>
+                <div className="flex flex-row gap-1 items-center justify-center">
+                    Amount
+                </div>,
+            cell: ({ row }) => {
+                const amount = parseFloat(row.getValue("amount"));
+                // Format the amount as a dollar amount
+                const formatted = new Intl.NumberFormat("en-US", {
+                    style: "currency",
+                    currency: "USD",
+                }).format(amount)
+    
+                return <div className="font-medium inline-flex flex-row gap-1 items-center justify-end w-full">
+                    {formatted}
+                </div>
+            },
+        },
+        {
+            accessorKey: "account",
+            header: "Account",
+            cell: ({ row }) => {
+                const transaction = row.original;
+                const linkedAccount = workspace.budget.linkedFinAccounts.find(
+                    account => account.id === transaction.budgetFinAccountId
+                );
+    
+                return (
+                    <div>
+                        <div className="font-medium">{linkedAccount?.name || 'Unknown Account'}</div>
+                        <div className="text-sm text-muted-foreground">
+                            {linkedAccount?.mask ? `****${linkedAccount.mask}` : ''}
+                        </div>
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: "isSave",
+            header: () =>
+                <div className="text-center flex flex-row gap-1 items-center justify-end">
+                    <Bookmark  className="h-4 w-4"/>
+                </div>,
+            cell: ({ row }) => {
+                return (
+                    <div className="text-center font-medium flex flex-row gap-1 items-center justify-end">
+                        <Bookmark  className="h-4 w-4"/>
+                    </div>
+                )
+            },
+        }
+    ]    
+
+    useEffect(() => {
+        setTransactions(workspace.budgetTransactions)
+    }, [])
 
     const table = useReactTable({
         data: transactions,
@@ -176,24 +178,6 @@ export function RecurringTable(props: { budgetId: string }) {
             rowSelection,
         },
     })
-
-    async function fetchTransactions() {
-        const supabase = getSupabaseBrowserClient()
-        const { data, error } = await supabase.rpc('get_budget_transactions', {
-            p_budget_id: props.budgetId
-        });
-
-        if (error) {
-            console.error('Error fetching transactions:', error)
-            return
-        }
-
-        setTransactions(data)
-    }
-
-    useEffect(() => {
-        fetchTransactions()
-    }, [])
 
     return (
         <div className="w-full">

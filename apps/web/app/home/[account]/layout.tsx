@@ -2,7 +2,6 @@ import { use } from 'react';
 
 import { cookies } from 'next/headers';
 
-import { TeamAccountWorkspaceContextProvider } from '@kit/team-accounts/components';
 import { If } from '@kit/ui/if';
 import {
   Page,
@@ -19,8 +18,11 @@ import { withI18n } from '~/lib/i18n/with-i18n';
 import { TeamAccountLayoutMobileNavigation } from './_components/team-account-layout-mobile-navigation';
 import { TeamAccountLayoutSidebar } from './_components/team-account-layout-sidebar';
 import { TeamAccountNavigationMenu } from './_components/team-account-navigation-menu';
-import { loadTeamWorkspace } from './_lib/server/team-account-workspace.loader';
 import FirstTimeInviteMembersModal from './_components/first-time-invite-members-modal';
+import { BudgetWorkspaceContextProvider } from '~/components/budget-workspace-context';
+import { createBudgetService } from '~/lib/server/budget.service';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { loadBudgetWorkspace } from './_lib/server/team-account-budget-manage-page.loader';
 
 interface Params {
   account: string;
@@ -32,7 +34,7 @@ function TeamWorkspaceLayout({
 }: React.PropsWithChildren<{
   params: Params;
 }>) {
-  const data = use(loadTeamWorkspace(params.account));
+  const data = use(loadBudgetWorkspace(params.account));
   const style = getLayoutStyle(params.account);
 
   const accounts = data.accounts.map(({ name, slug, picture_url }) => ({
@@ -40,6 +42,8 @@ function TeamWorkspaceLayout({
     value: slug,
     image: picture_url,
   }));
+
+  const budgetService = createBudgetService(getSupabaseServerClient());
 
   return (
     <Page style={style}>
@@ -71,14 +75,20 @@ function TeamWorkspaceLayout({
         </div>
       </PageMobileNavigation>
 
-      <TeamAccountWorkspaceContextProvider value={data}>
+      <BudgetWorkspaceContextProvider value={{
+        user: data.user,
+        accounts: data.accounts,
+        account: data.account,
+        budget: budgetService.parseBudget(data.budget)!,
+        budgetTransactions: budgetService.parseBudgetTransactions(data.budgetTransactions),
+      }}>
         <FirstTimeInviteMembersModal
           params={{
             accountSlug: data.account.slug,
           }}
         />
         {children}
-      </TeamAccountWorkspaceContextProvider>
+      </BudgetWorkspaceContextProvider>
     </Page>
   );
 }

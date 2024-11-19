@@ -8,12 +8,11 @@ import { withI18n } from '~/lib/i18n/with-i18n';
 
 // local imports
 import { TeamAccountLayoutPageHeader } from '../_components/team-account-layout-page-header';
-import { loadMembersPageData } from './_lib/server/manage-page.loader';
-import TransactionDashboard from './_components/transactions-dashboard';
+import BudgetManageHome from './_components/budget-manage-home';
 
 interface Params {
   params: {
-    account: string;
+    accountSlug: string;
   };
 }
 
@@ -26,28 +25,22 @@ export const generateMetadata = async () => {
   };
 };
 
-async function TeamAccountMembersPage({ params }: Params) {
-  const client = getSupabaseServerClient();
-
-  const [members, invitations, canAddMember, { user, account }] =
-    await loadMembersPageData(client, params.account);
-
+async function BudgetManagePage({ params }: Params) {
   return (
     <>
       <TeamAccountLayoutPageHeader
         title={<Trans i18nKey={'common:routes.manage'} />}
         description={<AppBreadcrumbs />}
-        account={account.slug}
+        account={params.accountSlug}
       />
 
       <PageBody>
-        {/*<div className={'flex w-full max-w-4xl flex-col space-y-4 pb-32'}>*/}
         <div className={'flex w-full max-w-full flex-col space-y-4 pb-32'}>
-          <TransactionDashboard budgetId={account.budget_id} />
+          <BudgetManageHome />
         </div>
       </PageBody>
     </>
   );
 }
 
-export default withI18n(TeamAccountMembersPage);
+export default withI18n(BudgetManagePage);

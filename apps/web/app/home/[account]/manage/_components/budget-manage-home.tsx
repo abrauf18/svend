@@ -3,9 +3,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kit/ui/tabs"
 import TransactionTab from "~/home/[account]/manage/_components/transaction-tab";
 import RecurringTab from "~/home/[account]/manage/_components/recurring-tab";
 import GoalsTab from "~/home/[account]/manage/_components/goals-tab";
+import BudgetTab from './budget-tab';
 
 
-function TransactionDashboard(props: { budgetId: string }) {
+function BudgetManageHome() {
 
     return (
         <div className="flex-1 flex flex-col w-full mx-auto p-2">
@@ -37,18 +38,20 @@ function TransactionDashboard(props: { budgetId: string }) {
                     </TabsTrigger>
                 </TabsList>
                 <TabsContent value="transaction" className="w-full">
-                    <TransactionTab budgetId={props.budgetId} />
+                    <TransactionTab />
                 </TabsContent>
                 <TabsContent value="recurring" className="w-full">
-                    <RecurringTab budgetId={props.budgetId} />
+                    <RecurringTab />
                 </TabsContent>
-                <TabsContent value="budget">budget tab</TabsContent>
+                <TabsContent value="budget">
+                    <BudgetTab />
+                </TabsContent>
                 <TabsContent value="goals" className="w-full">
-                    <GoalsTab budgetId={props.budgetId} />
+                    <GoalsTab />
                 </TabsContent>
             </Tabs>
         </div>
     );
 }
 
-export default TransactionDashboard;
+export default BudgetManageHome;

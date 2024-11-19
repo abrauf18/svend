@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import type { BudgetFormSchema } from './budget-table';
 import { BudgetCategoryGroupSpending } from '~/lib/model/budget.types';
+import { LoadingOverlay } from '@kit/ui/loading-overlay';
 
 function OnboardingStep3CreateBudget() {
   const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +57,7 @@ function OnboardingStep3CreateBudget() {
       }
 
       const data = await response.json();
-      router.push(`/home/${data.budgetSlug}`);
+      router.replace(`/home/${data.budgetSlug}`);
     } catch (error) {
       console.error('Error saving budget:', error);
       setIsLoading(false);
@@ -164,6 +165,13 @@ function OnboardingStep3CreateBudget() {
           </Button>
         </CardFooter>
       </Card>
+      {isLoading && (
+        <LoadingOverlay
+          displayLogo={false}
+          fullPage={true}
+          className="!bg-background/50"
+        />
+      )}
     </div>
   )
 }

@@ -66,7 +66,9 @@ export default function OnboardingStep2AnalyzingData() {
           conservative: analysisResult.conservative.spending,
           relaxed: analysisResult.relaxed.spending
         },
-        goals: state.account.budget.goals
+        goals: state.account.budget.goals,
+        onboardingStep: 'analyze_spending_in_progress',
+        linkedFinAccounts: state.account.budget.linkedFinAccounts
       } as Budget;
   
       console.log('Updating budget with:', newBudget); // Log the new budget

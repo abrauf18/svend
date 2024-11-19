@@ -6,44 +6,47 @@ function validateConfig(config) {
     if (typeof config.transactions !== 'number' || config.transactions <= 0) {
         throw new Error("Invalid 'transactions' value. It should be a positive number.");
     }
-    if (!Array.isArray(config.accounts) || config.accounts.length === 0) {
-        throw new Error("Invalid 'accounts' value. It should be a non-empty array.");
+    if (typeof config.numChecking !== 'number' || config.numChecking < 0) {
+        throw new Error("Invalid 'numChecking' value. It should be a non-negative number.");
     }
-    for (const account of config.accounts) {
-        if (!account.type || !account.subtype) {
-            throw new Error("Each account must have 'type' and 'subtype' specified.");
-        }
-        if (account.type !== "credit" || account.subtype !== "credit card") {
-            if (typeof account.starting_balance !== 'number') {
-                throw new Error("Each non-credit card account must have a 'starting_balance' that is a number.");
-            }
-        }
+    if (typeof config.numSavings !== 'number' || config.numSavings < 0) {
+        throw new Error("Invalid 'numSavings' value. It should be a non-negative number.");
+    }
+    if (typeof config.numCredit !== 'number' || config.numCredit < 0) {
+        throw new Error("Invalid 'numCredit' value. It should be a non-negative number.");
+    }
+    if (typeof config.numUsers !== 'number' || config.numUsers <= 0) {
+        throw new Error("Invalid 'numUsers' value. It should be a positive number.");
+    }
+    if (typeof config.outputDir !== 'string' || config.outputDir.trim() === "") {
+        throw new Error("Invalid 'outputDir' value. It should be a non-empty string.");
     }
 }
 
-// Function to generate Plaid sandbox data
-function generatePlaidData(config) {
-    const accounts = config.accounts.map(account => generateAccountData(account, config.transactions));
+// Function to generate Plaid sandbox data for a single user
+function generateUserData(config) {
+    const accounts = [
+        ...Array(config.numChecking).fill().map((_, index) => generateAccountData('depository', 'checking', config.transactions, index)),
+        ...Array(config.numSavings).fill().map((_, index) => generateAccountData('depository', 'savings', config.transactions, index)),
+        ...Array(config.numCredit).fill().map((_, index) => generateAccountData('credit', 'credit card', config.transactions, index))
+    ];
+    
     return {
         override_accounts: accounts
     };
 }
 
 // Function to generate individual account data
-function generateAccountData(accountConfig, transactionCount) {
-    const { type, subtype, starting_balance } = accountConfig;
-
-    // Generate transactions based on the account type
-    const transactions = generateTransactions(type, subtype, transactionCount);
+function generateAccountData(type, subtype, transactionCount, accountIndex = 0) {
+    const starting_balance = type === 'credit' ? 0 : parseFloat((Math.random() * 10000).toFixed(2));
+    const transactions = generateTransactions(type, subtype, transactionCount, accountIndex);
 
     const accountData = {
         type,
         subtype,
-        transactions
+        transactions,
+        starting_balance
     };
-
-    // Add starting_balance for all accounts, including credit card accounts
-    accountData.starting_balance = starting_balance || 0;
 
     // Add identity only for non-credit card accounts
     if (!(type === "credit" && subtype === "credit card")) {
@@ -53,7 +56,7 @@ function generateAccountData(accountConfig, transactionCount) {
     return accountData;
 }
 
-// Function to generate identity data
+// Function to generate identity data for each user
 function generateIdentity() {
     return {
         names: ["John Smith"],
@@ -73,93 +76,95 @@ function generateIdentity() {
 }
 
 // Function to generate transactions based on account type and assumptions
-function generateTransactions(accountType, accountSubtype, transactionCount) {
+function generateTransactions(accountType, accountSubtype, transactionCount, accountIndex = 0) {
     const transactions = [];
-    const monthlyExpenses = {};
-    let totalCreditCardSpending = 0;
-    const creditCardLimit = 5000; // Example credit card limit
-    let currentMonth = null;
+    let lastSalaryDate = null;
 
-    // Realistic recurring and one-off payment scenarios
-    const recurringTransactions = [
-        { description: "Rent Payment", amount: 1500 },
-        { description: "Electricity Bill", amount: 100 },
-        { description: "Streaming Service", amount: 15 },
-        { description: "Auto Insurance", amount: 200 },
-        { description: "Gym Membership Fee", amount: 50 },
-        { description: "Internet Service", amount: 60 }
-    ];
-
-    const oneOffExpenses = [
-        { description: "Concert Tickets", min: 50, max: 150 },
-        { description: "Electronics Purchase", min: 100, max: 1000 },
-        { description: "Clothing Store", min: 20, max: 200 },
-        { description: "Dining at Restaurant", min: 15, max: 100 },
-        { description: "Supermarket Grocery", min: 30, max: 300 },
-        { description: "Pharmacy Purchase", min: 5, max: 100 },
-        { description: "Airfare Ticket", min: 100, max: 1000 },
-        { description: "Hotel Stay", min: 80, max: 500 },
-        { description: "Taxi Ride", min: 10, max: 50 },
-        { description: "School Supplies", min: 10, max: 200 },
-        { description: "Doctor Appointment", min: 50, max: 200 }
-    ];
-
-    // Generate transactions for the last 3 months
-    for (let i = 0; i < transactionCount; i++) {
-        const date = getRandomDateWithinLast3Months();
-        const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
-        let description, amount;
-
-        // Ensure monthly recurring transactions happen once per month
-        if (accountType === "credit" && accountSubtype === "credit card" && currentMonth !== monthKey) {
-            currentMonth = monthKey;
-            recurringTransactions.forEach(({ description: desc, amount: amt }) => {
-                if (totalCreditCardSpending + amt <= creditCardLimit) {
-                    transactions.push(createTransaction(date, -amt, desc));
-                    totalCreditCardSpending += amt;
-                    monthlyExpenses[monthKey] = totalCreditCardSpending;
-                }
-            });
+    const depositGroups = [
+        {
+            name: "Freelance Deposits",
+            sources: Array.from({ length: 10 }, (_, i) => `Freelance Client ${String.fromCharCode(65 + accountIndex)}${i + 1}`)
+        },
+        {
+            name: "Gift Deposits",
+            sources: Array.from({ length: 10 }, (_, i) => `Gift Source ${accountIndex + 1} - Occasion ${i + 1}`)
+        },
+        {
+            name: "Bonus Payments",
+            sources: Array.from({ length: 10 }, (_, i) => `Bonus Source ${accountIndex + 1} - Occasion ${i + 1}`)
+        },
+        {
+            name: "Reimbursements",
+            sources: Array.from({ length: 10 }, (_, i) => `Reimbursement Type ${accountIndex + 1} - Reason ${i + 1}`)
         }
+    ];
 
-        if (accountType === "depository" && accountSubtype === "savings") {
-            // Link savings deposits to checking deposits
-            if (monthlyExpenses[monthKey]) {
-                description = "Savings Deposit";
-                amount = monthlyExpenses[monthKey];
-                transactions.push(createTransaction(date, amount, description));
-            }
-            // Add interest income
-            if (Math.random() > 0.8) {
-                description = "Interest Income";
-                amount = getRandomAmount(5, 50);
-                transactions.push(createTransaction(date, amount, description));
-            }
-        } else if (accountType === "depository" && accountSubtype === "checking") {
-            // Checking accounts: Direct deposits and monthly credit card payments
-            if (i % 5 === 0 && totalCreditCardSpending > 0) {
-                description = "Credit Card Payment";
-                amount = totalCreditCardSpending;
-                transactions.push(createTransaction(date, -amount, description));
-                totalCreditCardSpending = 0;
-            } else {
+    const creditCardGroups = {
+        "Bill Payments": [
+            { description: "Electricity Bill", min: 50, max: 150 },
+            { description: "Water Bill", min: 20, max: 60 },
+            { description: "Gas Bill", min: 30, max: 80 },
+            { description: "Internet Service", min: 40, max: 100 }
+        ],
+        "Subscriptions": [
+            { description: "Netflix", min: 10, max: 20 },
+            { description: "SonyLiv", min: 8, max: 18 },
+            { description: "Amazon Prime", min: 12, max: 15 },
+            { description: "Co-Working Space", min: 100, max: 200 },
+            { description: "Home Rent", min: 800, max: 1500 },
+            { description: "Car Installment", min: 300, max: 600 },
+            { description: "Bike Installment", min: 50, max: 150 }
+        ],
+        "Grocery": [
+            { description: "Supermarket Grocery", min: 30, max: 300 },
+            { description: "Convenience Store", min: 15, max: 100 },
+            { description: "Farmers Market", min: 25, max: 150 },
+            { description: "Organic Store", min: 20, max: 120 }
+        ]
+    };
+
+    if (accountType === "depository" && accountSubtype === "checking") {
+        for (let i = 0; i < transactionCount; i++) {
+            const date = getRandomDateWithinLast3Months();
+            const group = depositGroups[Math.floor(Math.random() * depositGroups.length)];
+            const source = group.sources[Math.floor(Math.random() * group.sources.length)];
+
+            let description, amount;
+            if (i % 20 === 0 && (!lastSalaryDate || (lastSalaryDate && date.getMonth() !== lastSalaryDate.getMonth()))) {
                 description = "Salary Deposit";
-                amount = getRandomAmount(1000, 5000);
-                transactions.push(createTransaction(date, amount, description));
-                if (!monthlyExpenses[monthKey]) {
-                    monthlyExpenses[monthKey] = amount;
-                }
+                amount = getRandomAmount(3000, 7000);
+                lastSalaryDate = date;
+            } else {
+                description = `${group.name} - ${source}`;
+                amount = getRandomAmount(100, 2000);
             }
-        } else if (accountType === "credit" && accountSubtype === "credit card") {
-            // Handle one-off expenses for credit cards
-            const { description: desc, min, max } = oneOffExpenses[Math.floor(Math.random() * oneOffExpenses.length)];
-            description = desc;
-            amount = getRandomAmount(min, max);
+            
+            transactions.push(createTransaction(date, amount, description));
+        }
+    } else if (accountType === "depository" && accountSubtype === "savings") {
+        for (let i = 0; i < transactionCount; i++) {
+            const date = getRandomDateWithinLast3Months();
+            const isInterestIncome = Math.random() < 0.2;
+            const amount = isInterestIncome ? getRandomAmount(5, 50) : getRandomAmount(500, 2000);
+            const description = isInterestIncome ? "Interest Income" : "Transfer from Checking";
+            transactions.push(createTransaction(date, amount, description));
+        }
+    } else if (accountType === "credit" && accountSubtype === "credit card") {
+        let totalSpending = 0;
+        const creditLimit = 5000;
 
-            if (totalCreditCardSpending + amount <= creditCardLimit) {
-                transactions.push(createTransaction(date, -amount, description));
-                totalCreditCardSpending += amount;
-            }
+        for (let i = 0; i < transactionCount; i++) {
+            const date = getRandomDateWithinLast3Months();
+            const groupKeys = Object.keys(creditCardGroups);
+            const group = creditCardGroups[groupKeys[Math.floor(Math.random() * groupKeys.length)]];
+            const transaction = group[Math.floor(Math.random() * group.length)];
+            
+            const description = transaction.description;
+            const amount = getRandomAmount(transaction.min, transaction.max);
+
+            if (totalSpending + amount > creditLimit) break;
+            totalSpending += amount;
+            transactions.push(createTransaction(date, -amount, description));
         }
     }
 
@@ -193,7 +198,6 @@ function getRandomAmount(min, max) {
 async function main() {
     const args = process.argv.slice(2);
     const configFilePath = args.find(arg => arg.startsWith('--config='))?.split('=')[1];
-    const outputFilePath = args.find(arg => arg.startsWith('--output='))?.split('=')[1];
 
     if (!configFilePath) {
         console.error("Please provide a configuration file path using --config.");
@@ -209,14 +213,19 @@ async function main() {
     try {
         const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
         validateConfig(config);
-        const plaidData = generatePlaidData(config);
 
-        if (outputFilePath) {
-            fs.writeFileSync(path.resolve(outputFilePath), JSON.stringify(plaidData, null, 2));
-            console.log(`Plaid data generated and saved to ${outputFilePath}`);
-        } else {
-            console.log(JSON.stringify(plaidData, null, 2));
+        if (!fs.existsSync(config.outputDir)) {
+            fs.mkdirSync(config.outputDir, { recursive: true });
         }
+
+        // Generate data for each user
+        for (let userIndex = 0; userIndex < config.numUsers; userIndex++) {
+            const plaidData = generateUserData(config);
+            const userFilePath = path.resolve(config.outputDir, `plaid_data_user_${userIndex + 1}.json`);
+            fs.writeFileSync(userFilePath, JSON.stringify(plaidData, null, 2));
+            console.log(`Plaid data for user ${userIndex + 1} generated and saved to ${userFilePath}`);
+        }
+
     } catch (error) {
         console.error("Error processing configuration file:", error.message);
         process.exit(1);

@@ -52,7 +52,7 @@ function getClassName(theme?: string) {
 }
 
 function getTheme() {
-  return cookies().get('theme')?.value;
+  return cookies().get('theme')?.value ?? 'dark';
 }
 
 export const generateMetadata = generateRootMetadata;

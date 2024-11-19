@@ -43,7 +43,10 @@ export function TeamAccountNavigationMenu(props: {
 
         <BorderedNavigationMenu>
           {routes.map((route) => (
-            <BorderedNavigationMenuItem {...route} key={route.path} />
+            <BorderedNavigationMenuItem
+              {...route}
+              key={route.path}
+            />
           ))}
         </BorderedNavigationMenu>
       </div>

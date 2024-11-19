@@ -1,12 +1,13 @@
 {
   "name": "tests-tools-plaid",
   "version": "1.0.0",
-  "description": "",
+  "description": "Testing tools for Plaid data generation",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["plaid", "testing", "data generation"],
+  "author": "Your Name",
   "license": "ISC"
 }

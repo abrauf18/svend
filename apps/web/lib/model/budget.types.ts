@@ -1,9 +1,14 @@
+import { Database } from '../database.types';
+import { FinAccount } from './fin.types';
+
 export type Budget = {
     id: string;
     budgetType: string;
     categoryGroupSpending: Record<string, BudgetCategoryGroupSpending>;
     recommendedCategoryGroupSpending: Record<string, Record<string, BudgetCategoryGroupSpending>>;
     goals: BudgetGoal[];
+    onboardingStep: Database['public']['Tables']['budgets']['Row']['current_onboarding_step'];
+    linkedFinAccounts: Array<FinAccount>;
 }
 
 export type BudgetCategoryGroupSpending = {

@@ -11,7 +11,7 @@ import { loadMembersPageData } from '../members/_lib/server/members-page.loader'
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { InviteMembersDialog } from './invite-members-dialog';
 import { withI18n } from '~/lib/i18n/with-i18n';
-import { useTeamAccountWorkspace } from '@kit/team-accounts/components';
+import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 
 interface FirstTimeInviteMembersModalProps {
   params: {
@@ -22,21 +22,10 @@ interface FirstTimeInviteMembersModalProps {
 async function FirstTimeInviteMembersModal({ params }: FirstTimeInviteMembersModalProps) {
   const supabase = getSupabaseServerClient();
 
-  const { data: dbBudgetData, error } = await supabase
-    .from('accounts')
-    .select(`
-      budget:budgets (
-        id,
-        current_onboarding_step
-      )
-    `)
-    .eq('slug', params.accountSlug)
-    .single();
-
-  const budgetId = dbBudgetData?.budget?.id;
-
   const [members, invitations, canAddMember, { user, account }] =
     await loadMembersPageData(supabase, params.accountSlug);
+
+  const budgetId = account.budget_id;
 
   const canManageRoles = account.permissions.includes('roles.manage');
   const canManageInvitations = account.permissions.includes('invites.manage');

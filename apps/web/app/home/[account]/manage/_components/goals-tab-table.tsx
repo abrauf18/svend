@@ -194,25 +194,6 @@ export function GaolsTable({ budgetId }: GaolsTableProps) {
         },
     })
 
-    async function fetchTransactions() {
-        const supabase = getSupabaseBrowserClient()
-        const { data, error } = await supabase.rpc('get_budget_transactions', {
-            p_budget_id: budgetId
-        });
-        console.log('data', data);
-
-        if (error) {
-            console.error('Error fetching transactions:', error)
-            return
-        }
-
-        setTransactions(data)
-    }
-
-    useEffect(() => {
-        fetchTransactions()
-    }, [])
-
     const { pageSize, pageIndex } = table.getState().pagination
     const rowRange = {
         start: pageSize * pageIndex + 1,

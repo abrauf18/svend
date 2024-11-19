@@ -308,7 +308,7 @@ async function budgetAnalysis(budgetId: string, plaidConnectionItems: PlaidConne
 
     // Analyze existing transactions
     for (const transaction of existingTransactions) {
-      const plaidCategory = transaction.category_detailed;
+      const plaidCategory = transaction.plaid_category_detailed;
       if (plaidCategory) {
         const amount = transaction.amount;
         categorySpending[plaidCategory] = (categorySpending[plaidCategory] || 0) + amount;
@@ -344,7 +344,10 @@ async function budgetAnalysis(budgetId: string, plaidConnectionItems: PlaidConne
               amount: amount,
               plaidDetailedCategoryName: plaidCategory,
               plaidAccountId: plaidAccountIds?.find(accountIds => accountIds.plaid_account_id === transaction.account_id)?.id,
-              plaidItemId: item.svendItemId,
+              merchantName: transaction.merchant_name ?? '',
+              payee: transaction.payment_meta?.payee ?? '',
+              isoCurrencyCode: transaction.iso_currency_code,
+              rawData: transaction,
             } as FinAccountTransaction);
           }
         }
@@ -460,12 +463,14 @@ async function persistTransactions(transactions: FinAccountTransaction[]) {
         plaid_account_id: transaction.plaidAccountId,
         amount: transaction.amount,
         iso_currency_code: transaction.isoCurrencyCode,
-        category_detailed: transaction.plaidDetailedCategoryName,
+        plaid_category_detailed: transaction.plaidDetailedCategoryName,
+        plaid_category_confidence: transaction.plaidCategoryConfidence,
         svend_category_id: transaction.svendCategoryId as string,
         date: transaction.date,
         merchant_name: transaction.merchantName,
         payee: transaction.payee,
-        raw_data: transaction.rawData ? JSON.stringify(transaction.rawData) : null
+        notes: transaction.notes,
+        raw_data: transaction.rawData
       }));
 
       console.log(`Persisting batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(transactions.length / BATCH_SIZE)}`);

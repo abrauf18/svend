@@ -82,6 +82,8 @@ export async function GET(request: Request) {
     categoryGroupSpending: db_budget.category_spending ? db_budget.category_spending as Record<string, BudgetCategoryGroupSpending> : {},
     recommendedCategoryGroupSpending: db_budget.recommended_category_spending ? db_budget.recommended_category_spending as Record<string, Record<string, BudgetCategoryGroupSpending>> : {},
     goals: formattedBudgetGoals,
+    onboardingStep: db_budget.current_onboarding_step,
+    linkedFinAccounts: [],
   };
 
   // Fetch the financial profile for the user

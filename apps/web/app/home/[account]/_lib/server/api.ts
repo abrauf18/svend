@@ -7,111 +7,40 @@ import { Database } from '@kit/supabase/database';
  * @constructor
  * @param {SupabaseClient<Database>} client - The Supabase client instance.
  */
-export class TeamAccountsApi {
+export class TeamBudgetsApi {
   constructor(private readonly client: SupabaseClient<Database>) {}
 
   /**
-   * @name getTeamAccount
-   * @description Get the account data for the given slug.
+   * @name getBudgetWorkspace
+   * @description Get the budget workspace data.
    * @param slug
    */
-  async getTeamAccount(slug: string) {
-    const { data, error } = await this.client
-      .from('accounts')
-      .select('*')
-      .eq('slug', slug)
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    return data;
-  }
-
-  /**
-   * @name getTeamAccountById
-   * @description Check if the user is already in the account.
-   * @param accountId
-   */
-  async getTeamAccountById(accountId: string) {
-    const { data, error } = await this.client
-      .from('accounts')
-      .select('*')
-      .eq('id', accountId)
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    return data;
-  }
-
-  /**
-   * @name getSubscription
-   * @description Get the subscription data for the account.
-   * @param accountId
-   */
-  async getSubscription(accountId: string) {
-    const { data, error } = await this.client
-      .from('subscriptions')
-      .select('*, items: subscription_items !inner (*)')
-      .eq('account_id', accountId)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
-
-    return data;
-  }
-
-  /**
-   * Get the orders data for the given account.
-   * @param accountId
-   */
-  async getOrder(accountId: string) {
-    const response = await this.client
-      .from('orders')
-      .select('*, items: order_items !inner (*)')
-      .eq('account_id', accountId)
-      .maybeSingle();
-
-    if (response.error) {
-      throw response.error;
-    }
-
-    return response.data;
-  }
-
-  /**
-   * @name getAccountWorkspace
-   * @description Get the account workspace data.
-   * @param slug
-   */
-  async getAccountWorkspace(slug: string) {
+  async getBudgetWorkspace(slug: string) {
     const accountPromise = this.client.rpc('team_account_workspace', {
       account_slug: slug,
     });
-
+    
     const accountsPromise = this.client.from('user_accounts').select('*');
 
-    const [accountResult, accountsResult] = await Promise.all([
+    const budgetPromise = this.client.rpc('get_budget_by_team_account_slug', {
+      p_team_account_slug: slug,
+    });
+
+    const budgetTransactionsPromise = this.client.rpc('get_budget_transactions_by_team_account_slug', {
+      p_team_account_slug: slug,
+    });
+
+
+    const [accountResult, accountsResult, budgetResult, budgetTransactionsResult] = await Promise.all([
       accountPromise,
       accountsPromise,
+      budgetPromise,
+      budgetTransactionsPromise,
     ]);
 
     if (accountResult.error) {
       return {
         error: accountResult.error,
-        data: null,
-      };
-    }
-
-    if (accountsResult.error) {
-      return {
-        error: accountsResult.error,
         data: null,
       };
     }
@@ -125,10 +54,33 @@ export class TeamAccountsApi {
       };
     }
 
+    if (accountsResult.error) {
+        return {
+        error: accountsResult.error,
+        data: null,
+        };
+    }
+
+    if (budgetResult.error) {
+      return {
+        error: budgetResult.error,
+        data: null,
+      };
+    }
+
+    if (budgetTransactionsResult.error) {
+      return {
+        error: budgetTransactionsResult.error,
+        data: null,
+      };
+    }
+
     return {
       data: {
         account: accountData,
-        accounts: accountsResult.data
+        accounts: accountsResult.data,
+        budget: budgetResult.data[0]!,
+        budgetTransactions: budgetTransactionsResult.data,
       },
       error: null,
     };
@@ -231,6 +183,6 @@ export class TeamAccountsApi {
   }
 }
 
-export function createTeamAccountsApi(client: SupabaseClient<Database>) {
-  return new TeamAccountsApi(client);
+export function createTeamBudgetsApi(client: SupabaseClient<Database>) {
+  return new TeamBudgetsApi(client);
 }

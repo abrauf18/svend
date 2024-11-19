@@ -1,25 +1,75 @@
 {
-    "transactions": 20,
-    "output": "plaid_data.json",
-    "accounts": [
-      {
-        "type": "depository",
-        "subtype": "checking",
-        "starting_balance": 2682.09,
-        "name": "Plaid Checking",
-        "official_name": "Plaid Instant Daily Checking Account"
-      },
-      {
-        "type": "depository",
-        "subtype": "savings",
-        "starting_balance": 2000.09,
-        "name": "Plaid Savings",
-        "official_name": "Plaid Instant Savings Account"
-      },
-      {
-        "type": "credit",
-        "subtype": "credit card",
-        "credit_limit": 10000
-      }
-    ]
-  }
+  "numUsers": 5,
+  "transactions": 50,
+  "outputDir": "./plaid_user_data",
+  "numChecking": 2,
+  "numSavings": 2,
+  "numCredit": 1,
+  "accounts": [
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "starting_balance": 3250.75,
+      "name": "Chase Checking",
+      "official_name": "Chase Total Checking Account"
+    },
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "starting_balance": 2100.50,
+      "name": "Bank of America Checking",
+      "official_name": "Bank of America Advantage Plus Checking"
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "starting_balance": 7500.00,
+      "name": "Chase Savings",
+      "official_name": "Chase Premier Savings"
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "starting_balance": 12000.00,
+      "name": "Wells Fargo Savings",
+      "official_name": "Wells Fargo Way2Save Savings"
+    },
+    {
+      "type": "credit",
+      "subtype": "credit card",
+      "starting_balance": 0,
+      "credit_limit": 15000,
+      "name": "Capital One Credit Card",
+      "official_name": "Capital One Venture Rewards Credit Card"
+    },
+    {
+      "type": "credit",
+      "subtype": "credit card",
+      "starting_balance": 0,
+      "credit_limit": 10000,
+      "name": "Chase Freedom Credit Card",
+      "official_name": "Chase Freedom Unlimited"
+    },
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "starting_balance": 3400.80,
+      "name": "Citibank Checking",
+      "official_name": "Citibank Basic Checking Account"
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "starting_balance": 9000.00,
+      "name": "Ally Savings",
+      "official_name": "Ally Online Savings Account"
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "starting_balance": 5000.00,
+      "name": "Capital One Savings",
+      "official_name": "Capital One 360 Performance Savings"
+    }
+  ]
+}

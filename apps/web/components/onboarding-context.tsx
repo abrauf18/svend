@@ -25,7 +25,6 @@ import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
 
 export type OnboardingContextType = {
   state: OnboardingState;
-  setState: React.Dispatch<React.SetStateAction<OnboardingState>>;
   accountNextStep: () => void;
   accountPrevStep: () => void;
   accountPlaidConnItemAddOne: (
@@ -76,6 +75,8 @@ export function OnboardingContextProvider({
         categoryGroupSpending: {},
         recommendedCategoryGroupSpending: {},
         goals: [],
+        onboardingStep: 'start',
+        linkedFinAccounts: [],
       } as Budget,
       userId: undefined,
     } as AccountOnboardingState,
@@ -374,7 +375,6 @@ export function OnboardingContextProvider({
     <OnboardingContext.Provider
       value={{
         state,
-        setState,
         accountNextStep,
         accountPrevStep,
         accountPlaidConnItemAddOne,

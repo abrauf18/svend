@@ -183,9 +183,22 @@ function generateDemoData() {
   return [data, lastValue] as [typeof data, string];
 }
 
-function Chart(
-  props: React.PropsWithChildren<{ data: { value: string; name: string }[] }>,
-) {
+// Common XAxis configuration that can be reused
+const commonXAxisProps = {
+  xAxisId: 0,
+  width: 0,
+  height: 30,
+  mirror: false,
+  orientation: 'bottom' as const,
+  padding: { left: 20, right: 20 },
+  minTickGap: 5,
+  interval: 'preserveStart' as const,
+  reversed: false,
+  angle: 0,
+  tickMargin: 8,
+};
+
+function Chart(props: React.PropsWithChildren<{ data: { value: string; name: string }[] }>) {
   const chartConfig = {
     desktop: {
       label: 'Desktop',
@@ -202,19 +215,9 @@ function Chart(
       <LineChart accessibilityLayer data={props.data}>
         <CartesianGrid vertical={false} />
         <XAxis
+          {...commonXAxisProps}
           dataKey="name"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          scale="auto"
-          padding={{ left: 0, right: 0 }}
-          allowDataOverflow={false}
-          allowDecimals={true}
-          allowDuplicatedCategory={true}
-          hide={false}
-          mirror={false}
-          reversed={false}
-          xAxisId={0}
+          ticks={props.data.map(d => d.name)}
         />
         <ChartTooltip
           cursor={false}
@@ -604,13 +607,10 @@ export function VisitorsChart() {
       { date: '2024-06-29', desktop: 103, mobile: 160 },
       { date: '2024-06-30', desktop: 446, mobile: 400 },
     ],
-    [],
+    []
   );
 
   const chartConfig = {
-    visitors: {
-      label: 'Visitors',
-    },
     desktop: {
       label: 'Desktop',
       color: 'hsl(var(--chart-1))',
@@ -631,78 +631,77 @@ export function VisitorsChart() {
       </CardHeader>
 
       <CardContent>
-        <ChartContainer className={'h-64 w-full'} config={chartConfig}>
-          <AreaChart accessibilityLayer data={chartData}>
-            <defs>
-              <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-desktop)"
-                  stopOpacity={0.8}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-desktop)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
-              <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-mobile)"
-                  stopOpacity={0.8}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-mobile)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="month"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              tickFormatter={(value) => value.slice(0, 3)}
-            />
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent indicator="dot" />}
-            />
-            <Area
-              dataKey="mobile"
-              type="natural"
-              fill="url(#fillMobile)"
-              fillOpacity={0.4}
-              stroke="var(--color-mobile)"
-              stackId="a"
-            />
-            <Area
-              dataKey="desktop"
-              type="natural"
-              fill="url(#fillDesktop)"
-              fillOpacity={0.4}
-              stroke="var(--color-desktop)"
-              stackId="a"
-            />
-          </AreaChart>
-        </ChartContainer>
-      </CardContent>
-
-      <CardFooter>
-        <div className="flex w-full items-start gap-2 text-sm">
-          <div className="grid gap-2">
-            <div className="flex items-center gap-2 font-medium leading-none">
-              Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
-            </div>
-            <div className="flex items-center gap-2 leading-none text-muted-foreground">
-              January - June 2024
-            </div>
-          </div>
+        <div className="h-[400px] w-full">
+          <ChartContainer className="h-full w-full" config={chartConfig}>
+            <AreaChart
+              data={chartData}
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor="var(--color-desktop)"
+                    stopOpacity={0.8}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--color-desktop)"
+                    stopOpacity={0.1}
+                  />
+                </linearGradient>
+                <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor="var(--color-mobile)"
+                    stopOpacity={0.8}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--color-mobile)"
+                    stopOpacity={0.1}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" />
+              <XAxis
+                {...commonXAxisProps}
+                dataKey="date"
+                ticks={chartData.map(d => d.date)}
+                tickFormatter={(value) => {
+                  const date = new Date(value);
+                  return date.toLocaleDateString('en-US', { 
+                    month: 'short',
+                    day: 'numeric'
+                  });
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="mobile"
+                stackId="1"
+                stroke="var(--color-mobile)"
+                fill="url(#fillMobile)"
+                fillOpacity={0.4}
+                isAnimationActive={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="desktop"
+                stackId="1"
+                stroke="var(--color-desktop)"
+                fill="url(#fillDesktop)"
+                fillOpacity={0.4}
+                isAnimationActive={false}
+              />
+              <ChartTooltip
+                content={<ChartTooltipContent />}
+                cursor={false}
+              />
+            </AreaChart>
+          </ChartContainer>
         </div>
-      </CardFooter>
+      </CardContent>
     </Card>
   );
 }
@@ -868,16 +867,14 @@ export function PageViewsChart() {
           <BarChart accessibilityLayer data={chartData}>
             <CartesianGrid vertical={false} />
             <XAxis
+              {...commonXAxisProps}
               dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              minTickGap={32}
+              ticks={chartData.map(d => d.date)}
               tickFormatter={(value) => {
                 const date = new Date(value);
                 return date.toLocaleDateString('en-US', {
                   month: 'short',
-                  day: 'numeric',
+                  day: 'numeric'
                 });
               }}
             />

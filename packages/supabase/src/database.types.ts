@@ -346,6 +346,35 @@ export type Database = {
           },
         ]
       }
+      budget_tx_tags: {
+        Row: {
+          budget_id: string
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          budget_id: string
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          budget_id?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_tx_tags_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budgets: {
         Row: {
           budget_type: Database["public"]["Enums"]["budget_type"]
@@ -570,13 +599,42 @@ export type Database = {
           },
         ]
       }
+      fin_account_transaction_budget_tx_tags: {
+        Row: {
+          budget_tx_tag_id: string
+          created_at: string | null
+          transaction_id: string
+        }
+        Insert: {
+          budget_tx_tag_id: string
+          created_at?: string | null
+          transaction_id: string
+        }
+        Update: {
+          budget_tx_tag_id?: string
+          created_at?: string | null
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_account_transaction_budget_tx_tags_budget_tx_tag_id_fkey"
+            columns: ["budget_tx_tag_id"]
+            isOneToOne: false
+            referencedRelation: "budget_tx_tags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_account_transaction_budget_tx_tags_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "fin_account_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fin_account_transactions: {
         Row: {
           amount: number
-          attachments_storage_names: string[] | null
-          category_confidence: string | null
-          category_detailed: string | null
-          category_primary: string | null
           created_at: string | null
           date: string
           id: string
@@ -586,16 +644,14 @@ export type Database = {
           notes: string | null
           payee: string | null
           plaid_account_id: string | null
+          plaid_category_confidence: string | null
+          plaid_category_detailed: string | null
           raw_data: Json | null
           svend_category_id: string
           updated_at: string | null
         }
         Insert: {
           amount: number
-          attachments_storage_names?: string[] | null
-          category_confidence?: string | null
-          category_detailed?: string | null
-          category_primary?: string | null
           created_at?: string | null
           date: string
           id?: string
@@ -605,16 +661,14 @@ export type Database = {
           notes?: string | null
           payee?: string | null
           plaid_account_id?: string | null
+          plaid_category_confidence?: string | null
+          plaid_category_detailed?: string | null
           raw_data?: Json | null
           svend_category_id: string
           updated_at?: string | null
         }
         Update: {
           amount?: number
-          attachments_storage_names?: string[] | null
-          category_confidence?: string | null
-          category_detailed?: string | null
-          category_primary?: string | null
           created_at?: string | null
           date?: string
           id?: string
@@ -624,6 +678,8 @@ export type Database = {
           notes?: string | null
           payee?: string | null
           plaid_account_id?: string | null
+          plaid_category_confidence?: string | null
+          plaid_category_detailed?: string | null
           raw_data?: Json | null
           svend_category_id?: string
           updated_at?: string | null
@@ -1508,6 +1564,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      create_budget_tag: {
+        Args: {
+          p_budget_id: string
+          p_tag_name: string
+        }
+        Returns: {
+          budget_id: string
+          created_at: string | null
+          id: string
+          name: string
+        }
+      }
       create_invitation: {
         Args: {
           account_id: string
@@ -1581,6 +1649,26 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_budget_by_team_account_slug: {
+        Args: {
+          p_team_account_slug: string
+        }
+        Returns: {
+          id: string
+          team_account_id: string
+          budget_type: string
+          category_spending: Json
+          recommended_category_spending: Json
+          is_active: boolean
+          start_date: string
+          end_date: string
+          current_onboarding_step: Database["public"]["Enums"]["budget_onboarding_step_enum"]
+          created_at: string
+          updated_at: string
+          linked_accounts: Json
+          goals: Json
+        }[]
+      }
       get_budget_categories: {
         Args: {
           p_budget_id: string
@@ -1601,21 +1689,25 @@ export type Database = {
           group_updated_at: string
         }[]
       }
-      get_budget_transactions: {
+      get_budget_transactions_by_team_account_slug: {
         Args: {
-          p_budget_id: string
+          p_team_account_slug: string
         }
         Returns: {
           id: string
           date: string
-          category: string
           merchant_name: string
           payee: string
           amount: number
-          account_name: string
-          account_mask: string
+          iso_currency_code: string
           notes: string
+          budget_fin_account_id: string
+          svend_category_group_id: string
+          svend_category_group: string
+          svend_category_id: string
+          svend_category: string
           attachments_storage_names: string[]
+          tags: Json
         }[]
       }
       get_config: {
@@ -1696,16 +1788,12 @@ export type Database = {
         }
         Returns: boolean
       }
-      save_fin_account_transaction: {
+      save_transaction_tags: {
         Args: {
-          transaction_id: string
-          new_category: string
-          p_merchant_name: string
-          p_notes: string
-          category_id: string
-          attachments: string[]
+          p_transaction_id: string
+          p_tag_names: string[]
         }
-        Returns: boolean
+        Returns: undefined
       }
       team_account_workspace: {
         Args: {
@@ -1722,16 +1810,6 @@ export type Database = {
           subscription_status: Database["public"]["Enums"]["subscription_status"]
           permissions: Database["public"]["Enums"]["app_permissions"][]
           budget_id: string
-          budget_team_account_id: string
-          budget_type: string
-          budget_category_spending: Json
-          budget_recommended_category_spending: Json
-          budget_is_active: boolean
-          budget_start_date: string
-          budget_end_date: string
-          budget_current_onboarding_step: string
-          budget_created_at: string
-          budget_updated_at: string
         }[]
       }
       transfer_team_account_ownership: {
@@ -1758,6 +1836,15 @@ export type Database = {
           p_usage: Json
         }
         Returns: undefined
+      }
+      update_fin_account_transaction: {
+        Args: {
+          p_transaction_id: string
+          p_category_id?: string
+          p_merchant_name?: string
+          p_notes?: string
+        }
+        Returns: boolean
       }
       upsert_order: {
         Args: {

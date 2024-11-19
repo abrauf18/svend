@@ -1,6 +1,6 @@
-import { FinAccountTransaction } from '../model/fin.types';
+import { FinAccount, FinAccountTransaction } from '../model/fin.types';
 import { Database } from '~/lib/database.types';
-import { BudgetCategoryGroupSpending, BudgetCategorySpending, BudgetGoal, BudgetGoalTracking, BudgetGoalTrackingAllocation } from '../model/budget.types';
+import { Budget, BudgetCategoryGroupSpending, BudgetCategorySpending, BudgetGoal, BudgetGoalTracking, BudgetGoalTrackingAllocation } from '../model/budget.types';
 import { createCategoryService } from './category.service';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -514,6 +514,99 @@ class BudgetService {
   }
 
   /**
+   * Parses and validates raw budget data into a strongly typed Budget object.
+   * @param rawGetBudgetResults The results from the get_budget database function
+   * @returns A validated Budget object if parsing succeeds, null if validation fails
+   */
+  parseBudget(
+    rawGetBudgetResults: Database['public']['Functions']['get_budget_by_team_account_slug']['Returns'][number]
+  ): Budget | null {
+    try {
+      // Validate required fields
+      if (!rawGetBudgetResults.id || 
+          !rawGetBudgetResults.team_account_id || 
+          !rawGetBudgetResults.budget_type || 
+          !rawGetBudgetResults.category_spending || 
+          !rawGetBudgetResults.recommended_category_spending || 
+          !rawGetBudgetResults.current_onboarding_step) {
+        console.error('Missing required fields in budget results:', rawGetBudgetResults);
+        return null;
+      }
+
+      // Validate budget type
+      if (!['personal', 'business'].includes(rawGetBudgetResults.budget_type)) {
+        console.error('Invalid budget type:', rawGetBudgetResults.budget_type);
+        return null;
+      }
+
+      // Parse category spending JSON
+      let categoryGroupSpending: Record<string, BudgetCategoryGroupSpending>;
+      try {
+        categoryGroupSpending = rawGetBudgetResults.category_spending as Record<string, BudgetCategoryGroupSpending>;
+      } catch (error) {
+        console.error('Error parsing category spending:', error);
+        return null;
+      }
+
+      // Parse recommended category spending JSON
+      let recommendedCategoryGroupSpending: Record<string, Record<string, BudgetCategoryGroupSpending>>;
+      try {
+        recommendedCategoryGroupSpending = rawGetBudgetResults.recommended_category_spending as Record<string, Record<string, BudgetCategoryGroupSpending>>;
+      } catch (error) {
+        console.error('Error parsing recommended category spending:', error);
+        return null;
+      }
+
+      // Parse linked accounts from the JSON array
+      let linkedFinAccounts: FinAccount[] = [];
+      try {
+        if (rawGetBudgetResults.linked_accounts) {
+          linkedFinAccounts = (rawGetBudgetResults.linked_accounts as any[]).map(account => ({
+            id: account.id,
+            source: account.source,
+            budgetFinAccountId: account.budgetFinAccountId,
+            name: account.name,
+            mask: account.mask || '',
+            officialName: account.officialName || '',
+            balance: account.balance || 0
+          }));
+        }
+      } catch (error) {
+        console.error('Error parsing linked accounts:', error);
+        return null;
+      }
+
+      // Parse goals from the JSON array
+      let goals: BudgetGoal[] = [];
+      try {
+        if (rawGetBudgetResults.goals) {
+          goals = (rawGetBudgetResults.goals as any[])
+            .map(goal => this.parseBudgetGoal(goal))
+            .filter((goal): goal is BudgetGoal => goal !== null);
+        }
+      } catch (error) {
+        console.error('Error parsing goals:', error);
+        return null;
+      }
+
+      // Return the complete budget object
+      return {
+        id: rawGetBudgetResults.id,
+        budgetType: rawGetBudgetResults.budget_type,
+        categoryGroupSpending,
+        recommendedCategoryGroupSpending,
+        goals,
+        onboardingStep: rawGetBudgetResults.current_onboarding_step,
+        linkedFinAccounts,
+      };
+
+    } catch (error) {
+      console.error('Error parsing budget:', error);
+      return null;
+    }
+  }
+
+  /**
    * Parses and validates a raw budget goal database row into a strongly typed BudgetGoal object
    * @param raw The raw budget goal database row to parse
    * @returns A validated BudgetGoal object if parsing succeeds, null if validation fails
@@ -615,6 +708,84 @@ class BudgetService {
     } catch (error) {
       console.error('Error parsing budget goal:', error);
       return null;
+    }
+  }
+
+
+  /**
+   * Parses and validates raw budget transactions into strongly typed FinAccountTransaction objects
+   * @param raw The raw budget transactions from the get_budget_transactions_by_team_account_slug function
+   * @returns Array of validated FinAccountTransaction objects
+   * 
+   * Maps the following fields from database:
+   * - Basic: id, date, amount, merchantName, payee, isoCurrencyCode
+   * - Categories: plaidDetailedCategoryName, svendCategoryGroup, svendCategoryName, svendCategoryId
+   * - Budget: budgetFinAccountId, notes
+   * - Arrays: budgetTags (tags), budgetAttachmentsStorageNames (attachments_storage_names)
+   */
+  parseBudgetTransactions(raw: Database['public']['Functions']['get_budget_transactions_by_team_account_slug']['Returns']): FinAccountTransaction[] {
+    try {
+      if (!Array.isArray(raw)) {
+        console.error('Expected array of transactions, received:', typeof raw);
+        return [];
+      }
+
+      return raw.reduce((validTransactions: FinAccountTransaction[], transaction) => {
+        try {
+          // Validate required fields
+          if (!transaction.id || !transaction.date || 
+              typeof transaction.amount !== 'number' || 
+              !transaction.budget_fin_account_id) {
+            console.error('Missing required transaction fields:', transaction);
+            return validTransactions;
+          }
+
+          // Validate date
+          const transactionDate = new Date(transaction.date);
+          if (isNaN(transactionDate.getTime())) {
+            console.error('Invalid transaction date:', transaction.date);
+            return validTransactions;
+          }
+
+          // Create validated transaction object matching SQL function return values
+          const validTransaction: FinAccountTransaction = {
+            id: transaction.id,
+            date: transaction.date,
+            amount: transaction.amount,
+            merchantName: transaction.merchant_name,
+            
+            // Category information
+            svendCategoryGroupId: transaction.svend_category_group_id ?? undefined,
+            svendCategoryGroup: transaction.svend_category_group ?? undefined,
+            svendCategoryId: transaction.svend_category_id ?? undefined,
+            svendCategory: transaction.svend_category ?? undefined,
+            
+            // Optional fields that match SQL return
+            payee: transaction.payee ?? undefined,
+            isoCurrencyCode: transaction.iso_currency_code ?? undefined,
+            budgetFinAccountId: transaction.budget_fin_account_id ?? undefined,
+            notes: transaction.notes ?? '',
+            
+            // Arrays from SQL
+            budgetTags: (transaction.tags as any[] ?? []).map((tag: any) => ({
+                id: tag.id || tag,  // Handle both object and string formats
+                name: tag.name || tag
+            })),
+            budgetAttachmentsStorageNames: transaction.attachments_storage_names ?? [],
+          };
+
+          validTransactions.push(validTransaction);
+          return validTransactions;
+
+        } catch (error) {
+          console.error('Error parsing individual transaction:', error);
+          return validTransactions;
+        }
+      }, []);
+
+    } catch (error) {
+      console.error('Error parsing budget transactions:', error);
+      return [];
     }
   }
 }

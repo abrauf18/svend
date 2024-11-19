@@ -1,13 +1,15 @@
+'use client';
+
 import React from 'react';
 import {Calendar, ChevronLeft, ChevronRight} from "lucide-react";
-import {Trans} from "@kit/ui/trans";
-import {Button} from "@kit/ui/button";
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@kit/ui/select";
 import RecurringOverview from "~/home/[account]/manage/_components/recurring-overview";
 import {RecurringTable} from "~/home/[account]/manage/_components/recurring-tab-table";
+import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 
 
-function RecurringTab(props: { budgetId: string }) {
+function RecurringTab() {
+    const { workspace } = useBudgetWorkspace();
+    const budgetId = workspace.budget.id;
 
     return (
         <div className="w-full flex flex-row">
@@ -25,7 +27,7 @@ function RecurringTab(props: { budgetId: string }) {
                     </div>
 
                     <div className="overflow-auto">
-                        <RecurringTable budgetId={props.budgetId} />
+                        <RecurringTable />
                     </div>
                 </div>
             </div>

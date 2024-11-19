@@ -1,11 +1,13 @@
 'use client';
+
 import React from 'react';
 import {Calendar, ChevronLeft, ChevronRight} from "lucide-react";
 import {Trans} from "@kit/ui/trans";
 import {Button} from "@kit/ui/button";
 import {GaolsTable} from "~/home/[account]/manage/_components/goals-tab-table";
 import GoalsOverview from "~/home/[account]/manage/_components/goals-overview";
-import {Card, CardContent, CardHeader} from "@kit/ui/card";
+import {Card} from "@kit/ui/card";
+import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 
 interface Goal {
     name: string
@@ -31,7 +33,10 @@ const goals: Goal[] = [
     }
 ]
 
-function GoalsTab(props: { budgetId: string }) {
+function GoalsTab() {
+    const { workspace } = useBudgetWorkspace();
+    const budgetId = workspace.budget.id;
+
     return (
         <>
             <div className="w-full flex flex-row">
@@ -84,7 +89,7 @@ function GoalsTab(props: { budgetId: string }) {
 
                         <div className="overflow-auto">
                             <GaolsTable
-                                budgetId={props.budgetId}
+                                budgetId={budgetId}
                             />
                         </div>
                     </div>

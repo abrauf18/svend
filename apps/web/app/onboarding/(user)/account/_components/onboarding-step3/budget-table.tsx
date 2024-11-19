@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react";
 import { Info, ArrowRight, ChevronRight, ChevronDown } from "lucide-react"
 
 import { Checkbox } from "@kit/ui/checkbox"
@@ -233,8 +234,8 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
                         </TableHeader>
                         <TableBody>
                             {form.watch('categoryGroups').map((spending, groupIndex) => (
-                                <>
-                                    <TableRow key={spending.groupId}>
+                                <React.Fragment key={spending.groupId}>
+                                    <TableRow>
                                         <TableCell className="capitalize font-bold">
                                             <div className="flex items-center gap-2">
                                                 <button
@@ -382,7 +383,7 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
                                             </TableCell>
                                         </TableRow>
                                     ))}
-                                </>
+                                </React.Fragment>
                             ))}
                         </TableBody>
                     </Table>

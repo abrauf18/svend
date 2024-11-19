@@ -5,7 +5,7 @@ import {
   DialogContent,
 } from '@kit/ui/dialog';
 import { useEffect, useState } from 'react';
-import { useTeamAccountWorkspace } from '@kit/team-accounts/components';
+import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 
 export function InviteMembersDialog({
   budgetId,
@@ -16,13 +16,12 @@ export function InviteMembersDialog({
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [isClosing, setIsClosing] = useState(false);
-  const { updateBudgetOnboardingStep } = useTeamAccountWorkspace();
 
-  const { workspace } = useTeamAccountWorkspace();
+  const { workspace, updateBudgetOnboardingStep } = useBudgetWorkspace();
 
   useEffect(() => {
-    setIsOpen(workspace.budget.current_onboarding_step === 'invite_members');
-  }, [workspace.budget.current_onboarding_step]);
+    setIsOpen(workspace.budget.onboardingStep === 'invite_members');
+  }, [workspace.budget.onboardingStep]);
   
   const handleClose = async (isOpen: boolean) => {
     if (isOpen || isClosing) return;
