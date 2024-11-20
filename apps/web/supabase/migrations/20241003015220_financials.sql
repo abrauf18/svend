@@ -58,27 +58,7 @@ begin
 end;
 $$ language plpgsql;
 
-grant execute on function public.has_budget_permission(uuid, uuid, public.app_permissions) 
-to authenticated, service_role;
-
-
--- ============================================================
--- Storage bucket for budget transaction attachments
--- ============================================================
-insert into storage.buckets (id, name, public)
-values ('budget_transaction_attachments', 'budget_transaction_attachments', true)
-on conflict (id) do update 
-set 
-    name = excluded.name,
-    public = excluded.public;
-
-
--- ============================================================
--- storage.buckets bucket for Plaid item institution logos
--- ============================================================
-INSERT INTO storage.buckets (id, name) 
-VALUES ('plaid_item_institution_logos', 'plaid_item_institution_logos')
-ON CONFLICT (id) DO NOTHING;
+grant execute on function public.has_budget_permission(uuid, uuid, public.app_permissions) to authenticated, service_role;
 
 
 -- ============================================================
@@ -945,66 +925,6 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 grant execute on function update_fin_account_transaction(UUID, UUID, TEXT, TEXT) to service_role;
 
-
--- Storage bucket policies for budget_transaction_attachments
-CREATE POLICY download_budget_transaction_attachments
-ON storage.objects FOR SELECT
-USING (
-    bucket_id = 'budget_transaction_attachments'
-    AND (
-        EXISTS (
-            SELECT 1 
-            FROM public.budgets b
-            WHERE (storage.foldername(name))[1] = 'budget'
-            AND (storage.foldername(name))[2] = b.id::text
-            AND public.is_team_member(b.team_account_id, auth.uid())
-        )
-    )
-);
-
-CREATE POLICY upload_budget_transaction_attachments
-ON storage.objects FOR INSERT
-WITH CHECK (
-    bucket_id = 'budget_transaction_attachments'
-    AND (
-        -- Validate path format (budget/{budgetId}/transaction/{transactionId}/{fileName})
-        array_length(storage.foldername(name), 1) = 4
-        AND (storage.foldername(name))[1] = 'budget'
-        AND (storage.foldername(name))[3] = 'transaction'
-        AND EXISTS (
-            SELECT 1 
-            FROM public.budgets b
-            WHERE (storage.foldername(name))[2] = b.id::text
-            AND public.has_team_permission(auth.uid(), b.team_account_id, 'budgets.write')
-        )
-        AND EXISTS (
-            SELECT 1
-            FROM public.fin_account_transactions fat
-            JOIN public.budget_fin_accounts bfa ON 
-                (bfa.plaid_account_id = fat.plaid_account_id AND fat.plaid_account_id IS NOT NULL)
-                OR (bfa.manual_account_id = fat.manual_account_id AND fat.manual_account_id IS NOT NULL)
-            WHERE (storage.foldername(name))[4] = fat.id::text
-            AND bfa.budget_id::text = (storage.foldername(name))[2]
-        )
-    )
-);
-
-CREATE POLICY delete_budget_transaction_attachments
-ON storage.objects FOR DELETE
-USING (
-    bucket_id = 'budget_transaction_attachments'
-    AND (
-        EXISTS (
-            SELECT 1 
-            FROM public.budgets b
-            WHERE( storage.foldername(name))[1] = 'budget'
-            AND (storage.foldername(name))[2] = b.id::text
-            AND public.has_team_permission(auth.uid(), b.team_account_id, 'budgets.write')
-        )
-    )
-);
-
-
 -- End of fin_account_transactions table
 
 
@@ -1360,6 +1280,86 @@ create policy read_budget_goals
     );
 
 -- End of budget_goals table
+
+
+-- ============================
+-- Storage buckets and policies
+-- ============================
+insert into storage.buckets (id, name)
+values ('budget_transaction_attachments', 'budget_transaction_attachments')
+ON CONFLICT (id) DO NOTHING;
+
+
+-- Storage bucket policies for budget_transaction_attachments
+CREATE POLICY download_budget_transaction_attachments
+ON storage.objects FOR SELECT
+USING (
+    bucket_id = 'budget_transaction_attachments'
+    AND (
+        EXISTS (
+            SELECT 1 
+            FROM public.budgets b
+            WHERE (storage.foldername(name))[1] = 'budget'
+            AND (storage.foldername(name))[2] = b.id::text
+            AND public.is_team_member(b.team_account_id, auth.uid())
+        )
+    )
+);
+
+CREATE POLICY upload_budget_transaction_attachments
+ON storage.objects FOR INSERT
+WITH CHECK (
+    bucket_id = 'budget_transaction_attachments'
+    AND (
+        -- Validate path format (budget/{budgetId}/transaction/{transactionId}/{fileName})
+        array_length(storage.foldername(name), 1) = 4
+        AND (storage.foldername(name))[1] = 'budget'
+        AND (storage.foldername(name))[3] = 'transaction'
+        AND EXISTS (
+            SELECT 1 
+            FROM public.budgets b
+            WHERE (storage.foldername(name))[2] = b.id::text
+            AND public.has_team_permission(auth.uid(), b.team_account_id, 'budgets.write')
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM public.fin_account_transactions fat
+            JOIN public.budget_fin_accounts bfa ON 
+                (bfa.plaid_account_id = fat.plaid_account_id AND fat.plaid_account_id IS NOT NULL)
+                OR (bfa.manual_account_id = fat.manual_account_id AND fat.manual_account_id IS NOT NULL)
+            WHERE (storage.foldername(name))[4] = fat.id::text
+            AND bfa.budget_id::text = (storage.foldername(name))[2]
+        )
+    )
+);
+
+CREATE POLICY delete_budget_transaction_attachments
+ON storage.objects FOR DELETE
+USING (
+    bucket_id = 'budget_transaction_attachments'
+    AND (
+        EXISTS (
+            SELECT 1 
+            FROM public.budgets b
+            WHERE( storage.foldername(name))[1] = 'budget'
+            AND (storage.foldername(name))[2] = b.id::text
+            AND public.has_team_permission(auth.uid(), b.team_account_id, 'budgets.write')
+        )
+    )
+);
+
+
+-- ============================================================
+-- storage.buckets bucket for Plaid item institution logos
+-- ============================================================
+INSERT INTO storage.buckets (id, name) 
+VALUES ('plaid_item_institution_logos', 'plaid_item_institution_logos')
+ON CONFLICT (id) DO NOTHING;
+
+-- Grant necessary permissions for overall storage bucket access
+grant insert, select, update, delete on storage.objects to authenticated;
+
+-- end storage bucket policies
 
 
 -- ============================================================

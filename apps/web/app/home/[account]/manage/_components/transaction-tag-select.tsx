@@ -120,88 +120,90 @@ export function TransactionTagSelect(props: TransactionTagSelectProps) {
       {isOpen && (
         <>
           <div 
-            className="fixed inset-0" 
+            className="fixed inset-0"
             onClick={() => setIsOpen(false)} 
           />
-          <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
-            <div 
-              className="w-full border-b p-2"
-            >
-              <Input
-                ref={inputRef}
-                type="text"
-                placeholder="Search or create tag..."
-                value={tagSearchQuery}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === '' || isValidTagName(value)) {
-                    setTagSearchQuery(value);
-                  }
-                }}
-                className="border-b border-gray-300 bg-transparent focus-visible:ring-0"
-                disabled={isCreatingTag}
-              />
-            </div>
+          <div className="absolute z-[60] mt-1 w-full rounded-md border bg-popover">
+            <div className="relative w-full rounded-md shadow-[0_4px_12px_rgba(255,255,255,0.2)] bg-popover">
+              <div 
+                className="w-full border-b p-2"
+              >
+                <Input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Search or create tag..."
+                  value={tagSearchQuery}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || isValidTagName(value)) {
+                      setTagSearchQuery(value);
+                    }
+                  }}
+                  className="border-b border-gray-300 bg-transparent focus-visible:ring-0"
+                  disabled={isCreatingTag}
+                />
+              </div>
 
-            <div ref={viewportRef} className="p-1 max-h-[300px] overflow-y-auto">
-              {tagSearchQuery &&
-                isValidTagName(tagSearchQuery) &&
-                !workspace.budgetTags.some(
-                  (tag) => tag.name.toLowerCase() === tagSearchQuery.toLowerCase(),
-                ) &&
-                !selectedTags.some(st => st.name.toLowerCase() === tagSearchQuery.toLowerCase()) && (
-                  <div
-                    className={cn(
-                      "relative flex w-full select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none",
-                      isCreatingTag
-                        ? "cursor-not-allowed opacity-50"
-                        : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
-                    )}
-                    onClick={isCreatingTag ? undefined : handleCreateTag}
-                  >
-                    <span className="flex-1">Create tag &quot;{tagSearchQuery}&quot;</span>
-                    {isCreatingTag && (
-                      <div className="flex h-4 w-4 items-center justify-center">
-                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-              <div className="space-y-1 p-2">
-                {[
-                  ...selectedTags.filter(tag => tag.name.toLowerCase().startsWith(tagSearchQuery.toLowerCase())),
-                  ...availableTags.filter(
-                    (tag) =>
-                      !selectedTags.some(st => st.id === tag.id) &&
-                      tag.name.toLowerCase().startsWith(tagSearchQuery.toLowerCase()),
-                  ),
-                ].map((tag) => (
-                  <div
-                    key={tag.id}
-                    className={cn(
-                      "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                      selectedTags.some(st => st.id === tag.id) && "bg-accent text-accent-foreground"
-                    )}
-                    onClick={() => {
-                      const isSelected = selectedTags.some(t => t.id === tag.id);
-                      const updatedTags = isSelected
-                        ? selectedTags.filter(t => t.id !== tag.id)
-                        : [...selectedTags, tag];
-                      
-                      setSelectedTags(updatedTags);
-                    }}
-                  >
-                    <span className="left-1 mr-1 flex h-3.5 w-3.5 items-center justify-center">
-                      {selectedTags.some(st => st.id === tag.id) && (
-                        <CheckIcon className="h-4 w-4" />
+              <div ref={viewportRef} className="p-1 max-h-[300px] overflow-y-auto">
+                {tagSearchQuery &&
+                  isValidTagName(tagSearchQuery) &&
+                  !workspace.budgetTags.some(
+                    (tag) => tag.name.toLowerCase() === tagSearchQuery.toLowerCase(),
+                  ) &&
+                  !selectedTags.some(st => st.name.toLowerCase() === tagSearchQuery.toLowerCase()) && (
+                    <div
+                      className={cn(
+                        "relative flex w-full select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none",
+                        isCreatingTag
+                          ? "cursor-not-allowed opacity-50"
+                          : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
                       )}
-                    </span>
-                    <span className="truncate">
-                      {tagSearchQuery ? highlightMatch(tag.name, tagSearchQuery) : tag.name}
-                    </span>
-                  </div>
-                ))}
+                      onClick={isCreatingTag ? undefined : handleCreateTag}
+                    >
+                      <span className="flex-1">Create tag &quot;{tagSearchQuery}&quot;</span>
+                      {isCreatingTag && (
+                        <div className="flex h-4 w-4 items-center justify-center">
+                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                <div className="space-y-1 p-2">
+                  {[
+                    ...selectedTags.filter(tag => tag.name.toLowerCase().startsWith(tagSearchQuery.toLowerCase())),
+                    ...availableTags.filter(
+                      (tag) =>
+                        !selectedTags.some(st => st.id === tag.id) &&
+                        tag.name.toLowerCase().startsWith(tagSearchQuery.toLowerCase()),
+                    ),
+                  ].map((tag) => (
+                    <div
+                      key={tag.id}
+                      className={cn(
+                        "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                        selectedTags.some(st => st.id === tag.id) && "bg-accent text-accent-foreground"
+                      )}
+                      onClick={() => {
+                        const isSelected = selectedTags.some(t => t.id === tag.id);
+                        const updatedTags = isSelected
+                          ? selectedTags.filter(t => t.id !== tag.id)
+                          : [...selectedTags, tag];
+                        
+                        setSelectedTags(updatedTags);
+                      }}
+                    >
+                      <span className="left-1 mr-1 flex h-3.5 w-3.5 items-center justify-center">
+                        {selectedTags.some(st => st.id === tag.id) && (
+                          <CheckIcon className="h-4 w-4" />
+                        )}
+                      </span>
+                      <span className="truncate">
+                        {tagSearchQuery ? highlightMatch(tag.name, tagSearchQuery) : tag.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

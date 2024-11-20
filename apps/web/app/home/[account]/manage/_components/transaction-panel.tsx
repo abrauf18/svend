@@ -47,7 +47,7 @@ const transactionFormSchema = z.object({
     required_error: "Date is required",
   }),
   categoryId: z.string().min(1, 'Category is required'),
-  merchantName: z.string().min(1, 'Merchant name is required').optional(),
+  merchantName: z.string().optional(),
   notes: z.string().optional(),
   amount: z.string()
     .min(1, 'Amount is required')
@@ -62,24 +62,14 @@ const transactionFormSchema = z.object({
 
 type TransactionFormValues = z.infer<typeof transactionFormSchema>;
 
-// Add this helper function to get currency symbol
-const getCurrencySymbol = (currencyCode: string): string => {
-  try {
-    return new Intl.NumberFormat('en', {
-      style: 'currency',
-      currency: currencyCode,
-      currencyDisplay: 'symbol',
-    })
-      .formatToParts(0)
-      .find(part => part.type === 'currency')?.value || '$';
-  } catch (e) {
-    return '$'; // Fallback if invalid currency code
-  }
-};
-
 export function TransactionPanel(props: TransactionPanelProps) {
   const { workspace, updateTransaction } = useBudgetWorkspace();
   const supabase = getSupabaseBrowserClient();
+
+  // Add this state to track the current storage files
+  const [currentStorageFiles, setCurrentStorageFiles] = useState<string[]>(
+    props.selectedTransaction.budgetAttachmentsStorageNames ?? []
+  );
 
   // Update the form initialization
   const form = useForm<TransactionFormValues>({
@@ -100,21 +90,42 @@ export function TransactionPanel(props: TransactionPanelProps) {
 
   const onSubmit = async (data: TransactionFormValues) => {
     setIsSaving(true);
-    const attachmentNames = await uploadFilesToStorage(data.attachments);
-
-    const updatedTransaction = {
-      ...props.selectedTransaction,
-      date: format(data.date, 'yyyy-MM-dd'),
-      svendCategoryId: data.categoryId,
-      merchantName: data.merchantName,
-      notes: data.notes,
-      amount: parseFloat(data.amount),
-      budgetFinAccountId: data.budgetFinAccountId,
-      budgetTags: data.tags,
-      budgetAttachmentsStorageNames: attachmentNames,
-    } as FinAccountTransaction;
-
+    
     try {
+      // Compare current attachments with initial storage files
+      const { toUpload, toKeep, toDelete } = compareAttachments(
+        data.attachments,
+        currentStorageFiles
+      );
+
+      // Delete removed files from storage
+      if (toDelete.length > 0) {
+        for (const filePath of toDelete) {
+          await deleteFromStorage(filePath);
+        }
+      }
+
+      // Upload new files
+      const uploadedFiles = await uploadFilesToStorage(toUpload);
+
+      // Combine kept files with newly uploaded ones
+      const finalAttachments = [...toKeep, ...uploadedFiles];
+
+      // Update the current storage files
+      setCurrentStorageFiles(finalAttachments);
+
+      const updatedTransaction = {
+        ...props.selectedTransaction,
+        date: format(data.date, 'yyyy-MM-dd'),
+        svendCategoryId: data.categoryId,
+        merchantName: data.merchantName,
+        notes: data.notes,
+        amount: parseFloat(data.amount),
+        budgetFinAccountId: data.budgetFinAccountId,
+        budgetTags: data.tags,
+        budgetAttachmentsStorageNames: finalAttachments,
+      } as FinAccountTransaction;
+
       const response = await fetch(`/api/budgets/${workspace.budget.id}/transactions/${updatedTransaction.id}`, {
         method: 'PUT',
         headers: {
@@ -136,7 +147,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
       // update the transaction in the workspace
       updateTransaction(updatedTransaction);
     } catch (error) {
-      console.error(error);
+      console.error('Error during submission:', error);
       throw error;
     } finally {
       setIsSaving(false);
@@ -145,15 +156,11 @@ export function TransactionPanel(props: TransactionPanelProps) {
 
   const [isRecurring, setIsRecurring] = useState(false);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
-  const [attachments, setAttachments] = useState<(File | string)[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<Category | undefined>();
-  const [tags, setTags] = useState<FinAccountTransactionBudgetTag[]>([]);
 
   useEffect(() => {
-    console.log('initial transaction: ', props.selectedTransaction);
+    console.log('transaction panel > initial transaction: ', props.selectedTransaction);
   }, []);
 
   useEffect(() => {
@@ -181,7 +188,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
     }
 
     // Only set attachments if they exist, otherwise set empty array
-    setAttachments(props.selectedTransaction.budgetAttachmentsStorageNames ?? []);
+    setValue('attachments', props.selectedTransaction.budgetAttachmentsStorageNames ?? []);
   }, [workspace?.budgetCategories]);
 
   const [accounts, setAccounts] = useState<Record<string, { name: string; balance: number }>>({});
@@ -239,6 +246,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
     return fileName.replace(/\s+/g, '_').replace(/[^\w.-]+/g, '');
   };
 
+  // Update the uploadFilesToStorage function to use the sanitized unique name
   const uploadFilesToStorage = async (attachments: (File | string)[]) => {
     const uploadedFileNames = [];
 
@@ -280,9 +288,18 @@ export function TransactionPanel(props: TransactionPanelProps) {
     }
   };
 
+  // Update the handleFileUpload function
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      setAttachments([...attachments, ...Array.from(event.target.files)]);
+      const currentAttachments = watch('attachments');
+      const newFiles = Array.from(event.target.files).map(file => {
+        // Always create a new File with a sanitized name
+        const sanitizedName = sanitizeFileName(file.name);
+        const uniqueName = getUniqueFileName(sanitizedName, currentAttachments);
+        return new File([file], uniqueName, { type: file.type });
+      });
+
+      setValue('attachments', [...currentAttachments, ...newFiles]);
     }
   };
 
@@ -290,7 +307,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
   const deleteFromStorage = async (filePath: string) => {
     try {
       const { error } = await supabase.storage
-        .from('fin_account_transaction_attachments')
+        .from('budget_transaction_attachments')
         .remove([filePath]);
 
       if (error) {
@@ -302,19 +319,6 @@ export function TransactionPanel(props: TransactionPanelProps) {
       console.error('Error deleting file:', error);
       return false;
     }
-  };
-
-  // Update the removeAttachment function
-  const removeAttachment = async (index: number) => {
-    const attachment = attachments[index];
-
-    if (typeof attachment === 'string') {
-      // It's a URL, delete from storage
-      await deleteFromStorage(attachment);
-    }
-
-    // Always update the attachments state, regardless of deletion success
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Update the getFileNameFromUrl function
@@ -332,7 +336,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
   const downloadAttachment = async (filePath: string) => {
     try {
       const { data, error } = await supabase.storage
-        .from('fin_account_transaction_attachments')
+        .from('budget_transaction_attachments')
         .download(filePath);
 
       if (error) {
@@ -358,256 +362,339 @@ export function TransactionPanel(props: TransactionPanelProps) {
     }
   };
 
+   // Add this helper function to get currency symbol
+const getCurrencySymbol = (currencyCode: string): string => {
+  try {
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: currencyCode,
+      currencyDisplay: 'symbol',
+    })
+      .formatToParts(0)
+      .find(part => part.type === 'currency')?.value || '$';
+  } catch (e) {
+    return '$'; // Fallback if invalid currency code
+  }
+};
+
+// Add this helper function at the top level
+const compareAttachments = (
+  currentAttachments: (File | string)[],
+  initialStorageFiles: string[]
+) => {
+  // Files that need to be uploaded (new File objects)
+  const toUpload = currentAttachments.filter((att) => att instanceof File) as File[];
+  
+  // Existing storage paths we want to keep
+  const toKeep = currentAttachments.filter((att) => typeof att === 'string') as string[];
+  
+  // Files that need to be deleted (any initial files not in toKeep)
+  const toDelete = initialStorageFiles.filter((file) => !toKeep.includes(file));
+
+  return { 
+    toUpload, 
+    toKeep, 
+    toDelete
+  };
+};
+
+// Add this helper function
+const getUniqueFileName = (
+  fileName: string,
+  existingFiles: (File | string)[]
+): string => {
+  const extension = fileName.match(/\.[^/.]+$/)?.[0] || '';
+  const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+  let newFileName = fileName;
+  let counter = 1;
+
+  // Check against both current Files and existing storage paths
+  const existingNames = existingFiles.map(file => 
+    file instanceof File ? file.name : getFileNameFromUrl(file as string)
+  );
+
+  while (existingNames.includes(newFileName)) {
+    newFileName = `${nameWithoutExt}_${String(counter).padStart(2, '0')}${extension}`;
+    counter++;
+  }
+
+  return newFileName;
+};
+
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:w-[540px]">
-        <SheetHeader>
+      <SheetContent className="flex h-[100dvh] w-full flex-col sm:w-[540px] p-0">
+        {/* Add loader overlay */}
+        {isSaving && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
+            <GlobalLoader />
+          </div>
+        )}
+        
+        <SheetHeader className="p-6 pb-2">
           <div className="flex items-center justify-between">
             <SheetTitle>
               {props.isReadOnly ? 'View Transaction' : 'Edit Transaction'}
             </SheetTitle>
           </div>
         </SheetHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-6">
-          {/* Basic Transaction Details */}
-          <div className="space-y-2">
-            <Label htmlFor="date">Date<span className="text-destructive">*</span></Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={`w-full justify-start text-left font-normal`}
-                  disabled={props.disabledFields?.date ?? props.isReadOnly}
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  {watch('date') ? format(watch('date'), 'PP') : 'Select date'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <CalendarComponent
-                  mode="single"
-                  selected={watch('date')}
-                  onSelect={(date) => date && setValue('date', date)}
-                  initialFocus
-                  disabled={props.isReadOnly}
-                />
-              </PopoverContent>
-            </Popover>
-            {errors.date && (
-              <span className="text-sm text-destructive">{errors.date.message}</span>
-            )}
-          </div>
-
-          {/* Financial Details */}
-          <div className="space-y-2">
-            <Label htmlFor="amount">Amount<span className="text-destructive">*</span></Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                {props.selectedTransaction.isoCurrencyCode
-                  ? getCurrencySymbol(props.selectedTransaction.isoCurrencyCode)
-                  : '$'}
-              </span>
-              <Input
-                id="amount"
-                type="text"
-                placeholder="0.00"
-                className="pl-8"
-                disabled={props.disabledFields?.amount ?? props.isReadOnly}
-                {...register('amount')}
-              />
-            </div>
-            {errors.amount && (
-              <span className="text-sm text-destructive">{errors.amount.message}</span>
-            )}
-          </div>
-
-          {renderAccountSelect()}
-          {errors.budgetFinAccountId && (
-            <span className="text-sm text-destructive">{errors.budgetFinAccountId.message}</span>
-          )}
-
-          {/* Categorization */}
-          <div className="space-y-2">
-            <Label htmlFor="category">Category<span className="text-destructive">*</span></Label>
-            <CategorySelect
-              value={selectedCategory?.id}
-              onValueChange={(value) => {
-                const selected = categoryGroups
-                  .flatMap((group) => group.categories)
-                  .find((category) => category.id === value);
-
-                if (selected) {
-                  setSelectedCategory({
-                    name: selected.name,
-                    id: selected.id,
-                    createdAt: selected.createdAt,
-                    updatedAt: selected.updatedAt,
-                  });
-
-                  // Update the form value
-                  setValue('categoryId', selected.id);
-                }
-              }}
-              categoryGroups={categoryGroups}
-              disabled={props.disabledFields?.category ?? props.isReadOnly}
-            />
-            {errors.categoryId && (
-              <span className="text-sm text-destructive">{errors.categoryId.message}</span>
-            )}
-          </div>
-
-          {/* Transaction Description */}
-          <div className="space-y-2">
-            <Label htmlFor="merchantName">Merchant Name</Label>
-            <Input
-              {...register('merchantName')}
-              disabled={props.disabledFields?.payee ?? props.isReadOnly}
-            />
-            {errors.merchantName && (
-              <span className="text-sm text-destructive">{errors.merchantName.message}</span>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              placeholder="Enter notes"
-              {...register('notes')}
-              disabled={props.disabledFields?.notes ?? props.isReadOnly}
-            />
-          </div>
-
-          {/* Organization & Tags */}
-          <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
-            <TransactionTagSelect
-              transactionId={props.selectedTransaction.id}
-              onTagsChange={(newTags: FinAccountTransactionBudgetTag[]) => {
-                setValue('tags', newTags, {
-                  shouldValidate: true,
-                  shouldDirty: true,
-                  shouldTouch: true
-                });
-              }}
-              disabled={props.isReadOnly}
-            />
-          </div>
-
-          {/* Recurring Settings */}
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="recurring"
-              checked={false}
-              disabled={true}
-            />
-            <Label htmlFor="recurring">Recurring Transaction</Label>
-          </div>
-
-          {isRecurring && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="frequency">Frequency (Disabled)</Label>
-                <Select disabled value="monthly">
-                  <SelectTrigger>
-                    <SelectValue>Monthly</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="endAfter">End After (Disabled)</Label>
-                <Select disabled value="never">
-                  <SelectTrigger>
-                    <SelectValue>Never</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="never">Never</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          )}
-
-          {/* Attachments & Documents */}
-          <div className="space-y-2">
-            <Label>Attachments</Label>
-            <div className="rounded-lg border-2 border-dashed p-6 text-center">
-              {attachments.length > 0 ? (
-                <div className="space-y-2">
-                  {attachments.map((attachment, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between rounded bg-muted p-2"
-                    >
-                      {attachment instanceof File ? (
-                        <span className="truncate text-sm">
-                          {attachment.name}
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => downloadAttachment(attachment)}
-                          className="truncate text-left text-sm hover:underline"
-                        >
-                          {getFileNameFromUrl(attachment)}
-                        </button>
-                      )}
-                      {!props.isReadOnly && !props.disabledFields?.attachments && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeAttachment(index)}
-                          className="text-destructive"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                  <div className="text-sm text-muted-foreground">
-                    Drag file(s) here to upload or
-                  </div>
-                </>
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1">
+          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4 max-h-[calc(100dvh-10rem)]">
+            {/* Basic Transaction Details */}
+            <div className="space-y-2">
+              <Label htmlFor="date">Date<span className="text-destructive">*</span></Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-full justify-start text-left font-normal`}
+                    disabled={props.disabledFields?.date ?? props.isReadOnly}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {watch('date') ? format(watch('date'), 'PP') : 'Select date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <CalendarComponent
+                    mode="single"
+                    selected={watch('date')}
+                    onSelect={(date) => date && setValue('date', date)}
+                    initialFocus
+                    disabled={props.isReadOnly}
+                  />
+                </PopoverContent>
+              </Popover>
+              {errors.date && (
+                <span className="text-sm text-destructive">{errors.date.message}</span>
               )}
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                className="hidden"
-                multiple
-                disabled={props.disabledFields?.attachments ?? props.isReadOnly}
+            </div>
+
+            {/* Financial Details */}
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount<span className="text-destructive">*</span></Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {props.selectedTransaction.isoCurrencyCode
+                    ? getCurrencySymbol(props.selectedTransaction.isoCurrencyCode)
+                    : '$'}
+                </span>
+                <Input
+                  id="amount"
+                  type="text"
+                  placeholder="0.00"
+                  className="pl-8"
+                  disabled={props.disabledFields?.amount ?? props.isReadOnly}
+                  {...register('amount')}
+                />
+              </div>
+              {errors.amount && (
+                <span className="text-sm text-destructive">{errors.amount.message}</span>
+              )}
+            </div>
+
+            {renderAccountSelect()}
+            {errors.budgetFinAccountId && (
+              <span className="text-sm text-destructive">{errors.budgetFinAccountId.message}</span>
+            )}
+
+            {/* Categorization */}
+            <div className="space-y-2">
+              <Label htmlFor="category">Category<span className="text-destructive">*</span></Label>
+              <CategorySelect
+                value={selectedCategory?.id}
+                onValueChange={(value) => {
+                  const selected = categoryGroups
+                    .flatMap((group) => group.categories)
+                    .find((category) => category.id === value);
+
+                  if (selected) {
+                    setSelectedCategory({
+                      name: selected.name,
+                      id: selected.id,
+                      createdAt: selected.createdAt,
+                      updatedAt: selected.updatedAt,
+                    });
+
+                    // Update the form value
+                    setValue('categoryId', selected.id);
+                  }
+                }}
+                categoryGroups={categoryGroups}
+                disabled={props.disabledFields?.category ?? props.isReadOnly}
               />
-              <Button
-                variant="outline"
-                className="mt-2"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={props.disabledFields?.attachments ?? props.isReadOnly}
-              >
-                Select files
-              </Button>
+              {errors.categoryId && (
+                <span className="text-sm text-destructive">{errors.categoryId.message}</span>
+              )}
+            </div>
+
+            {/* Transaction Description */}
+            <div className="space-y-2">
+              <Label htmlFor="merchantName">Merchant Name</Label>
+              <Input
+                {...register('merchantName')}
+                disabled={props.disabledFields?.payee ?? props.isReadOnly}
+              />
+              {errors.merchantName && (
+                <span className="text-sm text-destructive">{errors.merchantName.message}</span>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                placeholder="Enter notes"
+                {...register('notes')}
+                disabled={props.disabledFields?.notes ?? props.isReadOnly}
+              />
+            </div>
+
+            {/* Organization & Tags */}
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags</Label>
+              <TransactionTagSelect
+                transactionId={props.selectedTransaction.id}
+                onTagsChange={(newTags: FinAccountTransactionBudgetTag[]) => {
+                  setValue('tags', newTags, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true
+                  });
+                }}
+                disabled={props.isReadOnly}
+              />
+            </div>
+
+            {/* Recurring Settings */}
+            {/* <div className="flex items-center space-x-2">
+              <Checkbox
+                id="recurring"
+                checked={false}
+                disabled={true}
+              />
+              <Label htmlFor="recurring">Recurring Transaction</Label>
+            </div> */}
+
+            {isRecurring && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="frequency">Frequency (Disabled)</Label>
+                  <Select disabled value="monthly">
+                    <SelectTrigger>
+                      <SelectValue>Monthly</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="endAfter">End After (Disabled)</Label>
+                  <Select disabled value="never">
+                    <SelectTrigger>
+                      <SelectValue>Never</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="never">Never</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {/* Attachments & Documents */}
+            <div className="space-y-2">
+              <Label>Attachments</Label>
+              <div className="rounded-lg border-2 border-dashed p-6 text-center">
+                {watch('attachments').length > 0 ? (
+                  <div className="space-y-2">
+                    {/* Files list */}
+                    <div className="space-y-2 mb-4">
+                      {watch('attachments').map((attachment, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between rounded bg-muted p-2"
+                        >
+                          {attachment instanceof File ? (
+                            <span className="truncate text-sm">
+                              {attachment.name}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => downloadAttachment(attachment as string)}
+                              className="truncate text-left text-sm hover:underline"
+                            >
+                              {getFileNameFromUrl(attachment as string)}
+                            </button>
+                          )}
+                          {!props.isReadOnly && !props.disabledFields?.attachments && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              type="button"
+                              onClick={() => {
+                                const currentAttachments = watch('attachments');
+                                setValue('attachments', currentAttachments.filter((_, i) => i !== index));
+                              }}
+                              className="text-destructive"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Add files button with separator and spacing */}
+                    {!props.isReadOnly && !props.disabledFields?.attachments && (
+                      <>
+                        <div className="border-t my-2" />
+                        <label className="cursor-pointer text-sm text-muted-foreground hover:text-foreground mt-4 block">
+                          <input
+                            type="file"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                            multiple
+                          />
+                          <span className="flex items-center justify-center gap-2">
+                            <Upload className="h-4 w-4" />
+                            Add more files
+                          </span>
+                        </label>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <label className="cursor-pointer">
+                    <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                    <div className="text-sm text-muted-foreground">
+                      <span>Drag file(s) here to upload or </span>
+                      <span className="text-primary hover:underline">browse</span>
+                    </div>
+                    <input
+                      type="file"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      multiple
+                      disabled={props.disabledFields?.attachments ?? props.isReadOnly}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Form Actions */}
-          <div className="flex flex-col justify-end gap-4 pt-4 sm:flex-row">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => props.onOpenChange(false)}
-              className="w-full sm:w-auto"
-            >
-              {props.isReadOnly ? 'Close' : 'Cancel'}
-            </Button>
-            {isSaving ? (
-              <GlobalLoader />
-            ) : (
+          <div className="sticky bottom-0 flex shrink-0 border-t bg-background p-4">
+            <div className="flex w-full flex-col sm:flex-row sm:justify-end gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => props.onOpenChange(false)}
+                className="w-full sm:w-auto"
+              >
+                {props.isReadOnly ? 'Close' : 'Cancel'}
+              </Button>
               <Button
                 type="submit"
                 variant="default"
@@ -616,7 +703,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
               >
                 Save
               </Button>
-            )}
+            </div>
           </div>
         </form>
       </SheetContent>

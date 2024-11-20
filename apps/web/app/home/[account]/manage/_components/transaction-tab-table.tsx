@@ -3,19 +3,7 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 
-import {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
-  VisibilityState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table';
-import { Bookmark } from 'lucide-react';
+import { File, Files } from 'lucide-react';
 
 import { Button } from '@kit/ui/button';
 import { Checkbox } from '@kit/ui/checkbox';
@@ -28,8 +16,24 @@ import {
   TableHeader,
   TableRow,
 } from '@kit/ui/table';
-import { FinAccountTransaction, FinAccountTransactionBudgetTag } from '~/lib/model/fin.types';
+
+import {
+  ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+
+import { FinAccountTransaction } from '~/lib/model/fin.types';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
+import { useDebounce } from '~/lib/hooks/use-debounce';
+import { TransactionSearchService } from '~/lib/services/transaction-search.service';
 
 interface TransactionTableProps {
   onSelectTransaction: (row: FinAccountTransaction) => void;
@@ -38,13 +42,70 @@ interface TransactionTableProps {
 }
 
 export function TransactionTable(props: TransactionTableProps) {
+  const transactionSearchService = React.useMemo(() => new TransactionSearchService(), []);
+
   const [transactions, setTransactions] = useState<FinAccountTransaction[]>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState({});
+  const [searchValue, setSearchValue] = useState("");
+  const debouncedSearch = useDebounce(searchValue, 500);
+  const [scoredTransactionIds, setScoredTransactionIds] = useState<Set<string>>(new Set());
 
   const { workspace } = useBudgetWorkspace();
+
+  // Keep track of base transactions separately
+  const [baseTransactions, setBaseTransactions] = useState<FinAccountTransaction[]>([]);
+  
+  // Update base transactions when workspace or month changes
+  useEffect(() => {
+    if (!workspace?.budgetTransactions) return;
+
+    const filteredTransactions = workspace.budgetTransactions.filter((transaction) => {
+      const transactionDate = new Date(transaction.date);
+      return (
+        transactionDate.getFullYear() === props.selectedMonth.getFullYear() &&
+        transactionDate.getMonth() === props.selectedMonth.getMonth()
+      );
+    });
+
+    setBaseTransactions(filteredTransactions);
+    setTransactions(filteredTransactions);
+  }, [workspace?.budgetTransactions, props.selectedMonth]);
+
+  // Sort transactions based on search
+  useEffect(() => {
+    const searchTerms = debouncedSearch.split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(Boolean);
+    
+    if (searchTerms.length === 0 || !debouncedSearch.trim()) {
+      setTransactions(baseTransactions);
+      setScoredTransactionIds(new Set());
+      return;
+    }
+
+    const scoredTransactions = baseTransactions.map(t => ({
+      transaction: t,
+      score: transactionSearchService.getSearchScore(t, searchTerms)
+    }));
+
+    // Track which transactions had non-zero scores
+    const matchedIds = new Set(
+      scoredTransactions
+        .filter(st => st.score > 0)
+        .map(st => st.transaction.id)
+    );
+    setScoredTransactionIds(matchedIds);
+
+    // Sort and update transactions
+    setTransactions(
+      scoredTransactions
+        .sort((a, b) => b.score - a.score)
+        .map(st => st.transaction)
+    );
+  }, [debouncedSearch, baseTransactions]);
 
   // Private function to format date
   const formatDate = (dateString: string): string => {
@@ -54,7 +115,7 @@ export function TransactionTable(props: TransactionTableProps) {
     date.setDate(Number(dateString.split('-')[2]));
     return date.toLocaleDateString(navigator.language, {
       day: '2-digit',
-      month: 'short', 
+      month: 'short',
       year: 'numeric',
     });
   };
@@ -75,7 +136,7 @@ export function TransactionTable(props: TransactionTableProps) {
         </div>
       ),
       cell: ({ row }) => (
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
@@ -108,7 +169,7 @@ export function TransactionTable(props: TransactionTableProps) {
           const group = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
             group.categories.some((cat) => cat.id === row.original.svendCategoryId)
           );
-          
+
           if (category && group) {
             return (
               <div className="w-[250px] truncate capitalize">
@@ -144,7 +205,7 @@ export function TransactionTable(props: TransactionTableProps) {
           style: 'currency',
           currency: 'USD',
         }).format(amount);
-  
+
         return <div className="w-[120px] pr-2 text-right">{formatted}</div>;
       },
     },
@@ -181,51 +242,48 @@ export function TransactionTable(props: TransactionTableProps) {
     {
       accessorKey: 'tags',
       header: 'Tags',
-      cell: ({ row, table }) => {
+      cell: ({ row }) => {
         const tags = row.original.budgetTags;
         if (!tags || !Array.isArray(tags)) return null;
-  
+
         return (
-          <div className="flex w-[200px] flex-wrap gap-1">
-            {tags.map((tag) => (
-              <span
-                key={tag.id}
-                className="truncate rounded-md bg-secondary px-2 py-0.5 text-sm text-secondary-foreground hover:cursor-pointer"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  const currentFilter =
-                    (table.getColumn('tags')?.getFilterValue() as string) || '';
-                  const tags = currentFilter
-                    .split(',')
-                    .map((t) => t.trim())
-                    .filter(Boolean);
-  
-                  const newTags = tags.includes(tag.name)
-                    ? tags.filter((t) => t !== tag.name)
-                    : [...tags, tag.name];
-  
-                  table.getColumn('tags')?.setFilterValue(newTags.join(', '));
-                }}
-              >
-                {tag.name}
-              </span>
-            ))}
+          <div className="w-[200px] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex gap-1 overflow-x-auto pb-4 -mb-4">
+              {tags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="whitespace-nowrap rounded-md bg-secondary px-2 py-0.5 text-sm text-secondary-foreground hover:cursor-pointer"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const currentTerms = searchValue.split(',').map(t => t.trim()).filter(Boolean);
+                    const newTerms = currentTerms.includes(tag.name)
+                      ? currentTerms.filter(t => t !== tag.name)
+                      : [...currentTerms, tag.name];
+
+                    setSearchValue(newTerms.join(', '));
+                  }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
           </div>
         );
       },
       filterFn: (row, columnId, filterValue) => {
-        const tags = row.getValue(columnId) as FinAccountTransactionBudgetTag[] | undefined;
+        if (!filterValue) return true;
+        const tags = row.original.budgetTags;
         if (!tags) return false;
-  
-        const searchTags = filterValue
+
+        const searchTerms = filterValue
           .split(',')
-          .map((tag: any) => tag.trim().toLowerCase())
+          .map((term: string) => term.trim().toLowerCase())
           .filter(Boolean);
-  
-        if (searchTags.length === 0) return true;
-  
-        return searchTags.every((searchTag: any) =>
-          tags.some((tag: any) => tag.name.toLowerCase().includes(searchTag)),
+
+        if (searchTerms.length === 0) return true;
+
+        return tags.some(tag =>
+          searchTerms.some((term: string) => tag.name.toLowerCase().includes(term))
         );
       },
     },
@@ -233,30 +291,23 @@ export function TransactionTable(props: TransactionTableProps) {
       accessorKey: 'isSave',
       header: () => (
         <div className="w-[40px] text-center">
-          <Bookmark className="mx-auto h-4 w-4" />
+          <File className="mx-auto h-4 w-4" />
         </div>
       ),
-      cell: () => (
-        <div className="w-[40px] text-center">
-          <Bookmark className="mx-auto h-4 w-4" />
-        </div>
-      ),
+      cell: ({ row }) => {
+        const hasAttachments = row.original.budgetAttachmentsStorageNames?.length ?? 0 > 0;
+        return (
+          <div className="w-[40px] text-center">
+            {hasAttachments ? (
+              <Files className="mx-auto h-4 w-4 transform scale-125" strokeWidth={2.5} />
+            ) : (
+              <File className="mx-auto h-4 w-4 transform scale-110 text-muted-foreground" />
+            )}
+          </div>
+        );
+      },
     },
   ];
-
-  useEffect(() => {
-    if (!workspace?.budgetTransactions) return;
-
-    const filteredTransactions = workspace.budgetTransactions.filter((transaction) => {
-      const transactionDate = new Date(transaction.date);
-      return (
-        transactionDate.getFullYear() === props.selectedMonth.getFullYear() &&
-        transactionDate.getMonth() === props.selectedMonth.getMonth()
-      );
-    });
-
-    setTransactions(filteredTransactions);
-  }, [workspace?.budgetTransactions, props.selectedMonth]); 
 
   const table = useReactTable({
     data: transactions,
@@ -295,11 +346,11 @@ export function TransactionTable(props: TransactionTableProps) {
     <div className="w-full">
       <div className="flex items-center py-4">
         <Input
-          placeholder="Search for anything"
-          value={(table.getColumn('tags')?.getFilterValue() as string) ?? ''}
-          onChange={(event) =>
-            table.getColumn('tags')?.setFilterValue(event.target.value)
-          }
+          placeholder="Search and sort by tags (comma-separated)"
+          value={searchValue}
+          onChange={(event) => {
+            setSearchValue(event.target.value);
+          }}
           className="max-w-sm"
         />
       </div>
@@ -314,9 +365,9 @@ export function TransactionTable(props: TransactionTableProps) {
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                     </TableHead>
                   );
                 })}
@@ -333,9 +384,14 @@ export function TransactionTable(props: TransactionTableProps) {
                     props.onSelectTransaction(row.original);
                     props.onOpenChange(true);
                   }}
+                  className={`h-[52px] ${
+                    debouncedSearch.trim() && !scoredTransactionIds.has(row.original.id)
+                      ? 'opacity-50'
+                      : ''
+                  }`}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="py-3">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

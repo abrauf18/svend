@@ -34,9 +34,9 @@ export const PUT = enhanceRouteHandler(
     const updateData: Record<string, any> = {};
     
     if (body.categoryId) updateData.svend_category_id = body.categoryId;
-    if (body.merchant_name) updateData.merchant_name = body.merchant_name;
-    if (body.payee) updateData.payee = body.payee;
-    if (body.notes) updateData.notes = body.notes;
+    if (body.merchant_name !== undefined) updateData.merchant_name = body.merchant_name;
+    if (body.payee !== undefined) updateData.payee = body.payee;
+    if (body.notes !== undefined) updateData.notes = body.notes;
     if (body.tags) updateData.tag_ids = body.tags.map(tag => tag.id);
     
     // Only proceed with update if there are fields to update

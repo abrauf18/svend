@@ -1,17 +1,26 @@
 'use client';
 
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import { useOnboardingContext } from '@kit/accounts/components';
 import { Card } from '@kit/ui/card';
 import Image from 'next/image';
 import { Building } from 'lucide-react';
-import { LoadingOverlay } from '@kit/ui/loading-overlay';
 import { ItemDeleteDialog } from './plaid-item-delete-dialog';
 import { Switch } from '@kit/ui/switch';
+import { PlaidConnectionItemsSkeleton } from './plaid-connection-items-skeleton';
 
 export function PlaidConnectionItems({ loading = false }) {
 
     const { state, accountPlaidConnItemRemoveOne, accountPlaidItemAccountUnlinkOne, accountPlaidItemAccountLinkOne } = useOnboardingContext();
+
+    useLayoutEffect(() => {
+        if (loading) {
+            const skeletonElement = document.querySelector('.plaid-connection-skeleton');
+            if (skeletonElement) {
+                skeletonElement.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    }, [loading]);
 
     const closeItemDeleteDialog = (svendItemId: string) => {
         return (role: string) => {
@@ -189,11 +198,7 @@ export function PlaidConnectionItems({ loading = false }) {
                     </div>
                 </div>
             ))}
-            {loading && (
-                <div className="flex justify-center mt-4">
-                    <LoadingOverlay displayLogo={false} fullPage={false} />
-                </div>
-            )}
+            {loading && <PlaidConnectionItemsSkeleton className="plaid-connection-skeleton" />}
         </div>
     );
 }

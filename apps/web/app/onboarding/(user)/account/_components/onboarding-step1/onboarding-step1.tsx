@@ -99,9 +99,9 @@ function OnboardingStep1ConnectPlaidAccounts() {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4">
-      <Card className="w-full">
-        <CardHeader className="space-y-4">
+    <div className="mx-auto w-full max-w-4xl p-4 h-[calc(100vh-6rem)]">
+      <Card className="w-full h-full flex flex-col">
+        <CardHeader className="space-y-4 flex-shrink-0">
           <div className="flex items-center space-x-2">
             <svg
               className="h-8 w-8 text-primary"
@@ -130,7 +130,8 @@ function OnboardingStep1ConnectPlaidAccounts() {
             <Progress value={33} className="w-full md:w-1/2 lg:w-full" />
           </div>
         </CardHeader>
-        <CardContent className="space-y-2">
+
+        <CardContent className="space-y-4 flex-1 overflow-y-auto">
           <p className="text-sm text-muted-foreground max-w-md">
             <Trans i18nKey={'onboarding:connectAccountsInstructionText'} />
           </p>
@@ -141,14 +142,22 @@ function OnboardingStep1ConnectPlaidAccounts() {
             <Trans i18nKey={'onboarding:connectAccountsButtonLabel'} />
           </Button>
         </CardContent>
-        <CardFooter>
-          <Button variant="outline" className="w-full md:w-auto" disabled={!hasPlaidConnection} onClick={accountNextStep}>
-            <Trans i18nKey={'onboarding:connectAccountsNextButtonLabel'} />
-          </Button>
+
+        <CardFooter className="flex-shrink-0 border-t pt-4">
+          <div className="flex space-x-4">
+            <Button 
+              variant="outline" 
+              className="w-full md:w-auto" 
+              disabled={!hasPlaidConnection} 
+              onClick={accountNextStep}
+            >
+              <Trans i18nKey={'onboarding:connectAccountsNextButtonLabel'} />
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }
 
 export default OnboardingStep1ConnectPlaidAccounts;
