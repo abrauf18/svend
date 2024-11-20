@@ -1,9 +1,10 @@
-import { FinAccount, FinAccountTransaction } from '../model/fin.types';
+import { FinAccount, FinAccountTransaction, FinAccountTransactionBudgetTag } from '../model/fin.types';
 import { Database } from '~/lib/database.types';
 import { Budget, BudgetCategoryGroupSpending, BudgetCategorySpending, BudgetGoal, BudgetGoalTracking, BudgetGoalTrackingAllocation } from '../model/budget.types';
 import { createCategoryService } from './category.service';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 
 export type BudgetRecommendation = {
   spending: Record<string, BudgetCategoryGroupSpending>;
@@ -16,9 +17,33 @@ export type BudgetRecommendation = {
  */
 class BudgetService {
   private categoryService;
-  
+  private supabase: SupabaseClient;
+
   constructor(supabaseClient: SupabaseClient) {
     this.categoryService = createCategoryService(supabaseClient);
+    this.supabase = supabaseClient;
+  }
+
+  /**
+ * @name hasPermission
+ * @description Check if the user has permission for the account.
+ */
+  async hasPermission(params: {
+    budgetId: string;
+    userId: string;
+    permission: Database['public']['Enums']['app_permissions'];
+  }) {
+    const { data, error } = await this.supabase.rpc('has_budget_permission', {
+      budget_id: params.budgetId,
+      user_id: params.userId,
+      permission_name: params.permission,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   }
 
   /**
@@ -70,7 +95,7 @@ class BudgetService {
       } else {
         // For savings goals, calculate new number of payments based on adjusted amount
         const numberOfPayments = Math.ceil(remainingAmount / adjustedMonthlyAmount);
-        
+
         // Validate numberOfPayments
         if (numberOfPayments <= 0) {
           console.error('Calculated number of payments is zero or negative:', numberOfPayments);
@@ -99,7 +124,7 @@ class BudgetService {
       }
 
       const allocations: BudgetGoalTrackingAllocation[] = [];
-      
+
       try {
         // Ensure startDate is valid
         if (!(startDate instanceof Date) || isNaN(startDate.getTime())) {
@@ -230,22 +255,22 @@ class BudgetService {
 
           // Add to group totals
           recommendations[recType]!.spending[groupName]!.spending += Math.round(spending * 100) / 100;
-          recommendations[recType]!.spending[groupName]!.recommendation += isIncome ? 
-            Math.round(spending * 100) / 100 : 
+          recommendations[recType]!.spending[groupName]!.recommendation += isIncome ?
+            Math.round(spending * 100) / 100 :
             Math.round((spending * (1 - reduction)) * 100) / 100;
-          recommendations[recType]!.spending[groupName]!.target += isIncome ? 
-            Math.round(spending * 100) / 100 : 
+          recommendations[recType]!.spending[groupName]!.target += isIncome ?
+            Math.round(spending * 100) / 100 :
             Math.round((spending * (1 - reduction)) * 100) / 100;
 
           // Add category to group's categories array
           recommendations[recType]!.spending[groupName]!.categories.push({
             categoryName: category,
             spending: Math.round(spending * 100) / 100,
-            recommendation: isIncome ? 
-              Math.round(spending * 100) / 100 : 
+            recommendation: isIncome ?
+              Math.round(spending * 100) / 100 :
               Math.round((spending * (1 - reduction)) * 100) / 100,
-            target: isIncome ? 
-              Math.round(spending * 100) / 100 : 
+            target: isIncome ?
+              Math.round(spending * 100) / 100 :
               Math.round((spending * (1 - reduction)) * 100) / 100,
             isTaxDeductible: false
           });
@@ -314,22 +339,22 @@ class BudgetService {
 
         // Add to group totals
         recommendations[strategy]!.spending[groupName]!.spending += Math.round(spending * 100) / 100;
-        recommendations[strategy]!.spending[groupName]!.recommendation += isIncome ? 
-          Math.round(spending * 100) / 100 : 
+        recommendations[strategy]!.spending[groupName]!.recommendation += isIncome ?
+          Math.round(spending * 100) / 100 :
           Math.round((spending * (1 - reduction)) * 100) / 100;
-        recommendations[strategy]!.spending[groupName]!.target += isIncome ? 
-          Math.round(spending * 100) / 100 : 
+        recommendations[strategy]!.spending[groupName]!.target += isIncome ?
+          Math.round(spending * 100) / 100 :
           Math.round((spending * (1 - reduction)) * 100) / 100;
 
         // Add category to group's categories array
         recommendations[strategy]!.spending[groupName]!.categories.push({
           categoryName: category,
           spending: Math.round(spending * 100) / 100,
-          recommendation: isIncome ? 
-            Math.round(spending * 100) / 100 : 
+          recommendation: isIncome ?
+            Math.round(spending * 100) / 100 :
             Math.round((spending * (1 - reduction)) * 100) / 100,
-          target: isIncome ? 
-            Math.round(spending * 100) / 100 : 
+          target: isIncome ?
+            Math.round(spending * 100) / 100 :
             Math.round((spending * (1 - reduction)) * 100) / 100,
           isTaxDeductible: false
         });
@@ -392,22 +417,22 @@ class BudgetService {
 
               // Add to group totals
               recommendations[strategy]!.spending[groupName]!.spending += Math.round(spending * 100) / 100;
-              recommendations[strategy]!.spending[groupName]!.recommendation += isIncome ? 
-                Math.round(spending * 100) / 100 : 
+              recommendations[strategy]!.spending[groupName]!.recommendation += isIncome ?
+                Math.round(spending * 100) / 100 :
                 Math.round((spending * (1 - reduction)) * 100) / 100;
-              recommendations[strategy]!.spending[groupName]!.target += isIncome ? 
-                Math.round(spending * 100) / 100 : 
+              recommendations[strategy]!.spending[groupName]!.target += isIncome ?
+                Math.round(spending * 100) / 100 :
                 Math.round((spending * (1 - reduction)) * 100) / 100;
 
               // Add category to group's categories array
               recommendations[strategy]!.spending[groupName]!.categories.push({
                 categoryName: category,
                 spending: Math.round(spending * 100) / 100,
-                recommendation: isIncome ? 
-                  Math.round(spending * 100) / 100 : 
+                recommendation: isIncome ?
+                  Math.round(spending * 100) / 100 :
                   Math.round((spending * (1 - reduction)) * 100) / 100,
-                target: isIncome ? 
-                  Math.round(spending * 100) / 100 : 
+                target: isIncome ?
+                  Math.round(spending * 100) / 100 :
                   Math.round((spending * (1 - reduction)) * 100) / 100,
                 isTaxDeductible: false
               });
@@ -523,12 +548,12 @@ class BudgetService {
   ): Budget | null {
     try {
       // Validate required fields
-      if (!rawGetBudgetResults.id || 
-          !rawGetBudgetResults.team_account_id || 
-          !rawGetBudgetResults.budget_type || 
-          !rawGetBudgetResults.category_spending || 
-          !rawGetBudgetResults.recommended_category_spending || 
-          !rawGetBudgetResults.current_onboarding_step) {
+      if (!rawGetBudgetResults.id ||
+        !rawGetBudgetResults.team_account_id ||
+        !rawGetBudgetResults.budget_type ||
+        !rawGetBudgetResults.category_spending ||
+        !rawGetBudgetResults.recommended_category_spending ||
+        !rawGetBudgetResults.current_onboarding_step) {
         console.error('Missing required fields in budget results:', rawGetBudgetResults);
         return null;
       }
@@ -733,9 +758,9 @@ class BudgetService {
       return raw.reduce((validTransactions: FinAccountTransaction[], transaction) => {
         try {
           // Validate required fields
-          if (!transaction.id || !transaction.date || 
-              typeof transaction.amount !== 'number' || 
-              !transaction.budget_fin_account_id) {
+          if (!transaction.id || !transaction.date ||
+            typeof transaction.amount !== 'number' ||
+            !transaction.budget_fin_account_id) {
             console.error('Missing required transaction fields:', transaction);
             return validTransactions;
           }
@@ -752,25 +777,25 @@ class BudgetService {
             id: transaction.id,
             date: transaction.date,
             amount: transaction.amount,
-            merchantName: transaction.merchant_name,
-            
+
             // Category information
             svendCategoryGroupId: transaction.svend_category_group_id ?? undefined,
             svendCategoryGroup: transaction.svend_category_group ?? undefined,
             svendCategoryId: transaction.svend_category_id ?? undefined,
             svendCategory: transaction.svend_category ?? undefined,
-            
+
             // Optional fields that match SQL return
+            merchantName: transaction.merchant_name,
             payee: transaction.payee ?? undefined,
             isoCurrencyCode: transaction.iso_currency_code ?? undefined,
             budgetFinAccountId: transaction.budget_fin_account_id ?? undefined,
             notes: transaction.notes ?? '',
-            
+
             // Arrays from SQL
             budgetTags: (transaction.tags as any[] ?? []).map((tag: any) => ({
-                id: tag.id || tag,  // Handle both object and string formats
-                name: tag.name || tag
-            })),
+              id: tag.id || tag,  // Handle both object and string formats
+              name: tag.name || tag
+            } as FinAccountTransactionBudgetTag)),
             budgetAttachmentsStorageNames: transaction.attachments_storage_names ?? [],
           };
 
@@ -788,6 +813,20 @@ class BudgetService {
       return [];
     }
   }
+
+  /**
+   * Parses and validates raw budget tags into strongly typed FinAccountTransactionBudgetTag objects
+   * @param raw The raw budget tags from the get_budget_tags_by_team_account_slug function
+   * @returns Array of validated FinAccountTransactionBudgetTag objects
+   */
+  parseBudgetTags(raw: Database['public']['Functions']['get_budget_tags_by_team_account_slug']['Returns']): FinAccountTransactionBudgetTag[] {
+    return raw.map(tag => ({
+      id: tag.id,
+      budgetId: tag.budget_id,
+      name: tag.name,
+      createdAt: tag.created_at,
+    }));
+  }
 }
 
 /**
@@ -795,6 +834,6 @@ class BudgetService {
  * @param supabaseClient - The Supabase client instance
  * @returns An instance of BudgetService.
  */
-export function createBudgetService(supabaseClient: ReturnType<typeof getSupabaseServerClient>) {
+export function createBudgetService(supabaseClient: SupabaseClient) {
   return new BudgetService(supabaseClient);
 }

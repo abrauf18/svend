@@ -112,9 +112,9 @@ function OnboardingStep2ProfileGoals() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl p-4">
-      <Card className="w-full">
-        <CardHeader className="space-y-4">
+    <div className="mx-auto w-full max-w-4xl p-4 h-[calc(100vh-6rem)]">
+      <Card className="w-full h-full flex flex-col">
+        <CardHeader className="space-y-4 flex-shrink-0">
           <div className="flex items-center space-x-2">
             <svg
               className="h-8 w-8 text-primary"
@@ -158,13 +158,13 @@ function OnboardingStep2ProfileGoals() {
             ))}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 flex-1 overflow-y-auto">
           <p className="max-w-md text-sm text-muted-foreground">
             <Trans i18nKey={'onboarding:finBackgroundInstructionText'} />
           </p>
           {renderStep()}
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex-shrink-0 border-t pt-4">
           <div className="flex space-x-4">
             <Button
               variant="outline"

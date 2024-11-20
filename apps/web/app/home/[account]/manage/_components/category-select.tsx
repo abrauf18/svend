@@ -1,6 +1,6 @@
 'use client';
 
-import * as React from 'react';
+import React, { useState } from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { CaretSortIcon, CheckIcon } from '@radix-ui/react-icons';
 import { cn } from '@kit/ui/utils';
@@ -47,7 +47,7 @@ export function CategorySelect({
   disabled,
   placeholder = "Select category"
 }: CategorySelectProps) {
-  const [searchQuery, setSearchQuery] = React.useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
   const viewportRef = React.useRef<HTMLDivElement>(null);
   

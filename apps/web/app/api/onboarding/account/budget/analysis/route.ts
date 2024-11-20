@@ -282,21 +282,22 @@ async function budgetAnalysis(budgetId: string, plaidConnectionItems: PlaidConne
 
   // Track all transactions with their dates
   const allTransactions: Array<FinAccountTransaction> = [];
-  const newTransactions: Array<FinAccountTransaction> = [];
+  const newPlaidTransactions: Array<FinAccountTransaction> = [];
 
   for (const item of plaidConnectionItems) {
     const accessToken = item.accessToken;
 
-    // Fetch existing transactions from the database
-    const { data: plaidAccountIds } = await supabase
-      .from('plaid_accounts')
-      .select('id, plaid_account_id')
-      .eq('plaid_conn_item_id', item.svendItemId);
-
+    // Fetch existing transactions with a single query using nested select
     const { data: existingTransactions, error: fetchError } = await supabase
-      .from('fin_account_transactions')
-      .select('*')
-      .in('plaid_account_id', plaidAccountIds?.map(account => account.id) || []);
+      .from('plaid_accounts')
+      .select(`
+        id,
+        plaid_account_id,
+        budget_fin_accounts!inner (id),
+        fin_account_transactions (*)
+      `)
+      .eq('plaid_conn_item_id', item.svendItemId)
+      .eq('budget_fin_accounts.budget_id', budgetId);
 
     if (fetchError) {
       console.error('Error fetching existing transactions:', fetchError);
@@ -306,8 +307,16 @@ async function budgetAnalysis(budgetId: string, plaidConnectionItems: PlaidConne
       };
     }
 
+    // Flatten the nested structure and add budget_fin_account_id to each transaction
+    const transactions = existingTransactions
+      .flatMap(account => account.fin_account_transactions.map(transaction => ({
+        ...transaction,
+        budgetFinAccountId: account.budget_fin_accounts[0]?.id
+      })))
+      .filter(Boolean);
+
     // Analyze existing transactions
-    for (const transaction of existingTransactions) {
+    for (const transaction of transactions) {
       const plaidCategory = transaction.plaid_category_detailed;
       if (plaidCategory) {
         const amount = transaction.amount;
@@ -315,10 +324,18 @@ async function budgetAnalysis(budgetId: string, plaidConnectionItems: PlaidConne
         allTransactions.push({
           date: transaction.date,
           amount: amount,
-          plaidDetailedCategoryName: plaidCategory,
+          plaidDetailedCategory: plaidCategory,
+          budgetFinAccountId: transaction.budgetFinAccountId
         } as FinAccountTransaction);
       }
     }
+
+    // Keep track of all plaid account IDs for this item
+    const plaidAccounts = existingTransactions.map(account => ({
+      id: account.id,
+      plaid_account_id: account.plaid_account_id,
+      budget_fin_account_id: account.budget_fin_accounts[0]?.id
+    }));
 
     let nextCursor = item.nextCursor;
     let hasMore = true;
@@ -339,15 +356,17 @@ async function budgetAnalysis(budgetId: string, plaidConnectionItems: PlaidConne
           if (plaidCategory) {
             const amount = transaction.amount;
             categorySpending[plaidCategory] = (categorySpending[plaidCategory] || 0) + amount;
-            newTransactions.push({
+            newPlaidTransactions.push({
               date: transaction.date,
               amount: amount,
-              plaidDetailedCategoryName: plaidCategory,
-              plaidAccountId: plaidAccountIds?.find(accountIds => accountIds.plaid_account_id === transaction.account_id)?.id,
+              plaidDetailedCategory: plaidCategory,
+              plaidCategoryConfidence: transaction?.personal_finance_category?.confidence_level,
+              plaidAccountId: plaidAccounts?.find(plaidAccount => plaidAccount.plaid_account_id === transaction.account_id)?.id,
               merchantName: transaction.merchant_name ?? '',
               payee: transaction.payment_meta?.payee ?? '',
               isoCurrencyCode: transaction.iso_currency_code,
               rawData: transaction,
+              budgetFinAccountId: plaidAccounts?.find(plaidAccount => plaidAccount.plaid_account_id === transaction.account_id)?.budget_fin_account_id,
             } as FinAccountTransaction);
           }
         }
@@ -367,27 +386,27 @@ async function budgetAnalysis(budgetId: string, plaidConnectionItems: PlaidConne
   }
 
   // Sort transactions by date in ascending order
-  allTransactions.push(...newTransactions);
+  allTransactions.push(...newPlaidTransactions);
 
   const categoryService = createCategoryService(getSupabaseServerClient());
 
   // Map categories to svend category IDs
-  const plaidDetailedCategories = allTransactions.map(transaction => transaction.plaidDetailedCategoryName) as string[];
+  const plaidDetailedCategories = allTransactions.map(transaction => transaction.plaidDetailedCategory) as string[];
   const svendCategories = await categoryService.mapPlaidCategoriesToSvendCategories(plaidDetailedCategories);
   const allTransactionsUpdated = allTransactions.map(transaction => {
     return {
       ...transaction,
-      svendCategoryId: svendCategories[transaction.plaidDetailedCategoryName as string]?.id,
-      svendCategoryName: svendCategories[transaction.plaidDetailedCategoryName as string]?.name,
+      svendCategoryId: svendCategories[transaction.plaidDetailedCategory as string]?.id,
+      svendCategoryName: svendCategories[transaction.plaidDetailedCategory as string]?.name,
     }
   });
   allTransactionsUpdated.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const newTransactionsToPersist = allTransactionsUpdated.slice(allTransactionsUpdated.length - newTransactions.length);
+  const newTransactionsToPersist = allTransactionsUpdated.slice(allTransactionsUpdated.length - newPlaidTransactions.length);
   console.log(`persisting ${newTransactionsToPersist.length} new transactions..`);
 
   // Persist transactions to fin_account_transactions table
-  let errorMessage = await persistTransactions(newTransactionsToPersist);
+  let errorMessage = await persistBudgetTransactions(newTransactionsToPersist, budgetId);
   if (errorMessage) {
     return {
       budgetRecommendations: null,
@@ -451,6 +470,50 @@ async function budgetAnalysis(budgetId: string, plaidConnectionItems: PlaidConne
   };
 }
 
+async function persistBudgetTransactions(transactions: FinAccountTransaction[], budgetId: string) {
+  const supabaseAdminClient = getSupabaseServerAdminClient();
+  const BATCH_SIZE = 100;
+
+  try {
+    for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+      const batch = transactions.slice(i, i + BATCH_SIZE);
+      
+      console.log(`Persisting batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(transactions.length / BATCH_SIZE)}`);
+
+      for (const transaction of batch) {
+        const { data, error } = await supabaseAdminClient
+          .rpc('create_budget_fin_account_transaction', {
+            p_budget_id: budgetId,
+            p_budget_fin_account_id: transaction.budgetFinAccountId!,
+            p_amount: transaction.amount,
+            p_date: transaction.date,
+            p_merchant_name: transaction.merchantName || undefined,
+            p_payee: transaction.payee || undefined,
+            p_svend_category_id: transaction.svendCategoryId!,
+            p_iso_currency_code: transaction.isoCurrencyCode || 'USD',
+            p_plaid_category_detailed: transaction.plaidDetailedCategory,
+            p_plaid_category_confidence: transaction.plaidCategoryConfidence,
+            p_raw_data: transaction.rawData
+          });
+
+        if (error) {
+          console.error(`Error inserting transaction:`, error);
+          return `Failed to persist transaction: ${error.message}`;
+        }
+      }
+
+      // Add a small delay between batches to prevent overwhelming the database
+      if (i + BATCH_SIZE < transactions.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    return null; // success
+  } catch (error: any) {
+    console.error('Error in persistTransactions:', error);
+    return `Failed to persist transactions: ${error.message}`;
+  }
+}
 
 async function persistTransactions(transactions: FinAccountTransaction[]) {
   const supabaseAdminClient = getSupabaseServerAdminClient();
@@ -463,7 +526,7 @@ async function persistTransactions(transactions: FinAccountTransaction[]) {
         plaid_account_id: transaction.plaidAccountId,
         amount: transaction.amount,
         iso_currency_code: transaction.isoCurrencyCode,
-        plaid_category_detailed: transaction.plaidDetailedCategoryName,
+        plaid_category_detailed: transaction.plaidDetailedCategory,
         plaid_category_confidence: transaction.plaidCategoryConfidence,
         svend_category_id: transaction.svendCategoryId as string,
         date: transaction.date,

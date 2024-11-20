@@ -32,22 +32,12 @@ import { FinAccountTransaction, FinAccountTransactionBudgetTag } from '~/lib/mod
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 
 interface TransactionTableProps {
-  budgetId: string;
-  onSelectedTransaction: (row: FinAccountTransaction) => void;
+  onSelectTransaction: (row: FinAccountTransaction) => void;
   onOpenChange: (open: boolean) => void;
-  onSelectedRowData: (row: FinAccountTransaction) => void;
-  refreshTrigger: number;
   selectedMonth: Date;
 }
 
-export function TransactionTable({
-  budgetId,
-  onSelectedTransaction,
-  onOpenChange,
-  onSelectedRowData,
-  refreshTrigger,
-  selectedMonth,
-}: TransactionTableProps) {
+export function TransactionTable(props: TransactionTableProps) {
   const [transactions, setTransactions] = useState<FinAccountTransaction[]>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -108,9 +98,33 @@ export function TransactionTable({
     {
       accessorKey: 'category',
       header: 'Category',
-      cell: ({ row }) => (
-        <div className="w-[250px] truncate capitalize">{`${row.original.svendCategoryGroup} > ${row.original.svendCategory}`}</div>
-      ),
+      cell: ({ row }) => {
+        // First try to use categoryId to get the current category
+        if (row.original.svendCategoryId) {
+          const allCategories = Object.values(workspace?.budgetCategories ?? {}).flatMap(
+            (group) => group.categories
+          );
+          const category = allCategories.find((cat) => cat.id === row.original.svendCategoryId);
+          const group = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
+            group.categories.some((cat) => cat.id === row.original.svendCategoryId)
+          );
+          
+          if (category && group) {
+            return (
+              <div className="w-[250px] truncate capitalize">
+                {`${group.name} > ${category.name}`}
+              </div>
+            );
+          }
+        }
+
+        // Fallback to svend categories if no categoryId or category not found
+        return (
+          <div className="w-[250px] truncate capitalize">
+            {`${row.original.svendCategoryGroup} > ${row.original.svendCategory}`}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'merchant_name',
@@ -231,8 +245,18 @@ export function TransactionTable({
   ];
 
   useEffect(() => {
-    setTransactions(workspace?.budgetTransactions ?? []);
-  }, [workspace?.budgetTransactions, refreshTrigger]);
+    if (!workspace?.budgetTransactions) return;
+
+    const filteredTransactions = workspace.budgetTransactions.filter((transaction) => {
+      const transactionDate = new Date(transaction.date);
+      return (
+        transactionDate.getFullYear() === props.selectedMonth.getFullYear() &&
+        transactionDate.getMonth() === props.selectedMonth.getMonth()
+      );
+    });
+
+    setTransactions(filteredTransactions);
+  }, [workspace?.budgetTransactions, props.selectedMonth]); 
 
   const table = useReactTable({
     data: transactions,
@@ -306,9 +330,8 @@ export function TransactionTable({
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
                   onClick={() => {
-                    onSelectedTransaction(row.original);
-                    onOpenChange(true);
-                    onSelectedRowData(row.original);
+                    props.onSelectTransaction(row.original);
+                    props.onOpenChange(true);
                   }}
                 >
                   {row.getVisibleCells().map((cell) => (

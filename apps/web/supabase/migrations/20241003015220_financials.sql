@@ -38,14 +38,47 @@ create type budget_goal_debt_payment_component_enum as enum ('principal', 'inter
 create type budget_goal_type_enum as enum ('debt', 'savings', 'investment');
 
 
+-- Function "public.has_budget_permission"
+-- Create a function to check if a user has a permission
+create or replace function public.has_budget_permission(
+    user_id uuid,
+    budget_id uuid,
+    permission_name public.app_permissions
+) returns boolean as $$
+begin
+    return exists(
+        select 1
+        from public.team_memberships tm
+            join public.role_permissions rp on tm.team_role = rp.role
+            join public.budgets b on b.team_account_id = tm.team_account_id
+        where tm.user_id = has_budget_permission.user_id
+        and b.id = has_budget_permission.budget_id
+        and rp.permission = has_budget_permission.permission_name
+    );
+end;
+$$ language plpgsql;
 
--- Storage bucket for fin account transaction attachments
+grant execute on function public.has_budget_permission(uuid, uuid, public.app_permissions) 
+to authenticated, service_role;
+
+
+-- ============================================================
+-- Storage bucket for budget transaction attachments
+-- ============================================================
 insert into storage.buckets (id, name, public)
 values ('budget_transaction_attachments', 'budget_transaction_attachments', true)
 on conflict (id) do update 
 set 
     name = excluded.name,
     public = excluded.public;
+
+
+-- ============================================================
+-- storage.buckets bucket for Plaid item institution logos
+-- ============================================================
+INSERT INTO storage.buckets (id, name) 
+VALUES ('plaid_item_institution_logos', 'plaid_item_institution_logos')
+ON CONFLICT (id) DO NOTHING;
 
 
 -- ============================================================
@@ -93,6 +126,10 @@ create policy read_acct_fin_profile
 
 -- End of acct_fin_profile table
 
+
+-- ============================================================
+-- Update account profile function
+-- ============================================================
 create or replace function update_account_profile(
     p_user_id uuid,
     p_full_name text,
@@ -138,7 +175,9 @@ create table if not exists public.plaid_connection_items (
   updated_at timestamp with time zone default current_timestamp
 );
 
--- Create a function to validate institution_logo_storage_name
+-- ============================================================
+-- Validate institution logo storage name function
+-- ============================================================
 create or replace function validate_institution_logo_storage_name()
 returns trigger as $$
 begin
@@ -311,6 +350,9 @@ create policy read_budgets
 
 -- End of budgets table
 
+-- ============================================================
+-- Get budget by team account slug function
+-- ============================================================
 CREATE OR REPLACE FUNCTION get_budget_by_team_account_slug(p_team_account_slug TEXT)
 RETURNS TABLE (
     id UUID,
@@ -399,38 +441,54 @@ $$ LANGUAGE plpgsql;
 GRANT EXECUTE ON FUNCTION get_budget_by_team_account_slug(TEXT) TO authenticated;
 
 
+-- ============================================================
+-- Get budget transactions by team account slug function
+-- ============================================================
 CREATE OR REPLACE FUNCTION get_budget_transactions_by_team_account_slug(p_team_account_slug TEXT)
 RETURNS TABLE (
     id UUID,
     date DATE,
-    merchant_name TEXT,
-    payee TEXT,
     amount NUMERIC,
     iso_currency_code TEXT,
-    notes TEXT,
-    budget_fin_account_id UUID,
     svend_category_group_id UUID,
     svend_category_group TEXT,
     svend_category_id UUID,
     svend_category TEXT,
-    attachments_storage_names text[],
-    tags jsonb
+    merchant_name TEXT,
+    payee TEXT,
+    notes TEXT,
+    budget_fin_account_id UUID,
+    tags jsonb,
+    attachments_storage_names text[]
 ) AS $$
 BEGIN
     RETURN QUERY
     SELECT 
         fat.id,
         fat.date,
-        fat.merchant_name::TEXT,
-        fat.payee::TEXT,
         fat.amount,
         fat.iso_currency_code::TEXT,
-        COALESCE(fat.notes, '')::TEXT AS notes,
-        bfa.id AS budget_fin_account_id,
         cg.id AS svend_category_group_id,
         cg.name::TEXT AS svend_category_group,
         c.id AS svend_category_id,
         c.name::TEXT AS svend_category,
+        bfat.merchant_name,
+        bfat.payee,
+        bfat.notes,
+        bfa.id AS budget_fin_account_id,
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', bt.id,
+                        'name', bt.name
+                    )
+                )
+                FROM budget_tags bt
+                WHERE bt.id = ANY(bfat.tag_ids)
+            ),
+            '[]'::jsonb
+        ) AS tags,
         COALESCE(
             ARRAY(
                 SELECT name 
@@ -442,55 +500,42 @@ BEGIN
                 AND (storage.foldername(name))[4] = fat.id::text
             ),
             ARRAY[]::text[]
-        ) as attachments_storage_names,
-        COALESCE(
-            jsonb_agg(
-                jsonb_build_object(
-                    'id', bt.id,
-                    'name', bt.name
-                )
-            ) FILTER (WHERE bt.name IS NOT NULL),
-            '[]'::jsonb
-        ) AS tags
+        ) as attachments_storage_names
     FROM 
         fin_account_transactions fat
     JOIN 
-        categories c ON fat.svend_category_id = c.id
-    JOIN 
-        category_groups cg ON c.group_id = cg.id
-    LEFT JOIN 
-        plaid_accounts pa ON fat.plaid_account_id = pa.id
-    LEFT JOIN 
-        manual_fin_accounts ma ON fat.manual_account_id = ma.id
-    JOIN 
         budget_fin_accounts bfa ON 
-            (bfa.plaid_account_id = pa.id AND pa.id IS NOT NULL) OR 
-            (bfa.manual_account_id = ma.id AND ma.id IS NOT NULL)
+            (bfa.plaid_account_id = fat.plaid_account_id AND fat.plaid_account_id IS NOT NULL) OR 
+            (bfa.manual_account_id = fat.manual_account_id AND fat.manual_account_id IS NOT NULL)
     JOIN 
         budgets b ON bfa.budget_id = b.id
     JOIN
         accounts a ON b.team_account_id = a.id
-    LEFT JOIN 
-        fin_account_transaction_budget_tx_tags ftbt ON fat.id = ftbt.transaction_id
-    LEFT JOIN 
-        budget_tx_tags bt ON ftbt.budget_tx_tag_id = bt.id
+    LEFT JOIN
+        budget_fin_account_transactions bfat ON fat.id = bfat.fin_account_transaction_id AND b.id = bfat.budget_id
+    JOIN 
+        categories c ON bfat.svend_category_id = c.id
+    JOIN 
+        category_groups cg ON c.group_id = cg.id
     WHERE 
         a.slug = p_team_account_slug AND 
         a.is_personal_account = false
     GROUP BY
+        b.id,
         fat.id,
         fat.date,
+        fat.amount,
+        fat.iso_currency_code,
+        bfat.merchant_name,
+        bfat.payee,
+        bfat.notes,
+        bfa.id,
         cg.id,
         cg.name,
         c.id,
+        bfat.svend_category_id,
         c.name,
-        fat.merchant_name,
-        fat.payee,
-        fat.amount,
-        fat.iso_currency_code,
-        bfa.id,
-        fat.notes,
-        b.id
+        bfat.tag_ids
     ORDER BY 
         fat.date DESC;
 END;
@@ -754,17 +799,15 @@ create policy read_manual_fin_accounts
 -- Create table
 create table if not exists public.fin_account_transactions (
   id uuid primary key default uuid_generate_v4(),
-  plaid_account_id uuid references public.plaid_accounts(id) on delete cascade, -- will be null if account was manually added
-  manual_account_id uuid references public.manual_fin_accounts(id) on delete cascade, -- will be null if account is from Plaid
+  date date not null,
   amount numeric not null,
   iso_currency_code text default 'USD',
+  plaid_account_id uuid references public.plaid_accounts(id) on delete cascade, -- will be null if account was manually added
+  manual_account_id uuid references public.manual_fin_accounts(id) on delete cascade, -- will be null if account is from Plaid
   plaid_category_detailed text,
   plaid_category_confidence text,
-  svend_category_id UUID NOT NULL REFERENCES public.categories(id) ON DELETE SET NULL, -- Optional reference to categories
-  date date not null,
   merchant_name text,
   payee text,
-  notes text,
 --   category_id text,
 --   counterparties jsonb,
 --   datetime timestamp with time zone,
@@ -828,6 +871,10 @@ create policy read_owned_fin_account_transactions
         ))
     );
 
+
+-- ============================================================
+-- Can update fin account transaction function
+-- ============================================================
 CREATE OR REPLACE FUNCTION can_update_fin_account_transaction(transaction_id UUID, user_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -874,7 +921,9 @@ grant select on public.fin_account_transactions to authenticated;
 grant select, update, insert on public.fin_account_transactions to service_role;
 
 
+-- ============================================================
 -- Update fin account transaction function
+-- ============================================================
 CREATE OR REPLACE FUNCTION update_fin_account_transaction(
     p_transaction_id UUID,
     p_category_id UUID DEFAULT NULL,
@@ -957,8 +1006,13 @@ USING (
 
 
 -- End of fin_account_transactions table
--- Table for storing tags
-CREATE TABLE budget_tx_tags (
+
+
+-- ============================================================
+-- budget_tags table
+-- ============================================================
+
+CREATE TABLE if not exists budget_tags (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     budget_id UUID NOT NULL REFERENCES budgets(id),
     name VARCHAR(255) NOT NULL,
@@ -966,87 +1020,12 @@ CREATE TABLE budget_tx_tags (
     UNIQUE (name, budget_id)
 );
 
---Create function to create a new tag
-CREATE OR REPLACE FUNCTION create_budget_tag(p_budget_id UUID, p_tag_name TEXT)
-RETURNS budget_tx_tags AS $$
-DECLARE
-    v_new_tag budget_tx_tags;
-BEGIN
-    -- Check if user has access to this budget
-    IF NOT EXISTS (
-        SELECT 1 FROM budgets b
-        WHERE b.id = p_budget_id
-        AND public.is_team_member(b.team_account_id, auth.uid())
-    ) THEN
-        RAISE EXCEPTION 'Access denied: User does not have permission to create tags for this budget';
-    END IF;
+revoke all on budget_tags from public, service_role;
 
-    -- Check for case-insensitive duplicates
-    IF EXISTS (
-        SELECT 1 
-        FROM budget_tx_tags 
-        WHERE budget_id = p_budget_id AND LOWER(name) = LOWER(p_tag_name)
-    ) THEN
-        RAISE EXCEPTION 'Tag with name "%" already exists for this budget.', p_tag_name;
-    END IF;
-    
-    -- Insert the new tag if no duplicates found
-    INSERT INTO budget_tx_tags (budget_id, name) 
-    VALUES (p_budget_id, p_tag_name)
-    RETURNING * INTO v_new_tag;
+alter table budget_tags enable row level security;
 
-    RETURN v_new_tag;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Grant execute permission to the authenticated role
-GRANT EXECUTE ON FUNCTION create_budget_tag(UUID, TEXT) TO authenticated;
-
--- Junction table for transaction-tag relationships
-CREATE TABLE fin_account_transaction_budget_tx_tags (
-    transaction_id UUID REFERENCES fin_account_transactions(id),
-    budget_tx_tag_id UUID REFERENCES budget_tx_tags(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (transaction_id, budget_tx_tag_id)
-);
-
-
--- Function to save tags for a transaction
-CREATE OR REPLACE FUNCTION save_transaction_tags(p_transaction_id UUID, p_tag_names TEXT[])
-RETURNS VOID AS $$
-BEGIN
-
-    -- First, delete existing tags for this transaction
-    DELETE FROM fin_account_transaction_budget_tx_tags
-    WHERE transaction_id = p_transaction_id;
-    
-    -- Then insert the new tags
-    INSERT INTO fin_account_transaction_budget_tx_tags (transaction_id, budget_tx_tag_id)
-    SELECT 
-        p_transaction_id,
-        bt.id
-    FROM 
-        unnest(p_tag_names) AS tag_name
-    JOIN 
-        budget_tx_tags bt ON bt.name = tag_name
-    WHERE 
-        EXISTS (
-            SELECT 1 
-            FROM fin_account_transactions fat
-            JOIN budget_fin_accounts bfa ON 
-                (bfa.plaid_account_id = fat.plaid_account_id AND fat.plaid_account_id IS NOT NULL) OR
-                (bfa.manual_account_id = fat.manual_account_id AND fat.manual_account_id IS NOT NULL)
-            WHERE fat.id = p_transaction_id
-            AND bt.budget_id = bfa.budget_id
-        );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Grant execute permission to authenticated users
-GRANT EXECUTE ON FUNCTION save_transaction_tags(UUID, TEXT[]) TO authenticated;
-
-CREATE POLICY read_budget_tx_tags
-    ON public.budget_tx_tags
+CREATE POLICY read_budget_tags
+    ON public.budget_tags
     FOR SELECT
     TO authenticated
     USING (
@@ -1059,9 +1038,191 @@ CREATE POLICY read_budget_tx_tags
         )
     );
 
---TODO: Create policies for fin_account_transaction_budget_tx_tags
+-- Grant necessary permissions
+grant select on public.budget_tags to authenticated;
+grant select, update, insert on public.budget_tags to service_role;
+
+-- ============================================================
+-- Create budget tag function
+-- ============================================================
+CREATE OR REPLACE FUNCTION create_budget_tag(p_budget_id UUID, p_tag_name TEXT)
+RETURNS budget_tags AS $$
+DECLARE
+    v_new_tag budget_tags;
+BEGIN
+    -- Check for case-insensitive duplicates
+    IF EXISTS (
+        SELECT 1 
+        FROM budget_tags 
+        WHERE budget_id = p_budget_id AND LOWER(name) = LOWER(p_tag_name)
+    ) THEN
+        RAISE EXCEPTION 'Tag with name "%" already exists for this budget.', p_tag_name;
+    END IF;
+    
+    -- Insert the new tag if no duplicates found
+    INSERT INTO budget_tags (budget_id, name) 
+    VALUES (p_budget_id, p_tag_name)
+    RETURNING * INTO v_new_tag;
+
+    RETURN v_new_tag;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission to the authenticated role
+GRANT EXECUTE ON FUNCTION create_budget_tag(UUID, TEXT) TO service_role;
 
 
+-- ============================================================
+-- Get budget tags by team account slug function
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_budget_tags_by_team_account_slug(p_team_account_slug TEXT)
+RETURNS TABLE (
+    id UUID,
+    budget_id UUID,
+    name VARCHAR(255),  -- Changed from TEXT to VARCHAR(255) to match table definition
+    created_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT bt.* 
+    FROM budget_tags bt
+        JOIN budgets b ON bt.budget_id = b.id
+        JOIN accounts a ON b.team_account_id = a.id
+    WHERE a.slug = p_team_account_slug
+    AND a.is_personal_account = false;
+END;
+$$ LANGUAGE plpgsql;
+
+grant execute on function get_budget_tags_by_team_account_slug(TEXT) to authenticated, service_role;
+
+
+-- ============================================================
+-- Junction table for budget-transaction relationships
+-- ============================================================
+CREATE TABLE if not exists budget_fin_account_transactions (
+    budget_id UUID NOT NULL REFERENCES budgets(id),
+    fin_account_transaction_id UUID NOT NULL REFERENCES fin_account_transactions(id),
+    svend_category_id UUID NOT NULL REFERENCES public.categories(id) ON DELETE SET NULL,
+    merchant_name TEXT,
+    payee TEXT,
+    notes TEXT,
+    tag_ids UUID[] default '{}',
+    PRIMARY KEY (budget_id, fin_account_transaction_id)
+);
+
+revoke all on budget_fin_account_transactions from public, service_role;
+
+alter table budget_fin_account_transactions enable row level security;
+
+-- Create policies
+create policy read_budget_fin_account_transactions
+    on public.budget_fin_account_transactions
+    for select
+    to authenticated
+    using (
+        EXISTS (
+            SELECT 1 FROM public.budgets b WHERE id = budget_id AND public.is_team_member(b.team_account_id, auth.uid())
+        )
+    );
+
+-- Grant necessary permissions
+grant select on public.budget_fin_account_transactions to authenticated;
+grant select, update, insert on public.budget_fin_account_transactions to service_role;
+
+-- End of budget_fin_account_transactions table
+
+
+-- ============================================================
+-- create_budget_fin_account_transaction function
+-- ============================================================
+CREATE OR REPLACE FUNCTION create_budget_fin_account_transaction(
+    p_budget_id UUID,
+    p_budget_fin_account_id UUID,
+    p_amount NUMERIC,
+    p_date DATE,
+    p_svend_category_id UUID,
+    p_merchant_name TEXT DEFAULT NULL,
+    p_payee TEXT DEFAULT NULL,
+    p_iso_currency_code TEXT DEFAULT 'USD',
+    p_plaid_category_detailed TEXT DEFAULT NULL,
+    p_plaid_category_confidence TEXT DEFAULT NULL,
+    p_raw_data JSONB DEFAULT NULL
+) RETURNS UUID AS $$
+DECLARE
+    v_plaid_account_id UUID;
+    v_manual_account_id UUID;
+    v_transaction_id UUID;
+    v_team_account_id UUID;
+BEGIN
+    -- Get the team_account_id from the budget
+    SELECT team_account_id INTO v_team_account_id
+    FROM budgets
+    WHERE id = p_budget_id;
+
+    -- Get the plaid_account_id or manual_account_id from budget_fin_accounts
+    SELECT plaid_account_id, manual_account_id 
+    INTO v_plaid_account_id, v_manual_account_id
+    FROM budget_fin_accounts
+    WHERE id = p_budget_fin_account_id;
+
+    IF v_plaid_account_id IS NULL AND v_manual_account_id IS NULL THEN
+        RAISE EXCEPTION 'Invalid budget_fin_account_id';
+    END IF;
+
+    -- Insert into fin_account_transactions
+    INSERT INTO fin_account_transactions (
+        plaid_account_id,
+        manual_account_id,
+        amount,
+        date,
+        merchant_name,
+        payee,
+        iso_currency_code,
+        plaid_category_detailed,
+        plaid_category_confidence,
+        raw_data
+    ) VALUES (
+        v_plaid_account_id,
+        v_manual_account_id,
+        p_amount,
+        p_date,
+        p_merchant_name,
+        p_payee,
+        p_iso_currency_code,
+        p_plaid_category_detailed,
+        p_plaid_category_confidence,
+        p_raw_data
+    )
+    RETURNING id INTO v_transaction_id;
+
+    -- Insert into budget_fin_account_transactions
+    INSERT INTO budget_fin_account_transactions (
+        budget_id,
+        fin_account_transaction_id,
+        svend_category_id,
+        merchant_name,
+        payee
+    ) VALUES (
+        p_budget_id,
+        v_transaction_id,
+        p_svend_category_id,
+        p_merchant_name,
+        p_payee
+    );
+
+    RETURN v_transaction_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission to service_role
+GRANT EXECUTE ON FUNCTION create_budget_fin_account_transaction(
+    UUID, UUID, NUMERIC, DATE, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, JSONB
+) TO service_role;
+
+
+-- ============================================================
+-- Add budget plaid account function
+-- ============================================================
 CREATE TYPE budget_plaid_account_result AS (
     plaid_account_id UUID,
     budget_fin_account_id UUID,
@@ -1146,9 +1307,9 @@ EXCEPTION
         RAISE EXCEPTION 'An error occurred: %', SQLERRM;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Grant execute permission to the service role
 GRANT EXECUTE ON FUNCTION add_budget_plaid_account TO service_role;
+
 
 -- ============================================================
 -- budget_goals table
@@ -1329,17 +1490,7 @@ INSERT INTO public.categories (name, description, group_id) VALUES
     -- Other Categories
     ('Other', 'Other catch-all category', (SELECT id FROM public.category_groups WHERE name = 'Other'));
 
-
-
 -- End of populate initial data
-
-
--- ============================================================
--- storage.buckets bucket for Plaid item institution logos
--- ============================================================
-INSERT INTO storage.buckets (id, name) 
-VALUES ('plaid_item_institution_logos', 'plaid_item_institution_logos')
-ON CONFLICT (id) DO NOTHING;
 
 
 -- Add triggers for automatic timestamp updates
@@ -1372,3 +1523,4 @@ CREATE TRIGGER set_timestamp
 BEFORE INSERT OR UPDATE ON public.budget_goals
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
+

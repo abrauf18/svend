@@ -38,7 +38,7 @@ export async function PUT(
     );
   }
 
-  // Check if user has budget.write permission
+  // Check if user has budgets.write permission
   const { data: hasPermission, error: permissionError } = await supabase
     .rpc('has_team_permission', {
       user_id: user.id,

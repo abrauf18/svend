@@ -1,31 +1,26 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-
+import React, { useEffect, useState, useRef, ChangeEvent } from 'react';
 import { format } from 'date-fns';
 import { Calendar, Upload, X } from 'lucide-react';
-
 import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
 import { Button } from '@kit/ui/button';
 import { Calendar as CalendarComponent } from '@kit/ui/calendar';
 import { Checkbox } from '@kit/ui/checkbox';
 import { GlobalLoader } from '@kit/ui/global-loader';
 import { Input } from '@kit/ui/input';
+import { Textarea } from '@kit/ui/textarea';
 import { Label } from '@kit/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@kit/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@kit/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@kit/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@kit/ui/sheet';
-import { Textarea } from '@kit/ui/textarea';
-import { FinAccountTransaction, FinAccountTransactionBudgetTag } from '~/lib/model/fin.types';
-import { useBudgetWorkspace } from '~/components/budget-workspace-context';
+import { Category, CategoryGroup, FinAccountTransaction, FinAccountTransactionBudgetTag } from '~/lib/model/fin.types';
 import { CategorySelect } from './category-select';
+import { TransactionTagSelect } from './transaction-tag-select';
+import { useBudgetWorkspace } from '~/components/budget-workspace-context';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 
 interface DisabledFields {
   date?: boolean;
@@ -41,141 +36,153 @@ interface DisabledFields {
 interface TransactionPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  transaction?: FinAccountTransaction;
-  selectedRowData?: FinAccountTransaction;
+  selectedTransaction: FinAccountTransaction;
   isReadOnly?: boolean;
   disabledFields?: DisabledFields;
-  budgetId: string;
-  refreshTrigger: () => void;
 }
 
-interface Category {
-  id: string;
-  name: string;
-}
+// Update the schema definition
+const transactionFormSchema = z.object({
+  date: z.date({
+    required_error: "Date is required",
+  }),
+  categoryId: z.string().min(1, 'Category is required'),
+  merchantName: z.string().min(1, 'Merchant name is required').optional(),
+  notes: z.string().optional(),
+  amount: z.string()
+    .min(1, 'Amount is required')
+    .refine((val) => !isNaN(parseFloat(val)), "Must be a valid number"),
+  budgetFinAccountId: z.string().min(1, 'Account is required'),
+  tags: z.array(z.object({
+    id: z.string(),
+    name: z.string()
+  })).default([]),
+  attachments: z.array(z.union([z.instanceof(File), z.string()])).default([])
+});
 
-interface CategoryGroup {
-  id: string;
-  name: string;
-  categories: Category[];
-}
+type TransactionFormValues = z.infer<typeof transactionFormSchema>;
 
-// Private function to parse date
-const parseDate = (dateString: string): Date => {
-  const date = new Date();
-  date.setFullYear(Number(dateString.split('-')[0]));
-  date.setMonth(Number(dateString.split('-')[1]) - 1);
-  date.setDate(Number(dateString.split('-')[2]));
-  return date;
+// Add this helper function to get currency symbol
+const getCurrencySymbol = (currencyCode: string): string => {
+  try {
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: currencyCode,
+      currencyDisplay: 'symbol',
+    })
+      .formatToParts(0)
+      .find(part => part.type === 'currency')?.value || '$';
+  } catch (e) {
+    return '$'; // Fallback if invalid currency code
+  }
 };
 
-const highlightMatch = (text: string, query: string) => {
-  if (!query) return text;
-  
-  const parts = text.split(new RegExp(`(${query})`, 'gi'));
-  return (
-    <>
-      {parts.map((part, i) => 
-        part.toLowerCase() === query.toLowerCase() ? (
-          <span key={i} className="font-bold">
-            {part}
-          </span>
-        ) : (
-          part
-        )
-      )}
-    </>
-  );
-};
+export function TransactionPanel(props: TransactionPanelProps) {
+  const { workspace, updateTransaction } = useBudgetWorkspace();
+  const supabase = getSupabaseBrowserClient();
 
-export function TransactionPanel({
-  open,
-  onOpenChange,
-  transaction,
-  selectedRowData,
-  isReadOnly = false,
-  disabledFields = {},
-  budgetId,
-  refreshTrigger,
-}: TransactionPanelProps) {
-  const [date, setDate] = React.useState<Date>();
-  const [isRecurring, setIsRecurring] = React.useState(false);
-  const [categoryGroups, setCategoryGroups] = React.useState<CategoryGroup[]>(
-    [],
-  );
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [merchantName, setMerchantName] = React.useState(''); // New state for payee name
-  const [amount, setAmount] = React.useState(0);
-  const [notes, setNotes] = React.useState('');
-  const [attachments, setAttachments] = React.useState<(File | string)[]>([]);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [isSaving, setIsSaving] = React.useState(false);
-  const [selectedTags, setSelectedTags] = React.useState<FinAccountTransactionBudgetTag[]>([]);
-  const [tagSearchQuery, setTagSearchQuery] = React.useState('');
+  // Update the form initialization
+  const form = useForm<TransactionFormValues>({
+    resolver: zodResolver(transactionFormSchema),
+    defaultValues: {
+      date: parseDate(props.selectedTransaction.date),
+      categoryId: props.selectedTransaction.svendCategoryId ?? '',
+      merchantName: props.selectedTransaction.merchantName ?? '',
+      amount: props.selectedTransaction.amount.toFixed(2),
+      notes: props.selectedTransaction.notes ?? '',
+      budgetFinAccountId: props.selectedTransaction.budgetFinAccountId ?? '',
+      tags: props.selectedTransaction.budgetTags ?? [],
+      attachments: props.selectedTransaction.budgetAttachmentsStorageNames ?? [],
+    }
+  });
 
-  const { workspace } = useBudgetWorkspace();
+  const { handleSubmit, watch, setValue, register, formState: { errors } } = form;
+
+  const onSubmit = async (data: TransactionFormValues) => {
+    setIsSaving(true);
+    const attachmentNames = await uploadFilesToStorage(data.attachments);
+
+    const updatedTransaction = {
+      ...props.selectedTransaction,
+      date: format(data.date, 'yyyy-MM-dd'),
+      svendCategoryId: data.categoryId,
+      merchantName: data.merchantName,
+      notes: data.notes,
+      amount: parseFloat(data.amount),
+      budgetFinAccountId: data.budgetFinAccountId,
+      budgetTags: data.tags,
+      budgetAttachmentsStorageNames: attachmentNames,
+    } as FinAccountTransaction;
+
+    try {
+      const response = await fetch(`/api/budgets/${workspace.budget.id}/transactions/${updatedTransaction.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transaction_id: updatedTransaction?.id,
+          category_id: updatedTransaction?.svendCategoryId,
+          merchant_name: updatedTransaction?.merchantName,
+          notes: updatedTransaction?.notes,
+          tags: updatedTransaction?.budgetTags,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save transaction');
+      }
+
+      // update the transaction in the workspace
+      updateTransaction(updatedTransaction);
+    } catch (error) {
+      console.error(error);
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
+  const [attachments, setAttachments] = useState<(File | string)[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<Category | undefined>();
+  const [tags, setTags] = useState<FinAccountTransactionBudgetTag[]>([]);
 
   useEffect(() => {
-    if (selectedRowData) {
-      console.log('selectedRowData in useEffect', selectedRowData);
-
-      setDate(parseDate(selectedRowData.date)); // Ensure date is a Date object
-      setMerchantName(selectedRowData.merchantName ?? '');
-      setAmount(selectedRowData.amount ?? 0);
-      setNotes(selectedRowData.notes ?? '');
-      setSelectedTags(selectedRowData.budgetTags ?? []);
-    }
+    console.log('initial transaction: ', props.selectedTransaction);
   }, []);
 
   useEffect(() => {
-    if (selectedRowData) {
-      setCategoryGroups(Object.values(workspace?.budgetCategories ?? {}));
-      
-      // Find and set the initial category
-      const matchingCategoryGroup = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
-        group.categories?.some(
-          (category) => category?.name === selectedRowData?.svendCategory,
-        ),
-      );
-      const matchingCategory = matchingCategoryGroup?.categories?.find(
-        (category) => category.name === selectedRowData?.svendCategory,
-      );
-      if (matchingCategory) {
-        setSelectedCategory({
-          id: matchingCategory.id,
-          name: matchingCategory.name,
-        });
-      }
+    setCategoryGroups(Object.values(workspace?.budgetCategories ?? {}));
 
-      // Only set attachments if they exist, otherwise set empty array
-      setAttachments(selectedRowData.budgetAttachmentsStorageNames ?? []);
+    // Find and set the initial category
+    const matchingCategoryGroup = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
+      group.categories?.some(
+        (category) => category?.name === props.selectedTransaction?.svendCategory,
+      ),
+    );
+    const matchingCategory = matchingCategoryGroup?.categories?.find(
+      (category) => category.name === props.selectedTransaction?.svendCategory,
+    );
+    if (matchingCategory) {
+      setSelectedCategory({
+        id: matchingCategory.id,
+        name: matchingCategory.name,
+        createdAt: matchingCategory.createdAt,
+        updatedAt: matchingCategory.updatedAt,
+      });
+
+      // Update the form value
+      setValue('categoryId', matchingCategory.id);
     }
-  }, [selectedRowData, workspace?.budgetCategories]);
 
-  const [selectedCategory, setSelectedCategory] = React.useState<
-    Category | undefined
-  >();
-  const supabase = getSupabaseBrowserClient();
-  const [tags, setTags] = React.useState<FinAccountTransactionBudgetTag[]>([]);
-
-  React.useEffect(() => {
-    const fetchTags = async () => {
-      console.log('fetching tags for budget_id', budgetId);
-      const { data, error } = await supabase
-        .from('budget_tx_tags')
-        .select('*')
-        .eq('budget_id', budgetId);
-      if (error) {
-        console.error('Error fetching tags:', error);
-      } else {
-        setTags(data);
-      }
-    };
-
-    if (budgetId) {
-      void fetchTags();
-    }
-  }, [supabase, budgetId, selectedRowData]);
+    // Only set attachments if they exist, otherwise set empty array
+    setAttachments(props.selectedTransaction.budgetAttachmentsStorageNames ?? []);
+  }, [workspace?.budgetCategories]);
 
   const [accounts, setAccounts] = useState<Record<string, { name: string; balance: number }>>({});
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
@@ -197,17 +204,17 @@ export function TransactionPanel({
     setAccounts(accountsData ?? {});
 
     // Set the selected account if we have transaction data
-    if (selectedRowData?.budgetFinAccountId) {
-      setSelectedAccountId(selectedRowData.budgetFinAccountId);
+    if (props.selectedTransaction?.budgetFinAccountId) {
+      setSelectedAccountId(props.selectedTransaction.budgetFinAccountId);
     }
-  }, [workspace?.budget?.linkedFinAccounts, selectedRowData]);
+  }, [workspace?.budget?.linkedFinAccounts, props.selectedTransaction]);
 
   // Update the renderAccountSelect function
   const renderAccountSelect = () => (
     <div className="space-y-2">
-      <Label htmlFor="account">Account</Label>
+      <Label htmlFor="account">Account<span className="text-destructive">*</span></Label>
       <Select
-        disabled={disabledFields.account ?? isReadOnly}
+        disabled={props.disabledFields?.account ?? props.isReadOnly}
         value={selectedAccountId}
         onValueChange={setSelectedAccountId}
       >
@@ -245,10 +252,10 @@ export function TransactionPanel({
 
         const file = attachment;
         const sanitizedFileName = sanitizeFileName(file.name);
-        const filePath = `${transaction!.id}/${sanitizedFileName}`;
+        const filePath = `budget/${workspace?.budget?.id}/transaction/${props.selectedTransaction!.id}/${sanitizedFileName}`;
 
         const { error } = await supabase.storage
-          .from('fin_account_transaction_attachments')
+          .from('budget_transaction_attachments')
           .upload(filePath, file, {
             cacheControl: '3600',
             upsert: false,
@@ -273,45 +280,7 @@ export function TransactionPanel({
     }
   };
 
-  const saveTransaction = async () => {
-    setIsSaving(true);
-    console.log('attachments', attachments);
-
-    try {
-      // Upload files and get the file names
-      const attachmentNames = await uploadFilesToStorage(attachments);
-
-      // Send request to save the transaction
-      const response = await fetch('/api/budget/transactions', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          transaction_id: transaction?.id,
-          category_id: selectedCategory?.id,
-          merchant_name: merchantName,
-          notes: notes,
-          tags: selectedTags,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        console.log('Transaction updated successfully:', result.message);
-        refreshTrigger();
-      } else {
-        console.error('Error updating transaction:', result.error);
-      }
-    } catch (error) {
-      console.error('Unexpected error:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       setAttachments([...attachments, ...Array.from(event.target.files)]);
     }
@@ -389,72 +358,77 @@ export function TransactionPanel({
     }
   };
 
-  const createNewTag = async (tagName: string) => {
-    try {
-      const { data: newTag, error: createError } = await supabase.rpc(
-        'create_budget_tag',
-        {
-          p_budget_id: budgetId,
-          p_tag_name: tagName,
-        },
-      );
-
-      if (createError) throw createError;
-
-      const tagObject: FinAccountTransactionBudgetTag = {
-        id: newTag.id,
-        name: newTag.name,
-      };
-
-      setTags((prev) => [...prev, tagObject]);
-      setSelectedTags((prev) => [...prev, tagObject]);
-      setTagSearchQuery('');
-    } catch (error) {
-      console.error('Error creating tag:', error);
-    }
-  };
-
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={props.open} onOpenChange={props.onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:w-[540px]">
         <SheetHeader>
           <div className="flex items-center justify-between">
             <SheetTitle>
-              {isReadOnly ? 'View Transaction' : 'Edit Transaction'}
+              {props.isReadOnly ? 'View Transaction' : 'Edit Transaction'}
             </SheetTitle>
           </div>
         </SheetHeader>
-        <div className="mt-6 space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-6">
+          {/* Basic Transaction Details */}
           <div className="space-y-2">
-            <Label htmlFor="date">Date</Label>
+            <Label htmlFor="date">Date<span className="text-destructive">*</span></Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className={`w-full justify-start text-left font-normal ${isReadOnly || disabledFields.date
-                      ? 'cursor-not-allowed opacity-50'
-                      : ''
-                    }`}
-                  disabled={disabledFields.date ?? isReadOnly}
+                  className={`w-full justify-start text-left font-normal`}
+                  disabled={props.disabledFields?.date ?? props.isReadOnly}
                 >
                   <Calendar className="mr-2 h-4 w-4" />
-                  {date ? format(date, 'PP') : 'Select date'}
+                  {watch('date') ? format(watch('date'), 'PP') : 'Select date'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <CalendarComponent
                   mode="single"
-                  selected={date}
-                  onSelect={setDate}
+                  selected={watch('date')}
+                  onSelect={(date) => date && setValue('date', date)}
                   initialFocus
-                  disabled={isReadOnly}
+                  disabled={props.isReadOnly}
                 />
               </PopoverContent>
             </Popover>
+            {errors.date && (
+              <span className="text-sm text-destructive">{errors.date.message}</span>
+            )}
           </div>
 
+          {/* Financial Details */}
           <div className="space-y-2">
-            <Label htmlFor="category">Category*</Label>
+            <Label htmlFor="amount">Amount<span className="text-destructive">*</span></Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                {props.selectedTransaction.isoCurrencyCode
+                  ? getCurrencySymbol(props.selectedTransaction.isoCurrencyCode)
+                  : '$'}
+              </span>
+              <Input
+                id="amount"
+                type="text"
+                placeholder="0.00"
+                className="pl-8"
+                disabled={props.disabledFields?.amount ?? props.isReadOnly}
+                {...register('amount')}
+              />
+            </div>
+            {errors.amount && (
+              <span className="text-sm text-destructive">{errors.amount.message}</span>
+            )}
+          </div>
+
+          {renderAccountSelect()}
+          {errors.budgetFinAccountId && (
+            <span className="text-sm text-destructive">{errors.budgetFinAccountId.message}</span>
+          )}
+
+          {/* Categorization */}
+          <div className="space-y-2">
+            <Label htmlFor="category">Category<span className="text-destructive">*</span></Label>
             <CategorySelect
               value={selectedCategory?.id}
               onValueChange={(value) => {
@@ -463,23 +437,35 @@ export function TransactionPanel({
                   .find((category) => category.id === value);
 
                 if (selected) {
-                  setSelectedCategory({ name: selected.name, id: selected.id });
+                  setSelectedCategory({
+                    name: selected.name,
+                    id: selected.id,
+                    createdAt: selected.createdAt,
+                    updatedAt: selected.updatedAt,
+                  });
+
+                  // Update the form value
+                  setValue('categoryId', selected.id);
                 }
               }}
               categoryGroups={categoryGroups}
-              disabled={disabledFields.category ?? isReadOnly}
+              disabled={props.disabledFields?.category ?? props.isReadOnly}
             />
+            {errors.categoryId && (
+              <span className="text-sm text-destructive">{errors.categoryId.message}</span>
+            )}
           </div>
 
+          {/* Transaction Description */}
           <div className="space-y-2">
-            <Label htmlFor="merchant">Merchant Name</Label>
+            <Label htmlFor="merchantName">Merchant Name</Label>
             <Input
-              id="merchant"
-              placeholder="Enter merchant name"
-              disabled={disabledFields.payee ?? isReadOnly}
-              value={merchantName}
-              onChange={(e) => setMerchantName(e.target.value)}
+              {...register('merchantName')}
+              disabled={props.disabledFields?.payee ?? props.isReadOnly}
             />
+            {errors.merchantName && (
+              <span className="text-sm text-destructive">{errors.merchantName.message}</span>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -487,114 +473,33 @@ export function TransactionPanel({
             <Textarea
               id="notes"
               placeholder="Enter notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              disabled={disabledFields.notes ?? isReadOnly}
+              {...register('notes')}
+              disabled={props.disabledFields?.notes ?? props.isReadOnly}
             />
           </div>
 
+          {/* Organization & Tags */}
           <div className="space-y-2">
             <Label htmlFor="tags">Tags</Label>
-            <Select
-              value={selectedTags.map(tag => tag.id).join(',')}
-              onValueChange={(value: string) => {
-                const selectedTag = tags.find(tag => tag.id === value);
-                if (selectedTag) {
-                  if (selectedTags.some(t => t.id === selectedTag.id)) {
-                    setSelectedTags(prev => prev.filter(tag => tag.id !== selectedTag.id));
-                  } else {
-                    setSelectedTags(prev => [...prev, selectedTag]);
-                  }
-                }
+            <TransactionTagSelect
+              transactionId={props.selectedTransaction.id}
+              onTagsChange={(newTags: FinAccountTransactionBudgetTag[]) => {
+                setValue('tags', newTags, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                  shouldTouch: true
+                });
               }}
-            >
-              <SelectTrigger className="h-auto min-h-[2.5rem]">
-                <SelectValue placeholder="Select tags">
-                  <div className="flex flex-wrap gap-1">
-                    {selectedTags.length > 0
-                      ? selectedTags.map((tag) => (
-                          <span
-                            key={tag.id}
-                            className="cursor-pointer rounded-md bg-secondary px-2 py-0.5 text-sm text-secondary-foreground hover:bg-secondary/80"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTags((prev) =>
-                                prev.filter((t) => t.id !== tag.id),
-                              );
-                            }}
-                          >
-                            {tag.name}
-                          </span>
-                        ))
-                      : 'Select tags'}
-                  </div>
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <Input
-                  value={tagSearchQuery}
-                  onChange={(e) => setTagSearchQuery(e.target.value)}
-                  placeholder="Search or create tags..."
-                  className="mb-2"
-                />
-                {tags
-                  .filter(
-                    (tag) =>
-                      !selectedTags.some(st => st.id === tag.id) &&
-                      tag.name
-                        .toLowerCase()
-                        .includes(tagSearchQuery.toLowerCase()),
-                  )
-                  .map((tag) => (
-                    <SelectItem key={tag.id} value={tag.id}>
-                      {tag.name}
-                    </SelectItem>
-                  ))}
-                {selectedTags.map((tag) => (
-                  <SelectItem
-                    key={tag.id}
-                    value={tag.id}
-                    className="bg-accent"
-                  >
-                    {tag.name}
-                  </SelectItem>
-                ))}
-                {tagSearchQuery &&
-                  !tags.some(
-                    (tag) =>
-                      tag.name.toLowerCase() === tagSearchQuery.toLowerCase(),
-                  ) &&
-                  !selectedTags.some(st => st.id === tagSearchQuery) && (
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start px-2 py-1.5 text-sm"
-                      onClick={() => createNewTag(tagSearchQuery)}
-                    >
-                      Create tag &quot;{tagSearchQuery}&quot;
-                    </Button>
-                  )}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="amount">Amount</Label>
-            <Input
-              id="amount"
-              type="number"
-              placeholder="0.00"
-              className="text-right"
-              disabled={disabledFields.amount ?? isReadOnly}
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
+              disabled={props.isReadOnly}
             />
           </div>
 
+          {/* Recurring Settings */}
           <div className="flex items-center space-x-2">
             <Checkbox
               id="recurring"
-              checked={isRecurring}
-              onCheckedChange={(checked: boolean) => setIsRecurring(checked)}
-              disabled={disabledFields.recurring ?? isReadOnly}
+              checked={false}
+              disabled={true}
             />
             <Label htmlFor="recurring">Recurring Transaction</Label>
           </div>
@@ -602,41 +507,34 @@ export function TransactionPanel({
           {isRecurring && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="frequency">Frequency</Label>
-                <Select>
+                <Label htmlFor="frequency">Frequency (Disabled)</Label>
+                <Select disabled value="monthly">
                   <SelectTrigger>
-                    <SelectValue placeholder="Select frequency" />
+                    <SelectValue>Monthly</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="weekly">Weekly</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="yearly">Yearly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="endAfter">End After</Label>
-                <Select>
+                <Label htmlFor="endAfter">End After (Disabled)</Label>
+                <Select disabled value="never">
                   <SelectTrigger>
-                    <SelectValue placeholder="Select end date" />
+                    <SelectValue>Never</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="never">Never</SelectItem>
-                    <SelectItem value="occurrences">
-                      After occurrences
-                    </SelectItem>
-                    <SelectItem value="date">On date</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </>
           )}
 
-          {renderAccountSelect()}
-
+          {/* Attachments & Documents */}
           <div className="space-y-2">
-            <Label>Attachment</Label>
+            <Label>Attachments</Label>
             <div className="rounded-lg border-2 border-dashed p-6 text-center">
               {attachments.length > 0 ? (
                 <div className="space-y-2">
@@ -657,7 +555,7 @@ export function TransactionPanel({
                           {getFileNameFromUrl(attachment)}
                         </button>
                       )}
-                      {!isReadOnly && !disabledFields.attachments && (
+                      {!props.isReadOnly && !props.disabledFields?.attachments && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -684,35 +582,35 @@ export function TransactionPanel({
                 onChange={handleFileUpload}
                 className="hidden"
                 multiple
-                disabled={disabledFields.attachments ?? isReadOnly}
+                disabled={props.disabledFields?.attachments ?? props.isReadOnly}
               />
               <Button
                 variant="outline"
                 className="mt-2"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={disabledFields.attachments ?? isReadOnly}
+                disabled={props.disabledFields?.attachments ?? props.isReadOnly}
               >
                 Select files
               </Button>
             </div>
           </div>
 
+          {/* Form Actions */}
           <div className="flex flex-col justify-end gap-4 pt-4 sm:flex-row">
             <Button
+              type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => props.onOpenChange(false)}
               className="w-full sm:w-auto"
             >
-              {isReadOnly ? 'Close' : 'Cancel'}
+              {props.isReadOnly ? 'Close' : 'Cancel'}
             </Button>
             {isSaving ? (
-              <div className="relative z-10 mt-1">
-                <GlobalLoader />
-              </div>
+              <GlobalLoader />
             ) : (
               <Button
+                type="submit"
                 variant="default"
-                onClick={saveTransaction}
                 disabled={isSaving}
                 className="w-full sm:w-auto"
               >
@@ -720,8 +618,17 @@ export function TransactionPanel({
               </Button>
             )}
           </div>
-        </div>
+        </form>
       </SheetContent>
     </Sheet>
   );
 }
+
+// Private function to parse date
+const parseDate = (dateString: string): Date => {
+  const date = new Date();
+  date.setFullYear(Number(dateString.split('-')[0]));
+  date.setMonth(Number(dateString.split('-')[1]) - 1);
+  date.setDate(Number(dateString.split('-')[2]));
+  return date;
+};

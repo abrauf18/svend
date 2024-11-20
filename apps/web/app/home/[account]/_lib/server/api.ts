@@ -35,12 +35,17 @@ export class TeamBudgetsApi {
 
     const budgetCategoriesPromise = this.categoryService.getBudgetCategoryGroupsByTeamAccountSlug(slug);
 
-    const [accountResult, accountsResult, budgetResult, budgetTransactionsResult, budgetCategoriesResult] = await Promise.all([
+    const budgetTagsPromise = this.client.rpc('get_budget_tags_by_team_account_slug', {
+      p_team_account_slug: slug,
+    });
+
+    const [accountResult, accountsResult, budgetResult, budgetTransactionsResult, budgetCategoriesResult, budgetTagsResult] = await Promise.all([
       accountPromise,
       accountsPromise,
       budgetPromise,
       budgetTransactionsPromise,
       budgetCategoriesPromise,
+      budgetTagsPromise,
     ]);
 
     if (accountResult.error) {
@@ -80,6 +85,13 @@ export class TeamBudgetsApi {
       };
     }
 
+    if (budgetTagsResult.error) {
+      return {
+        error: budgetTagsResult.error,
+        data: null,
+      };
+    }
+
     return {
       data: {
         account: accountData,
@@ -87,6 +99,7 @@ export class TeamBudgetsApi {
         budget: budgetResult.data[0]!,
         budgetTransactions: budgetTransactionsResult.data,
         budgetCategories: budgetCategoriesResult,
+        budgetTags: budgetTagsResult.data,
       },
       error: null,
     };
@@ -94,7 +107,7 @@ export class TeamBudgetsApi {
 
   /**
    * @name hasPermission
-   * @description Check if the user has permission to manage billing for the account.
+   * @description Check if the user has permission for the account.
    */
   async hasPermission(params: {
     teamAccountId: string;

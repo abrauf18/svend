@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import DatePicker from 'react-datepicker';
@@ -23,33 +23,22 @@ import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { FinAccountTransaction } from '~/lib/model/fin.types';
 
 function TransactionTab() {
-  const [isPanelOpen, setIsPanelOpen] = React.useState(false);
-  const [selectedTransaction, setSelectedTransaction] = React.useState<
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<
     FinAccountTransaction | undefined
   >(undefined);
-  const [selectedRowData, setSelectedRowData] = React.useState<
-    FinAccountTransaction | undefined
-  >(undefined);
-  const [refreshTrigger, setRefreshTrigger] = React.useState(0);
-  const [selectedDate, setSelectedDate] = React.useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const { workspace } = useBudgetWorkspace();
-  const budgetId = workspace.budget.id;
 
-  const handlePanelClose = (open: boolean) => {
+  const handlePanelOpen = (open: boolean) => {
     setIsPanelOpen(open);
-    if (!open) {
-      setRefreshTrigger((prev) => prev + 1);
-    }
   };
-  const handleRefresh = () => {
-    setRefreshTrigger((prev) => prev + 1);
-  };
-
   const handleDateChange = (date: Date) => {
     setSelectedDate(date);
-    setRefreshTrigger((prev) => prev + 1);
   };
+
+  const maxDate = new Date(new Date().getFullYear(), new Date().getMonth(), 0);
 
   return (
     <>
@@ -68,6 +57,7 @@ function TransactionTab() {
                       ),
                     )
                   }
+                  disabled={selectedDate.getMonth() === 0}
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -78,6 +68,7 @@ function TransactionTab() {
                   dateFormat="MMMM yyyy"
                   showMonthYearPicker
                   className="w-[150px] bg-transparent text-center text-sm font-medium"
+                  maxDate={maxDate}
                   renderCustomHeader={({
                     date,
                     decreaseMonth,
@@ -98,6 +89,7 @@ function TransactionTab() {
                       <button
                         onClick={increaseMonth}
                         className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        disabled={date.getMonth() === new Date().getMonth() && date.getFullYear() === new Date().getFullYear()}
                       >
                         <ChevronRight size={16} />
                       </button>
@@ -106,7 +98,7 @@ function TransactionTab() {
                 />
 
                 <button
-                  className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className = {`rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700 ${selectedDate.getMonth() === new Date().getMonth() && selectedDate.getFullYear() === new Date().getFullYear() ? 'opacity-50 cursor-not-allowed' : ''}`}
                   onClick={() =>
                     handleDateChange(
                       new Date(
@@ -115,6 +107,7 @@ function TransactionTab() {
                       ),
                     )
                   }
+                  disabled={selectedDate.getMonth() === new Date().getMonth() && selectedDate.getFullYear() === new Date().getFullYear()}
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -141,11 +134,8 @@ function TransactionTab() {
 
             <div className="overflow-auto">
               <TransactionTable
-                budgetId={budgetId}
-                onSelectedTransaction={setSelectedTransaction}
+                onSelectTransaction={setSelectedTransaction}
                 onOpenChange={setIsPanelOpen}
-                onSelectedRowData={setSelectedRowData}
-                refreshTrigger={refreshTrigger}
                 selectedMonth={selectedDate}
               />
             </div>
@@ -156,14 +146,11 @@ function TransactionTab() {
           <TransactionOverview />
         </div>
       </div>
-      {selectedTransaction && selectedRowData && (
+      {selectedTransaction && (
         <TransactionPanel
           open={isPanelOpen}
-          budgetId={budgetId}
-          onOpenChange={handlePanelClose}
-          transaction={selectedTransaction}
-          selectedRowData={selectedRowData}
-          refreshTrigger={handleRefresh}
+          onOpenChange={handlePanelOpen}
+          selectedTransaction={selectedTransaction}
           disabledFields={{
             date: true,
             category: false,

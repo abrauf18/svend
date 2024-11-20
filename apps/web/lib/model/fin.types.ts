@@ -15,7 +15,7 @@ export interface FinAccountTransaction {
     amount: number; // Amount of the transaction
     plaidAccountId?: string; // UUID referencing the Plaid account associated with the transaction
     manualAccountId?: string; // UUID referencing the manual account associated with the transaction
-    plaidDetailedCategoryName?: string; // Detailed category from Plaid
+    plaidDetailedCategory?: string; // Detailed category from Plaid
     plaidCategoryConfidence?: string; // Confidence level for the category from Plaid
     svendCategoryGroupId?: string; // UUID referencing the group of the category associated with the transaction
     svendCategoryGroup?: string; // Group of the category associated with the transaction

@@ -28,7 +28,7 @@ export function InviteMembersDialog({
     
     setIsClosing(true);
     try {
-      const response = await fetch(`/api/budget/${budgetId}/onboarding/end`, {
+      const response = await fetch(`/api/budgets/${budgetId}/onboarding/end`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
