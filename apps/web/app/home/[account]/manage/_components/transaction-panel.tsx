@@ -116,12 +116,15 @@ export function TransactionPanel(props: TransactionPanelProps) {
 
       const updatedTransaction = {
         ...props.selectedTransaction,
-        date: format(data.date, 'yyyy-MM-dd'),
-        svendCategoryId: data.categoryId,
+        transaction: {
+          ...props.selectedTransaction.transaction,
+          date: format(data.date, 'yyyy-MM-dd'),
+          amount: parseFloat(data.amount),
+        },
+        budgetFinAccountId: data.budgetFinAccountId,
+        categoryId: data.categoryId,
         merchantName: data.merchantName,
         notes: data.notes,
-        amount: parseFloat(data.amount),
-        budgetFinAccountId: data.budgetFinAccountId,
         budgetTags: data.tags,
         budgetAttachmentsStorageNames: finalAttachments,
       } as BudgetFinAccountTransaction;
@@ -132,9 +135,8 @@ export function TransactionPanel(props: TransactionPanelProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          transaction_id: updatedTransaction?.transaction.id,
-          category_id: updatedTransaction?.categoryId,
-          merchant_name: updatedTransaction?.merchantName,
+          categoryId: updatedTransaction?.categoryId,
+          merchantName: updatedTransaction?.merchantName,
           notes: updatedTransaction?.notes,
           tags: updatedTransaction?.budgetTags,
         }),

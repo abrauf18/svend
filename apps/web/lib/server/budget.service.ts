@@ -771,6 +771,16 @@ class BudgetService {
 
         // Update tracking with new month data
         if (spendingTrackingsByMonth[month]) {
+          // Round spending tracking values
+          Object.values(spendingTrackingsByMonth[month]).forEach(groupTracking => {
+            groupTracking.spendingActual = Math.round(groupTracking.spendingActual * 100) / 100;
+            groupTracking.spendingTarget = Math.round(groupTracking.spendingTarget * 100) / 100;
+            groupTracking.categories.forEach(categoryTracking => {
+              categoryTracking.spendingActual = Math.round(categoryTracking.spendingActual * 100) / 100;
+              categoryTracking.spendingTarget = Math.round(categoryTracking.spendingTarget * 100) / 100;
+            });
+          });
+
           dbTracking[month] = spendingTrackingsByMonth[month];
         }
       }
@@ -1079,31 +1089,45 @@ class BudgetService {
   /**
    * 3. Maps Plaid categories to Svend categories and processes transactions
    */
+  /**
+   * 3. Maps Plaid categories to Svend categories and processes transactions
+   */
   private async onboardingAnalysisProcessCategories(
-    allTransactions: Array<BudgetFinAccountTransaction>
-  ): Promise<{ updatedTransactions?: BudgetFinAccountTransaction[], error?: string }> {
+    transactionData: OnboardingAnalysisTransactionCollection
+  ): Promise<{ transactionData?: OnboardingAnalysisTransactionCollection, error?: string }> {
     try {
-      // Map categories using category service
       const categoryService = createCategoryService(this.supabase);
-      const plaidDetailedCategories = allTransactions.map(budgetTransaction =>
-        budgetTransaction.transaction.plaidDetailedCategory
-      ) as string[];
+
+      const uniquePlaidCategories = [...new Set(transactionData.allTransactions
+        .map(t => t.transaction.plaidDetailedCategory)
+        .filter((cat): cat is string => !!cat)
+      )];
 
       const svendCategories = await categoryService.mapPlaidCategoriesToSvendCategories(
-        plaidDetailedCategories
+        uniquePlaidCategories
       );
-
       if (!svendCategories) {
         throw new Error('Category mapping returned null or undefined');
       }
 
-      // Update transactions with mapped categories
-      const updatedTransactions = allTransactions.map(budgetTransaction => {
-        const mappedCategory = svendCategories[budgetTransaction.transaction.plaidDetailedCategory as string];
+      const updatedTransactions = transactionData.allTransactions.map(budgetTransaction => {
+        const plaidCategory = budgetTransaction.transaction.plaidDetailedCategory;
+        if (!plaidCategory) {
+          console.warn('Transaction missing Plaid category:', budgetTransaction);
+          return budgetTransaction;
+        }
+
+        // Get the mapped category using the full Plaid category key
+        const mappedCategory = svendCategories[plaidCategory];
+        if (!mappedCategory) {
+          console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
+          return budgetTransaction;
+        }
+
         return {
           ...budgetTransaction,
-          categoryId: mappedCategory?.id!,
-          category: mappedCategory?.name!,
+          categoryId: mappedCategory.id,
+          category: mappedCategory.name,
         } as BudgetFinAccountTransaction;
       });
 
@@ -1111,9 +1135,39 @@ class BudgetService {
       updatedTransactions.sort((a, b) =>
         new Date(a.transaction.date).getTime() - new Date(b.transaction.date).getTime()
       );
+      
+      const updatedNewTransactions = transactionData.newTransactions.map(budgetTransaction => {
+        const plaidCategory = budgetTransaction.transaction.plaidDetailedCategory;
+        if (!plaidCategory) {
+          console.warn('Transaction missing Plaid category:', budgetTransaction);
+          return budgetTransaction;
+        }
+        
+        // Get the mapped category using the full Plaid category key
+        const mappedCategory = svendCategories[plaidCategory];
+        if (!mappedCategory) {
+          console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
+          return budgetTransaction;
+        }
+        
+        return {
+          ...budgetTransaction,
+          categoryId: mappedCategory.id,
+          category: mappedCategory.name,
+        } as BudgetFinAccountTransaction;
+      });
 
-      return { updatedTransactions };
+      // Sort transactions by date
+      updatedNewTransactions.sort((a, b) =>
+        new Date(a.transaction.date).getTime() - new Date(b.transaction.date).getTime()
+      );
+
+      transactionData.allTransactions = updatedTransactions;
+      transactionData.newTransactions = updatedNewTransactions;
+
+      return { transactionData };
     } catch (error: any) {
+      console.error('Error in processCategories:', error);
       return {
         error: `SERVER_ERROR:[onboardingAnalysis.processCategories] ${error.message}`
       };
@@ -1303,28 +1357,21 @@ class BudgetService {
       );
 
       // 3. Category Processing
-      const { updatedTransactions, error: categoryError } =
-        await this.onboardingAnalysisProcessCategories(transactionData.allTransactions);
+      const { error: categoryError } =
+        await this.onboardingAnalysisProcessCategories(transactionData);
       if (categoryError) {
         return { data: null, error: categoryError };
       }
 
       // 4. Spending Analysis
       await this.onboardingAnalysisAnalyzeSpending(
-        updatedTransactions!
+        transactionData.allTransactions
       );
 
       // 5. Persistence
       await this.onboardingAnalysisPersistData(
         budgetId,
-        transactionData.newTransactions.map(newTransaction => {
-          const updatedTransaction = updatedTransactions!.find(u => u.transaction.id === newTransaction.transaction.id)!;
-          return {
-            ...newTransaction,
-            categoryId: updatedTransaction.categoryId,
-            category: updatedTransaction.category,
-          }
-        }),
+        transactionData.newTransactions,
         plaidConnectionItems,
         transactionData.itemCursors
       );
@@ -1336,7 +1383,7 @@ class BudgetService {
       const categoryGroups = await this.categoryService.getBudgetCategoryGroups(budgetId);
 
       const recommendationsResult = await this.onboardingRecommendSpendingAndGoals(
-        updatedTransactions!,
+        transactionData.allTransactions,
         validBudgetGoals,
         categoryGroups
       );

@@ -19,7 +19,6 @@ import { Trans } from '@kit/ui/trans';
 import { TransactionPanel } from '~/home/[account]/manage/_components/transaction-panel';
 import TransactionOverview from '~/home/[account]/manage/_components/transaction-overview';
 import { TransactionTable } from '~/home/[account]/manage/_components/transaction-tab-table';
-import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { BudgetFinAccountTransaction } from '~/lib/model/budget.types';
 
 function TransactionTab() {
@@ -31,6 +30,9 @@ function TransactionTab() {
 
   const handlePanelOpen = (open: boolean) => {
     setIsPanelOpen(open);
+    if (!open) {
+      setSelectedTransaction(undefined);
+    }
   };
   const handleDateChange = (date: Date) => {
     setSelectedDate(date);

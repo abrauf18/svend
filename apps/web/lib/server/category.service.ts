@@ -124,7 +124,7 @@ class CategoryService implements ICategoryService {
   /**
    * Maps Plaid detailed categories to Svend category IDs.
    * @param plaidDetailedCategories - An array of detailed category names from Plaid.
-   * @returns A promise that resolves to an array of Svend category IDs.
+   * @returns A record of Plaid detailed category names to Svend categories.
    */
   async mapPlaidCategoriesToSvendCategories(plaidDetailedCategories: string[]): Promise<Record<string, Category>> {
     const defaultCategoryGroups = await this.getSvendDefaultCategoryGroups();

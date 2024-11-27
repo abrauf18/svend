@@ -7,7 +7,7 @@ import { createBudgetService } from '~/lib/server/budget.service';
 
 const schema = z.object({
   categoryId: z.string().uuid().optional(),
-  merchant_name: z.string().optional(),
+  merchantName: z.string().optional(),
   payee: z.string().optional(),
   notes: z.string().optional(),
   tags: z.array(z.object({ id: z.string().uuid() }))
@@ -34,7 +34,7 @@ export const PUT = enhanceRouteHandler(
     const updateData: Record<string, any> = {};
     
     if (body.categoryId) updateData.svend_category_id = body.categoryId;
-    if (body.merchant_name !== undefined) updateData.merchant_name = body.merchant_name;
+    if (body.merchantName !== undefined) updateData.merchant_name = body.merchantName;
     if (body.payee !== undefined) updateData.payee = body.payee;
     if (body.notes !== undefined) updateData.notes = body.notes;
     if (body.tags) updateData.tag_ids = body.tags.map(tag => tag.id);
@@ -59,17 +59,29 @@ export const PUT = enhanceRouteHandler(
     }
 
     // Update the transaction with only the provided fields
-    const { error: updateError } = await supabaseAdmin
+    const { data: dbTransactionData, error: updateError } = await supabaseAdmin
       .from('budget_fin_account_transactions')
       .update(updateData)
       .eq('budget_id', params.budgetId)
-      .eq('fin_account_transaction_id', params.transactionId);
+      .eq('fin_account_transaction_id', params.transactionId)
+      .select('fin_account_transactions (date)')
+      .single();
 
     if (updateError) {
       return NextResponse.json(
         { error: `Error updating transaction: ${updateError.message}` },
         { status: 500 }
       );
+    }
+
+    // TODO: convert to function to make transaction in case of category change
+    if (body.categoryId) {
+      const transactionDate = dbTransactionData.fin_account_transactions!.date;
+      const formattedDate = new Date(transactionDate).toISOString().slice(0, 7); // formats to YYYY-MM
+      const { error: recalculateSpendingError } = await budgetService.updateRecalculateSpending(params.budgetId, [formattedDate]);
+      if (recalculateSpendingError) {
+        return NextResponse.json({ error: `Error recalculating spending after transaction category change: ${recalculateSpendingError}` }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ message: 'Transaction updated successfully' });
