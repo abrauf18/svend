@@ -117,11 +117,21 @@ export const enhanceRouteHandler = <
     let body: any;
 
     if (params?.schema) {
-      // clone the request to read the body
-      // so that we can pass it to the handler safely
-      const json = await request.clone().json();
-
-      body = zodParseFactory(params.schema)(json);
+      try {
+        // clone the request to read the body
+        // so that we can pass it to the handler safely
+        const json = await request.clone().json();
+        body = zodParseFactory(params.schema)(json);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return NextResponse.json(
+            { errors: error.errors.slice(0, 3) }, 
+            { status: 400 }
+          );
+        }
+        // If it's not a ZodError, let it propagate to the error handler
+        throw error;
+      }
     }
 
     const shouldCaptureException = params?.captureException ?? true;

@@ -20,16 +20,14 @@ import { TransactionPanel } from '~/home/[account]/manage/_components/transactio
 import TransactionOverview from '~/home/[account]/manage/_components/transaction-overview';
 import { TransactionTable } from '~/home/[account]/manage/_components/transaction-tab-table';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
-import { FinAccountTransaction } from '~/lib/model/fin.types';
+import { BudgetFinAccountTransaction } from '~/lib/model/budget.types';
 
 function TransactionTab() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<
-    FinAccountTransaction | undefined
+    BudgetFinAccountTransaction | undefined
   >(undefined);
   const [selectedDate, setSelectedDate] = useState(new Date());
-
-  const { workspace } = useBudgetWorkspace();
 
   const handlePanelOpen = (open: boolean) => {
     setIsPanelOpen(open);

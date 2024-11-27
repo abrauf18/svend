@@ -5,14 +5,12 @@ import { SupabaseClient } from '@supabase/supabase-js';
 /**
  * @name CategoryService
  * @description Service for category-related operations
- * @example
- * const categoryService = new CategoryService();
  */
-class CategoryService {
+class CategoryService implements ICategoryService {
   private supabase: SupabaseClient;
 
   constructor(supabaseClient: SupabaseClient) {
-    this.supabase = supabaseClient
+    this.supabase = supabaseClient;
   }
 
   /**
@@ -159,8 +157,16 @@ class CategoryService {
 
 /**
  * Creates an instance of the CategoryService.
+ * @param supabaseClient - The Supabase client instance
  * @returns An instance of CategoryService.
  */
-export function createCategoryService(supabaseClient: SupabaseClient) {
+export function createCategoryService(supabaseClient: SupabaseClient): ICategoryService {
   return new CategoryService(supabaseClient);
+}
+
+export interface ICategoryService {
+  getSvendDefaultCategoryGroups: () => Promise<Record<string, CategoryGroup>>;
+  getBudgetCategoryGroupsByTeamAccountSlug: (team_account_slug: string) => Promise<Record<string, CategoryGroup>>;
+  getBudgetCategoryGroups: (budget_id: string) => Promise<Record<string, CategoryGroup>>;
+  mapPlaidCategoriesToSvendCategories: (plaidDetailedCategories: string[]) => Promise<Record<string, Category>>;
 }

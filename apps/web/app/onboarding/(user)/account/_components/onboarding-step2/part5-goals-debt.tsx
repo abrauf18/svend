@@ -8,12 +8,10 @@ export function GoalsDebt(props: {
   triggerSubmit: (submitHandler: () => Promise<boolean>) => void;
 }) {
   return (
-    <div className="h-full overflow-y-auto pr-2">
-      <PayOffDebtInformation
-        initialData={props.initialData}
-        onValidationChange={props.onValidationChange}
-        triggerSubmit={props.triggerSubmit}
-      />
-    </div>
+    <PayOffDebtInformation
+      initialData={props.initialData}
+      onValidationChange={props.onValidationChange}
+      triggerSubmit={props.triggerSubmit}
+    />
   );
 }

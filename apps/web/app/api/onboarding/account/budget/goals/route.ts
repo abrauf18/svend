@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
-import { Budget, BudgetGoal } from '~/lib/model/budget.types';
+import { BudgetGoal, BudgetGoalRecommendations, BudgetGoalMonthlyTracking } from '~/lib/model/budget.types';
 
 // POST /api/onboarding/account/budget/goals
 // Create a budget goal
@@ -102,10 +102,15 @@ export async function POST(request: Request) {
       debt_type: debtType,
       debt_payment_component: debtPaymentComponent,
       debt_interest_rate: debtInterestRate,
-      tracking: {
-        startingBalance: balance,
-        allocations: []
-      }
+      spending_tracking: {
+        [new Date().toISOString().substring(0, 7)]: {
+          month: new Date().toISOString().substring(0, 7),
+          startingBalance: balance,
+          endingBalance: balance,
+          allocations: {}
+        }
+      },
+      spending_recommendations: {}
     })
     .select('*'));
 
@@ -133,10 +138,15 @@ export async function POST(request: Request) {
     debtType: data?.[0]?.debt_type!,
     debtPaymentComponent: data?.[0]?.debt_payment_component!,
     debtInterestRate: data?.[0]?.debt_interest_rate!,
-    tracking: {
-      startingBalance: (data?.[0]?.tracking as any)?.starting_balance!,
-      allocations: (data?.[0]?.tracking as any)?.allocations!
-    },
+    spendingTracking: {
+      [new Date().toISOString().substring(0, 7)]: {
+        month: new Date().toISOString().substring(0, 7),
+        startingBalance: balance,
+        endingBalance: balance,
+        allocations: {}
+      }
+    } as Record<string, BudgetGoalMonthlyTracking>,
+    spendingRecommendations: {} as BudgetGoalRecommendations,
     createdAt: data?.[0]?.created_at!
   };
 

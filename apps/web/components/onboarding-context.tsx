@@ -17,9 +17,8 @@ import {
   AccountOnboardingPlaidItemAccount,
   AccountOnboardingState,
 } from '../lib/model/onboarding.types';
-
 import { ProfileData } from '../lib/model/fin.types';
-import { Budget, BudgetGoal } from '../lib/model/budget.types';
+import { Budget, BudgetGoal, BudgetSpendingRecommendations, BudgetSpendingTrackingsByMonth } from '../lib/model/budget.types';
 
 import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
 
@@ -72,8 +71,12 @@ export function OnboardingContextProvider({
       budget: {
         id: '',
         budgetType: '',
-        categoryGroupSpending: {},
-        recommendedCategoryGroupSpending: {},
+        spendingTracking: {} as BudgetSpendingTrackingsByMonth,
+        spendingRecommendations: {
+          balanced: {},
+          conservative: {},
+          relaxed: {}
+        } as BudgetSpendingRecommendations,
         goals: [],
         onboardingStep: 'start',
         linkedFinAccounts: [],

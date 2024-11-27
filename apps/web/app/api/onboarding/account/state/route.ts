@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
-import { createAccountOnboardingService } from '~/lib/server/onboarding.service';
-import { Budget, BudgetCategoryGroupSpending, BudgetGoal } from '~/lib/model/budget.types';
+import { createOnboardingService } from '~/lib/server/onboarding.service';
+import { Budget, BudgetSpendingRecommendations, BudgetSpendingTrackingsByMonth, BudgetGoal } from '~/lib/model/budget.types';
+import { Configuration } from 'plaid';
+import { PlaidEnvironments } from 'plaid';
+import { createBudgetService } from '~/lib/server/budget.service';
 
 // GET /api/onboarding/account/state
 // Returns the current onboarding state for the account
@@ -44,24 +47,8 @@ export async function GET(request: Request) {
   }
 
   // Map the budget goals to match the AccountOnboardingBudgetGoal schema
-  const formattedBudgetGoals: BudgetGoal[] = budgetGoals.map(goal => ({
-    id: goal.id,
-    budgetId: goal.budget_id,
-    type: goal.type,
-    name: goal.name,
-    amount: goal.amount,
-    budgetFinAccountId: goal.fin_account_id,
-    description: goal.description || '',
-    targetDate: goal.target_date,
-    debtType: goal.debt_type || 'Other',
-    debtPaymentComponent: goal.debt_payment_component || 'principal',
-    debtInterestRate: goal.debt_interest_rate || 0,
-    tracking: {
-      startingBalance: (goal.tracking as any)?.starting_balance || 0,
-      allocations: (goal.tracking as any)?.allocations || {},
-    },
-    createdAt: goal.created_at || '',
-  }));
+  const budgetService = createBudgetService(supabaseAdminClient);
+  const formattedBudgetGoals: BudgetGoal[] = budgetGoals.map(goal => budgetService.parseBudgetGoal(goal)!);
 
   // Fetch budget associated with the onboarding
   const { data: db_budget, error: budgetError } = await supabaseAdminClient
@@ -79,8 +66,8 @@ export async function GET(request: Request) {
   const formattedBudget: Budget = {
     id: budgetId,
     budgetType: db_budget.budget_type,
-    categoryGroupSpending: db_budget.category_spending ? db_budget.category_spending as Record<string, BudgetCategoryGroupSpending> : {},
-    recommendedCategoryGroupSpending: db_budget.recommended_category_spending ? db_budget.recommended_category_spending as Record<string, Record<string, BudgetCategoryGroupSpending>> : {},
+    spendingTracking: (db_budget.spending_tracking ?? {}) as BudgetSpendingTrackingsByMonth,
+    spendingRecommendations: (db_budget.spending_recommendations ?? {}) as BudgetSpendingRecommendations,
     goals: formattedBudgetGoals,
     onboardingStep: db_budget.current_onboarding_step,
     linkedFinAccounts: [],
@@ -281,11 +268,21 @@ export async function PUT(request: Request) {
   }
 
   const supabaseAdmin = getSupabaseServerAdminClient();
-  const onboardingService = createAccountOnboardingService();
+
+  const plaidConfiguration = new Configuration({
+    basePath: PlaidEnvironments[process.env.PLAID_ENV || 'sandbox'],
+    baseOptions: {
+      headers: {
+        'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
+        'PLAID-SECRET': process.env.PLAID_SECRET,
+      },
+    },
+  });
+
+  const onboardingService = createOnboardingService(supabaseAdmin, plaidConfiguration);
 
   try {
-    const updateErrorMessage = await onboardingService.updateContextKey({
-      supabase: supabaseAdmin,
+    const { error: updateErrorMessage } = await onboardingService.updateContextKey({
       userId: user.id,
       contextKey,
       validContextKeys

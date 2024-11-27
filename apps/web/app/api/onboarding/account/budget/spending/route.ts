@@ -1,158 +1,171 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
-import { createAccountOnboardingService } from '~/lib/server/onboarding.service';
-import { BudgetCategoryGroupSpending } from '~/lib/model/budget.types';
+import { BudgetSpendingCategoryGroupTracking, BudgetSpendingTrackingsByMonth } from '~/lib/model/budget.types';
+import { createOnboardingService } from '~/lib/server/onboarding.service';
+import { enhanceRouteHandler } from '@kit/next/routes';
+import { z } from 'zod';
+
+// Define the schema for category
+const categorySchema = z.object({
+  categoryName: z.string(),
+  target: z.number(),
+  isTaxDeductible: z.boolean()
+});
+
+// Define the schema for category group spending
+const categoryGroupSpendingSchema = z.object({
+  groupName: z.string(),
+  target: z.number(),
+  isTaxDeductible: z.boolean(),
+  targetSource: z.enum(['group', 'category']),
+  categories: z.array(categorySchema)
+});
+
+// Define the main request schema
+const schema = z.object({
+  categorySpending: z.record(categoryGroupSpendingSchema)
+});
 
 // PUT /api/onboarding/account/budget/spending
 // Update budget category group spending (end account onboarding)
-export async function PUT(request: Request) {
-  // Authentication
-  const supabaseClient = getSupabaseServerClient();
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Request body validation
-  let body: { categorySpending: Record<string, BudgetCategoryGroupSpending> };
-  try {
-    body = await request.json();
-    if (!body.categorySpending || typeof body.categorySpending !== 'object') {
-      return NextResponse.json({ error: 'Missing or invalid categorySpending field' }, { status: 400 });
+export const PUT = enhanceRouteHandler(
+  async ({ body }) => {
+    const supabaseClient = getSupabaseServerClient();
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Validate each spending entry
-    for (const [key, spending] of Object.entries(body.categorySpending)) {
-      // Validate required fields
-      if (
-        typeof spending.groupName !== 'string' ||
-        typeof spending.spending !== 'number' ||
-        typeof spending.recommendation !== 'number' ||
-        typeof spending.target !== 'number' ||
-        typeof spending.isTaxDeductible !== 'boolean' ||
-        typeof spending.targetSource !== 'string' ||
-        !['group', 'category'].includes(spending.targetSource) ||
-        !Array.isArray(spending.categories)
-      ) {
-        return NextResponse.json({ 
-          error: `Invalid spending data for category ${key}. Missing or invalid required fields.` 
-        }, { status: 400 });
-      }
+    const supabaseAdminClient = getSupabaseServerAdminClient();
 
-      // Validate each category in the categories array
-      for (const category of spending.categories) {
-        if (
-          typeof category.categoryName !== 'string' ||
-          typeof category.spending !== 'number' ||
-          typeof category.recommendation !== 'number' ||
-          typeof category.target !== 'number' ||
-          typeof category.isTaxDeductible !== 'boolean'
-        ) {
-          return NextResponse.json({ 
-            error: `Invalid category data in group ${key}` 
-          }, { status: 400 });
-        }
-      }
+    const { data: dbAccountOnboardingState, error: fetchOnboardingError } = await supabaseAdminClient
+      .from('onboarding')
+      .select('state->account')
+      .eq('account_id', user.id)
+      .single();
+
+    if (fetchOnboardingError) {
+      console.error('Error fetching onboarding state:', fetchOnboardingError);
+      return NextResponse.json({ error: 'Failed to fetch onboarding state' }, { status: 500 });
     }
-  } catch (error) {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
 
-  // ----------------------------------------
-  // Onboarding state validation
-  // ----------------------------------------
-  const supabaseAdminClient = getSupabaseServerAdminClient();
+    const startingContextKey = (dbAccountOnboardingState.account as any)?.contextKey;
+    if (startingContextKey !== 'budget_setup') {
+      return NextResponse.json({ error: 'Invalid state: ' + startingContextKey }, { status: 400 });
+    }
 
-  const { data: dbAccountOnboardingState, error: fetchOnboardingError } = await supabaseAdminClient
-    .from('onboarding')
-    .select('state->account')
-    .eq('account_id', user.id)
-    .single();
+    const budgetId = (dbAccountOnboardingState.account as any)?.budgetId;
 
-  if (fetchOnboardingError) {
-    console.error('Error fetching onboarding state:', fetchOnboardingError);
-    return NextResponse.json({ error: 'Failed to fetch onboarding state' }, { status: 500 });
-  }
+    // -------------------------------------------------
+    // Fetch current spending tracking data
+    // -------------------------------------------------
+    const { data: dbBudgetData, error: fetchError } = await supabaseAdminClient
+      .from('budgets')
+      .select('spending_tracking, team_account_id, accounts(slug)')
+      .eq('id', budgetId)
+      .single();
 
-  const startingContextKey = (dbAccountOnboardingState.account as any)?.contextKey;
-  if (startingContextKey !== 'budget_setup') {
-    return NextResponse.json({ error: 'Invalid state: ' + startingContextKey }, { status: 400 });
-  }
+    if (fetchError) {
+      console.error('Error fetching current budget:', fetchError);
+      return NextResponse.json({ error: 'Failed to fetch current budget' }, { status: 500 });
+    }
 
-  const budgetId = (dbAccountOnboardingState.account as any)?.budgetId;
+    // Get the latest month from the tracking data
+    const currentTracking = dbBudgetData.spending_tracking as BudgetSpendingTrackingsByMonth;
+    const months = Object.keys(currentTracking).sort();
+    const latestMonth = months[months.length - 1]!;
 
-  // ----------------------------------------
-  // Update budget category spending
-  // ----------------------------------------
-  const { error: updateError } = await supabaseAdminClient
-    .from('budgets')
-    .update({ 
-      category_spending: body.categorySpending
-    })
-    .eq('id', budgetId);
+    // Merge the new spending targets with existing tracking data
+    const updatedTracking = {
+      ...currentTracking,
+      [latestMonth]: Object.entries(body.categorySpending).reduce<Record<string, BudgetSpendingCategoryGroupTracking>>((acc, [groupName, groupData]) => {
+        const existingGroup = currentTracking[latestMonth]?.[groupName] || {
+          groupName,
+          spendingActual: 0,
+          categories: []
+        };
 
-  if (updateError) {
-    console.error('Error updating budget category spending:', updateError);
-    return NextResponse.json({ error: 'Failed to update budget category spending' }, { status: 500 });
-  }
+        // Update group level data
+        acc[groupName] = {
+          ...existingGroup,
+          spendingTarget: groupData.target,
+          isTaxDeductible: groupData.isTaxDeductible,
+          targetSource: groupData.targetSource,
+          categories: groupData.categories.map(newCat => {
+            const existingCat = existingGroup.categories.find(c => c.categoryName === newCat.categoryName) || {
+              categoryName: newCat.categoryName,
+              spendingActual: 0
+            };
+            
+            return {
+              ...existingCat,
+              spendingTarget: newCat.target,
+              isTaxDeductible: newCat.isTaxDeductible
+            };
+          })
+        };
 
-  // ----------------------------------------
-  // Budget data retrieval
-  // ----------------------------------------
-  const { data: accountData, error: accountError } = await supabaseAdminClient
-    .from('budgets')
-    .select('id, team_account_id, accounts(slug)')
-    .eq('id', budgetId)
-    .single();
-  
-  if (accountError) {
-    console.error('Error fetching account slug:', accountError);
-    return NextResponse.json({ error: 'Failed to fetch account slug' }, { status: 500 });
-  }
-  
-  if (!accountData?.accounts?.slug) {
-    console.error('Budget slug not found');
-    return NextResponse.json({ error: 'Budget slug not found' }, { status: 500 });
-  }
+        return acc;
+      }, {} as Record<string, BudgetSpendingCategoryGroupTracking>)
+    };
 
-  const budgetSlug = accountData.accounts.slug;
+    // -------------------------------------------------
+    // Update budget category spending and retrieve data
+    // -------------------------------------------------
+    const { error: updateError } = await supabaseAdminClient
+      .from('budgets')
+      .update({ 
+        spending_tracking: updatedTracking
+      })
+      .eq('id', budgetId);
 
-  // ----------------------------------------
-  // Complete onboarding
-  // ----------------------------------------
-  const { error: updateOnboardingStepError } = await supabaseAdminClient
-    .from('budgets')
-    .update({ 
-      current_onboarding_step: 'invite_members'
-    })
-    .eq('id', budgetId);
+    if (updateError) {
+      console.error('Error updating budget category spending:', updateError);
+      return NextResponse.json({ error: 'Failed to update budget category spending' }, { status: 500 });
+    }
+    
+    if (!dbBudgetData?.accounts?.slug) {
+      console.error('Budget slug not found');
+      return NextResponse.json({ error: 'Budget slug not found' }, { status: 500 });
+    }
 
-  if (updateOnboardingStepError) {
-    console.error('Error updating current onboarding step:', updateOnboardingStepError);
-    return NextResponse.json({ error: 'Failed to update current onboarding step' }, { status: 500 });
-  }
+    const budgetSlug = dbBudgetData.accounts.slug;
 
-  const onboardingService = createAccountOnboardingService();
+    // ----------------------------------------
+    // Complete onboarding
+    // ----------------------------------------
+    const { error: updateOnboardingStepError } = await supabaseAdminClient
+      .from('budgets')
+      .update({ 
+        current_onboarding_step: 'invite_members'
+      })
+      .eq('id', budgetId);
 
-  try {
-    const updateErrorMessage = await onboardingService.updateContextKey({
-      supabase: supabaseAdminClient,
+    if (updateOnboardingStepError) {
+      console.error('Error updating current onboarding step:', updateOnboardingStepError);
+      return NextResponse.json({ error: 'Failed to update current onboarding step' }, { status: 500 });
+    }
+
+    const onboardingService = createOnboardingService(supabaseAdminClient);
+
+    const { error: updateErrorMessage } = await onboardingService.updateContextKey({
       userId: user.id,
       contextKey: 'end',
       validContextKeys: ['budget_setup', 'end']
     });
     if (updateErrorMessage) {
-      return NextResponse.json({ error: updateErrorMessage }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to update context key:' + updateErrorMessage }, { status: 500 });
     }
-  } catch (error: any) {
-    return NextResponse.json({ error: 'Failed to update context key:' + error.message }, { status: 500 });
-  }
 
-  return NextResponse.json({
-    success: true,
-    message: 'Account onboarding completed successfully',
-    budgetId: budgetId,
-    budgetSlug: budgetSlug
-  });
-}
+    return NextResponse.json({
+      success: true,
+      message: 'Account onboarding completed successfully',
+      budgetId: budgetId,
+      budgetSlug: budgetSlug
+    });
+  },
+  {
+    schema,
+  }
+);

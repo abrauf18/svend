@@ -1,4 +1,5 @@
 import { FinAccountTransaction } from '~/lib/model/fin.types';
+import { BudgetFinAccountTransaction } from '../model/budget.types';
 
 interface LinkedAccountInfo {
   name?: string;
@@ -36,7 +37,7 @@ export class TransactionSearchService {
    * @returns Numeric score indicating search relevance
    */
   getSearchScore(
-    transaction: FinAccountTransaction,
+    transaction: BudgetFinAccountTransaction,
     searchTerms: string[],
     linkedAccount?: LinkedAccountInfo
   ): number {
@@ -55,38 +56,38 @@ export class TransactionSearchService {
 
   /**
    * Gets all searchable text fields from a transaction
-   * @param transaction - The transaction to extract searchable text from
+   * @param budgetTransaction - The transaction to extract searchable text from
    * @param linkedAccount - Optional linked account info
    * @returns Array of searchable text strings
    */
   private getSearchableTexts(
-    transaction: FinAccountTransaction,
+    budgetTransaction: BudgetFinAccountTransaction,
     linkedAccount?: LinkedAccountInfo
   ): string[] {
-    const amount = transaction.amount;
+    const amount = budgetTransaction.transaction.amount;
     const formattedAmount = new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
     }).format(amount).toLowerCase();
     const simplifiedAmount = Math.abs(amount).toString().toLowerCase();
 
-    const date = new Date(transaction.date);
+    const date = new Date(budgetTransaction.transaction.date);
     const dateFormats = [
-      this.formatDate(transaction.date).toLowerCase(),
+      this.formatDate(budgetTransaction.transaction.date).toLowerCase(),
       date.toLocaleDateString(navigator.language).toLowerCase(),
-      transaction.date.toLowerCase(),
+      budgetTransaction.transaction.date.toLowerCase(),
     ];
 
     return [
       ...dateFormats,
       formattedAmount,
       simplifiedAmount,
-      ...(transaction.budgetTags?.map(t => t.name.toLowerCase()) || []),
-      (transaction.svendCategory || '').toLowerCase(),
-      (transaction.svendCategoryGroup || '').toLowerCase(),
-      (transaction.merchantName || '').toLowerCase(),
-      (transaction.payee || '').toLowerCase(),
-      (transaction.notes || '').toLowerCase(),
+      ...(budgetTransaction.budgetTags?.map(t => t.name.toLowerCase()) || []),
+      (budgetTransaction.category || '').toLowerCase(),
+      (budgetTransaction.categoryGroup || '').toLowerCase(),
+      (budgetTransaction.merchantName || '').toLowerCase(),
+      (budgetTransaction.payee || '').toLowerCase(),
+      (budgetTransaction.notes || '').toLowerCase(),
       (linkedAccount?.name || '').toLowerCase(),
       (linkedAccount?.mask || '').toLowerCase(),
     ];
@@ -102,7 +103,7 @@ export class TransactionSearchService {
   private calculateTermScore(
     term: string,
     searchableTexts: string[],
-    transaction: FinAccountTransaction
+    transaction: BudgetFinAccountTransaction
   ): number {
     const weight = 1; // Base weight, could be parameterized if needed
 

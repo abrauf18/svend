@@ -3,24 +3,24 @@
 import { User } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Database } from '~/lib/database.types';
-import { Budget } from '~/lib/model/budget.types';
-import { CategoryGroup, FinAccountTransaction, FinAccountTransactionBudgetTag } from '~/lib/model/fin.types';
+import { Budget, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
+import { CategoryGroup } from '~/lib/model/fin.types';
 
 interface BudgetWorkspace {
   accounts: Database['public']['Views']['user_accounts']['Row'][];
   account: Database['public']['Functions']['team_account_workspace']['Returns'][0];
   user: User;
   budget: Budget;
-  budgetTransactions: FinAccountTransaction[];
+  budgetTransactions: BudgetFinAccountTransaction[];
   budgetCategories: Record<string, CategoryGroup>;
-  budgetTags: FinAccountTransactionBudgetTag[];
+  budgetTags: BudgetFinAccountTransactionTag[];
 }
 
 interface BudgetWorkspaceContextValue {
   workspace: BudgetWorkspace;
   updateBudgetOnboardingStep: (step: Database['public']['Tables']['budgets']['Row']['current_onboarding_step']) => void;
-  updateTransaction: (transaction: FinAccountTransaction) => void;
-  addBudgetTag: (tag: FinAccountTransactionBudgetTag) => void;
+  updateTransaction: (transaction: BudgetFinAccountTransaction) => void;
+  addBudgetTag: (tag: BudgetFinAccountTransactionTag) => void;
 }
 
 export const BudgetWorkspaceContext = createContext<BudgetWorkspaceContextValue>({} as BudgetWorkspaceContextValue);
@@ -44,16 +44,16 @@ export function BudgetWorkspaceContextProvider(
     }));
   }, []);
 
-  const updateTransaction = (transaction: FinAccountTransaction) => {
+  const updateTransaction = (budgetTransaction: BudgetFinAccountTransaction) => {
     setWorkspace(prev => ({
       ...prev,
       budgetTransactions: prev.budgetTransactions.map((t) =>
-        t.id === transaction.id ? transaction : t
+        t.transaction.id === budgetTransaction.transaction.id ? budgetTransaction : t
       ),
     }));
   };
   
-  const addBudgetTag = (tag: FinAccountTransactionBudgetTag) => {
+  const addBudgetTag = (tag: BudgetFinAccountTransactionTag) => {
     setWorkspace(prev => ({
       ...prev,
       budgetTags: [...prev.budgetTags, tag]

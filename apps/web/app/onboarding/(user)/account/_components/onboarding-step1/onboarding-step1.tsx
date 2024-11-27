@@ -10,13 +10,13 @@ import { usePlaidLink, PlaidLinkOptions } from 'react-plaid-link';
 function OnboardingStep1ConnectPlaidAccounts() {
   const [hasPlaidConnection, setHasPlaidConnection] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { state, accountNextStep, accountChangeStepContextKey, accountPlaidConnItemAddOne } = useOnboardingContext();
+  const { state, accountNextStep, accountPlaidConnItemAddOne } = useOnboardingContext();
   const [linkToken, setLinkToken] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!hasPlaidConnection && state?.account.plaidConnectionItems && state.account.plaidConnectionItems.length > 0) {
-      setHasPlaidConnection(true);
-      accountChangeStepContextKey('plaid');
+    if (state?.account.plaidConnectionItems) {
+      const hasConnections = state.account.plaidConnectionItems.length > 0;
+      setHasPlaidConnection(hasConnections);
     }
   }, [state]);
 
@@ -42,10 +42,10 @@ function OnboardingStep1ConnectPlaidAccounts() {
       const result = await response.json();
       console.log('Plaid onboarding successful:', result);
 
-      accountPlaidConnItemAddOne(result.plaidConnectionItem);
+      await accountPlaidConnItemAddOne(result.plaidConnectionItem);
+      setLoading(false);
     } catch (error) {
       console.error('Error during Plaid onboarding:', error);
-    } finally {
       setLoading(false);
     }
   }, [state, accountPlaidConnItemAddOne]);
@@ -131,24 +131,25 @@ function OnboardingStep1ConnectPlaidAccounts() {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4 flex-1 overflow-y-auto">
-          <p className="text-sm text-muted-foreground max-w-md">
-            <Trans i18nKey={'onboarding:connectAccountsInstructionText'} />
-          </p>
+        <CardContent className="space-y-4 flex-1 overflow-y-auto flex flex-col">
+          <div className="flex-grow">
+            <p className="text-sm text-muted-foreground max-w-md">
+              <Trans i18nKey={'onboarding:connectAccountsInstructionText'} />
+            </p>
 
-          <PlaidConnectionItems loading={loading} />
-
-          <Button onClick={() => createLinkToken()} disabled={loading}>
-            <Trans i18nKey={'onboarding:connectAccountsButtonLabel'} />
-          </Button>
+            <PlaidConnectionItems loading={loading} setLoading={setLoading} />
+          </div>
         </CardContent>
 
         <CardFooter className="flex-shrink-0 border-t pt-4">
           <div className="flex space-x-4">
+            <Button onClick={() => createLinkToken()} disabled={loading}>
+              <Trans i18nKey={'onboarding:connectAccountsButtonLabel'} />
+            </Button>
             <Button 
               variant="outline" 
               className="w-full md:w-auto" 
-              disabled={!hasPlaidConnection} 
+              disabled={!hasPlaidConnection || loading}
               onClick={accountNextStep}
             >
               <Trans i18nKey={'onboarding:connectAccountsNextButtonLabel'} />

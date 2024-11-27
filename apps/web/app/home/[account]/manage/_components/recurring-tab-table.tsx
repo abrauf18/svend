@@ -28,11 +28,11 @@ import {
 } from "@kit/ui/table"
 import {useState, useEffect, use} from "react";
 import { useBudgetWorkspace } from "~/components/budget-workspace-context"
-import { FinAccountTransaction } from "~/lib/model/fin.types"
+import { BudgetFinAccountTransaction } from "~/lib/model/budget.types"
 
 
 export function RecurringTable() {
-    const [transactions, setTransactions] = useState<FinAccountTransaction[]>([])
+    const [transactions, setTransactions] = useState<BudgetFinAccountTransaction[]>([])
     const [sorting, setSorting] = useState<SortingState>([])
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -41,7 +41,7 @@ export function RecurringTable() {
 
     const { workspace } = useBudgetWorkspace();
 
-    const columns: ColumnDef<FinAccountTransaction>[] = [
+    const columns: ColumnDef<BudgetFinAccountTransaction>[] = [
         {
             id: "select",
             header: ({ table }) => (

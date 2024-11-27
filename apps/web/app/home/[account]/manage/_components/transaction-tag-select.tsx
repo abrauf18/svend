@@ -4,12 +4,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CaretSortIcon, CheckIcon } from '@radix-ui/react-icons';
 import { cn } from '@kit/ui/utils';
 import { Input } from '@kit/ui/input';
-import { FinAccountTransactionBudgetTag } from '~/lib/model/fin.types';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
+import { BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
 
 interface TransactionTagSelectProps {
   transactionId: string;
-  onTagsChange: (newTags: FinAccountTransactionBudgetTag[]) => void;
+  onTagsChange: (newTags: BudgetFinAccountTransactionTag[]) => void;
   disabled?: boolean;
 }
 
@@ -36,8 +36,8 @@ const isValidTagName = (name: string): boolean => {
 export function TransactionTagSelect(props: TransactionTagSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
-  const [availableTags, setAvailableTags] = useState<FinAccountTransactionBudgetTag[]>([]);
-  const [selectedTags, setSelectedTags] = useState<FinAccountTransactionBudgetTag[]>([]);
+  const [availableTags, setAvailableTags] = useState<BudgetFinAccountTransactionTag[]>([]);
+  const [selectedTags, setSelectedTags] = useState<BudgetFinAccountTransactionTag[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
@@ -49,7 +49,7 @@ export function TransactionTagSelect(props: TransactionTagSelectProps) {
   }, [workspace.budgetTags]);
 
   useEffect(() => {
-    setSelectedTags((workspace.budgetTransactions ?? []).find(t => t.id === props.transactionId)?.budgetTags ?? []);
+    setSelectedTags((workspace.budgetTransactions ?? []).find(t => t.transaction.id === props.transactionId)?.budgetTags ?? []);
   }, [workspace.budgetTransactions]);
 
   useEffect(() => {

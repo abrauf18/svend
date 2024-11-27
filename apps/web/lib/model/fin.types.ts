@@ -17,23 +17,10 @@ export interface FinAccountTransaction {
     manualAccountId?: string; // UUID referencing the manual account associated with the transaction
     plaidDetailedCategory?: string; // Detailed category from Plaid
     plaidCategoryConfidence?: string; // Confidence level for the category from Plaid
-    svendCategoryGroupId?: string; // UUID referencing the group of the category associated with the transaction
-    svendCategoryGroup?: string; // Group of the category associated with the transaction
-    svendCategoryId?: string; // UUID referencing the category associated with the transaction
-    svendCategory?: string; // Name of the category associated with the transaction
     merchantName: string; // Name of the merchant involved in the transaction
     payee?: string; // Name of the payee for the transaction
     isoCurrencyCode?: string; // ISO currency code for the transaction
-    notes?: string; // Notes for the transaction
     rawData?: any; // Raw data from Plaid
-    budgetFinAccountId?: string; // UUID referencing the financial account link to the budget
-    budgetTags?: FinAccountTransactionBudgetTag[]; // Tags associated with the transaction
-    budgetAttachmentsStorageNames?: string[]; // Storage names for attachments
-}
-
-export interface FinAccountTransactionBudgetTag {
-    id: string;
-    name: string;
 }
 
 export interface CategoryGroup {

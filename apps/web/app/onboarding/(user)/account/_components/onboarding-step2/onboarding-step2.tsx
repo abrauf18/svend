@@ -29,6 +29,12 @@ function OnboardingStep2ProfileGoals() {
       try {
         const success = await submitFormRef.current();
         if (success) {
+          // Find the CardContent element and scroll it to top
+          const cardContent = document.querySelector('.card-content');
+          if (cardContent) {
+            cardContent.scrollTop = 0;
+          }
+          
           if (currentSubStep < 6) {
             setCurrentSubStep((prev) => prev + 1);
           } else {
@@ -158,7 +164,7 @@ function OnboardingStep2ProfileGoals() {
             ))}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4 flex-1 overflow-y-auto">
+        <CardContent className="space-y-4 flex-1 overflow-y-auto card-content">
           <p className="max-w-md text-sm text-muted-foreground">
             <Trans i18nKey={'onboarding:finBackgroundInstructionText'} />
           </p>

@@ -20,25 +20,20 @@ function OnboardingStep3CreateBudget() {
     setIsLoading(true);
 
     const formReqData = {
-      categorySpending: budgetData.categoryGroups.reduce<Record<string, BudgetCategoryGroupSpending>>((acc, group) => {
-        acc[group.groupName] = {
+      categorySpending: budgetData.categoryGroups.reduce<Record<string, any>>((acc, group) => {
+        acc[group.groupName!] = {
           groupName: group.groupName,
-          spending: group.spending ?? 0,
-          recommendation: group.recommendation ?? 0,
           target: Number(group.target),
           isTaxDeductible: group.isTaxDeductible,
           targetSource: group.targetSource,
           categories: group.categories.map(cat => ({
             categoryName: cat.categoryName,
-            spending: cat.spending ?? 0,
-            recommendation: cat.recommendation ?? 0,
             target: Number(cat.target),
-            isTaxDeductible: cat.isTaxDeductible,
-            targetSource: group.targetSource === 'category' ? 'category' : 'group'
+            isTaxDeductible: cat.isTaxDeductible
           }))
         };
         return acc;
-      }, {}) as Record<string, BudgetCategoryGroupSpending>
+      }, {})
     };
 
     console.log('Budget category group spending form submitted:', formReqData);
@@ -64,19 +59,8 @@ function OnboardingStep3CreateBudget() {
     }
   };
 
-  const handleSave = async () => {
-    if (formRef.current) {
-      const submitEvent = new SubmitEvent('submit', {
-        bubbles: true,
-        cancelable: true,
-      });
-
-      formRef.current.dispatchEvent(submitEvent);
-    }
-  };
-
   return (
-    <div className="w-full max-w-4xl mx-auto p-4">
+    <div className="w-full max-w-4xl mx-auto p-2">
       <Card className="w-full">
         <CardHeader className="space-y-4">
           <div className="flex items-center space-x-2">
@@ -153,7 +137,7 @@ function OnboardingStep3CreateBudget() {
           <Button
             variant="outline"
             className="w-full md:w-auto"
-            onClick={handleSave}
+            onClick={() => formRef.current?.requestSubmit()}
             disabled={isLoading}
           >
             <Trans

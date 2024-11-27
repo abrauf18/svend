@@ -6,7 +6,6 @@ import { Calendar, Upload, X } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
 import { Button } from '@kit/ui/button';
 import { Calendar as CalendarComponent } from '@kit/ui/calendar';
-import { Checkbox } from '@kit/ui/checkbox';
 import { GlobalLoader } from '@kit/ui/global-loader';
 import { Input } from '@kit/ui/input';
 import { Textarea } from '@kit/ui/textarea';
@@ -14,7 +13,8 @@ import { Label } from '@kit/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@kit/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@kit/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@kit/ui/sheet';
-import { Category, CategoryGroup, FinAccountTransaction, FinAccountTransactionBudgetTag } from '~/lib/model/fin.types';
+import { Category, CategoryGroup } from '~/lib/model/fin.types';
+import { BudgetFinAccountTransaction, BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
 import { CategorySelect } from './category-select';
 import { TransactionTagSelect } from './transaction-tag-select';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
@@ -36,7 +36,7 @@ interface DisabledFields {
 interface TransactionPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedTransaction: FinAccountTransaction;
+  selectedTransaction: BudgetFinAccountTransaction;
   isReadOnly?: boolean;
   disabledFields?: DisabledFields;
 }
@@ -75,12 +75,12 @@ export function TransactionPanel(props: TransactionPanelProps) {
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: {
-      date: parseDate(props.selectedTransaction.date),
-      categoryId: props.selectedTransaction.svendCategoryId ?? '',
-      merchantName: props.selectedTransaction.merchantName ?? '',
-      amount: props.selectedTransaction.amount.toFixed(2),
-      notes: props.selectedTransaction.notes ?? '',
+      date: parseDate(props.selectedTransaction.transaction.date),
+      amount: props.selectedTransaction.transaction.amount.toFixed(2),
       budgetFinAccountId: props.selectedTransaction.budgetFinAccountId ?? '',
+      categoryId: props.selectedTransaction.categoryId ?? '',
+      merchantName: props.selectedTransaction.merchantName ?? '',
+      notes: props.selectedTransaction.notes ?? '',
       tags: props.selectedTransaction.budgetTags ?? [],
       attachments: props.selectedTransaction.budgetAttachmentsStorageNames ?? [],
     }
@@ -124,16 +124,16 @@ export function TransactionPanel(props: TransactionPanelProps) {
         budgetFinAccountId: data.budgetFinAccountId,
         budgetTags: data.tags,
         budgetAttachmentsStorageNames: finalAttachments,
-      } as FinAccountTransaction;
+      } as BudgetFinAccountTransaction;
 
-      const response = await fetch(`/api/budgets/${workspace.budget.id}/transactions/${updatedTransaction.id}`, {
+      const response = await fetch(`/api/budgets/${workspace.budget.id}/transactions/${updatedTransaction.transaction.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          transaction_id: updatedTransaction?.id,
-          category_id: updatedTransaction?.svendCategoryId,
+          transaction_id: updatedTransaction?.transaction.id,
+          category_id: updatedTransaction?.categoryId,
           merchant_name: updatedTransaction?.merchantName,
           notes: updatedTransaction?.notes,
           tags: updatedTransaction?.budgetTags,
@@ -169,11 +169,11 @@ export function TransactionPanel(props: TransactionPanelProps) {
     // Find and set the initial category
     const matchingCategoryGroup = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
       group.categories?.some(
-        (category) => category?.name === props.selectedTransaction?.svendCategory,
+        (category) => category?.name === props.selectedTransaction?.category,
       ),
     );
     const matchingCategory = matchingCategoryGroup?.categories?.find(
-      (category) => category.name === props.selectedTransaction?.svendCategory,
+      (category) => category.name === props.selectedTransaction?.category,
     );
     if (matchingCategory) {
       setSelectedCategory({
@@ -260,7 +260,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
 
         const file = attachment;
         const sanitizedFileName = sanitizeFileName(file.name);
-        const filePath = `budget/${workspace?.budget?.id}/transaction/${props.selectedTransaction!.id}/${sanitizedFileName}`;
+        const filePath = `budget/${workspace?.budget?.id}/transaction/${props.selectedTransaction.transaction.id}/${sanitizedFileName}`;
 
         const { error } = await supabase.storage
           .from('budget_transaction_attachments')
@@ -474,8 +474,8 @@ const getUniqueFileName = (
               <Label htmlFor="amount">Amount<span className="text-destructive">*</span></Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  {props.selectedTransaction.isoCurrencyCode
-                    ? getCurrencySymbol(props.selectedTransaction.isoCurrencyCode)
+                  {props.selectedTransaction.transaction.isoCurrencyCode
+                    ? getCurrencySymbol(props.selectedTransaction.transaction.isoCurrencyCode)
                     : '$'}
                 </span>
                 <Input
@@ -553,8 +553,8 @@ const getUniqueFileName = (
             <div className="space-y-2">
               <Label htmlFor="tags">Tags</Label>
               <TransactionTagSelect
-                transactionId={props.selectedTransaction.id}
-                onTagsChange={(newTags: FinAccountTransactionBudgetTag[]) => {
+                transactionId={props.selectedTransaction.transaction.id}
+                onTagsChange={(newTags: BudgetFinAccountTransactionTag[]) => {
                   setValue('tags', newTags, {
                     shouldValidate: true,
                     shouldDirty: true,

@@ -30,13 +30,13 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 
-import { FinAccountTransaction } from '~/lib/model/fin.types';
+import { BudgetFinAccountTransaction } from '~/lib/model/budget.types';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { useDebounce } from '~/lib/hooks/use-debounce';
 import { TransactionSearchService } from '~/lib/services/transaction-search.service';
 
 interface TransactionTableProps {
-  onSelectTransaction: (row: FinAccountTransaction) => void;
+  onSelectTransaction: (row: BudgetFinAccountTransaction) => void;
   onOpenChange: (open: boolean) => void;
   selectedMonth: Date;
 }
@@ -44,7 +44,7 @@ interface TransactionTableProps {
 export function TransactionTable(props: TransactionTableProps) {
   const transactionSearchService = React.useMemo(() => new TransactionSearchService(), []);
 
-  const [transactions, setTransactions] = useState<FinAccountTransaction[]>([]);
+  const [transactions, setTransactions] = useState<BudgetFinAccountTransaction[]>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -56,14 +56,14 @@ export function TransactionTable(props: TransactionTableProps) {
   const { workspace } = useBudgetWorkspace();
 
   // Keep track of base transactions separately
-  const [baseTransactions, setBaseTransactions] = useState<FinAccountTransaction[]>([]);
+  const [baseTransactions, setBaseTransactions] = useState<BudgetFinAccountTransaction[]>([]);
   
   // Update base transactions when workspace or month changes
   useEffect(() => {
     if (!workspace?.budgetTransactions) return;
 
-    const filteredTransactions = workspace.budgetTransactions.filter((transaction) => {
-      const transactionDate = new Date(transaction.date);
+    const filteredTransactions = workspace.budgetTransactions.filter((budgetTransaction) => {
+      const transactionDate = new Date(budgetTransaction.transaction.date);
       return (
         transactionDate.getFullYear() === props.selectedMonth.getFullYear() &&
         transactionDate.getMonth() === props.selectedMonth.getMonth()
@@ -87,7 +87,7 @@ export function TransactionTable(props: TransactionTableProps) {
     }
 
     const scoredTransactions = baseTransactions.map(t => ({
-      transaction: t,
+      budgetTransaction: t,
       score: transactionSearchService.getSearchScore(t, searchTerms)
     }));
 
@@ -95,7 +95,7 @@ export function TransactionTable(props: TransactionTableProps) {
     const matchedIds = new Set(
       scoredTransactions
         .filter(st => st.score > 0)
-        .map(st => st.transaction.id)
+        .map(st => st.budgetTransaction.transaction.id)
     );
     setScoredTransactionIds(matchedIds);
 
@@ -103,7 +103,7 @@ export function TransactionTable(props: TransactionTableProps) {
     setTransactions(
       scoredTransactions
         .sort((a, b) => b.score - a.score)
-        .map(st => st.transaction)
+        .map(st => st.budgetTransaction)
     );
   }, [debouncedSearch, baseTransactions]);
 
@@ -120,7 +120,7 @@ export function TransactionTable(props: TransactionTableProps) {
     });
   };
 
-  const columns: ColumnDef<FinAccountTransaction>[] = [
+  const columns: ColumnDef<BudgetFinAccountTransaction>[] = [
     {
       id: 'select',
       header: ({ table }) => (
@@ -161,13 +161,13 @@ export function TransactionTable(props: TransactionTableProps) {
       header: 'Category',
       cell: ({ row }) => {
         // First try to use categoryId to get the current category
-        if (row.original.svendCategoryId) {
+        if (row.original.categoryId) {
           const allCategories = Object.values(workspace?.budgetCategories ?? {}).flatMap(
             (group) => group.categories
           );
-          const category = allCategories.find((cat) => cat.id === row.original.svendCategoryId);
+          const category = allCategories.find((cat) => cat.id === row.original.categoryId);
           const group = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
-            group.categories.some((cat) => cat.id === row.original.svendCategoryId)
+            group.categories.some((cat) => cat.id === row.original.categoryId)
           );
 
           if (category && group) {
@@ -182,7 +182,7 @@ export function TransactionTable(props: TransactionTableProps) {
         // Fallback to svend categories if no categoryId or category not found
         return (
           <div className="w-[250px] truncate capitalize">
-            {`${row.original.svendCategoryGroup} > ${row.original.svendCategory}`}
+            {`${row.original.categoryGroup} > ${row.original.category}`}
           </div>
         );
       },
@@ -385,7 +385,7 @@ export function TransactionTable(props: TransactionTableProps) {
                     props.onOpenChange(true);
                   }}
                   className={`h-[52px] ${
-                    debouncedSearch.trim() && !scoredTransactionIds.has(row.original.id)
+                    debouncedSearch.trim() && !scoredTransactionIds.has(row.original.transaction.id)
                       ? 'opacity-50'
                       : ''
                   }`}

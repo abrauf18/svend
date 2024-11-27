@@ -301,8 +301,8 @@ create table if not exists public.budgets (
   team_account_id uuid references public.accounts(id) not null unique, -- team account id (not user id)
   constraint chk_team_account check (kit.check_team_account_by_id(team_account_id)),
   budget_type budget_type not null default 'personal',
-  category_spending jsonb not null default '{}',
-  recommended_category_spending jsonb not null default '{}',
+  spending_recommendations jsonb not null default '{}',
+  spending_tracking jsonb not null default '{}',
   is_active boolean not null default true,
   start_date date not null default current_date,
   end_date date,
@@ -338,8 +338,8 @@ RETURNS TABLE (
     id UUID,
     team_account_id UUID,
     budget_type TEXT,
-    category_spending JSONB,
-    recommended_category_spending JSONB,
+    spending_tracking JSONB,
+    spending_recommendations JSONB,
     is_active BOOLEAN,
     start_date DATE,
     end_date DATE,
@@ -355,8 +355,8 @@ BEGIN
         b.id,
         b.team_account_id,
         b.budget_type::TEXT,
-        b.category_spending,
-        b.recommended_category_spending,
+        b.spending_tracking,
+        b.spending_recommendations,
         b.is_active,
         b.start_date,
         b.end_date,
@@ -398,7 +398,8 @@ BEGIN
                         'amount', bg.amount,
                         'budgetFinAccountId', bg.fin_account_id,
                         'targetDate', bg.target_date,
-                        'tracking', bg.tracking,
+                        'spendingTracking', bg.spending_tracking,
+                        'spendingRecommendations', bg.spending_recommendations,
                         'debtInterestRate', bg.debt_interest_rate,
                         'debtPaymentComponent', bg.debt_payment_component,
                         'debtType', bg.debt_type,
@@ -425,6 +426,46 @@ GRANT EXECUTE ON FUNCTION get_budget_by_team_account_slug(TEXT) TO authenticated
 -- Get budget transactions by team account slug function
 -- ============================================================
 CREATE OR REPLACE FUNCTION get_budget_transactions_by_team_account_slug(p_team_account_slug TEXT)
+RETURNS TABLE (
+    id UUID,
+    date DATE,
+    amount NUMERIC,
+    iso_currency_code TEXT,
+    svend_category_group_id UUID,
+    svend_category_group TEXT,
+    svend_category_id UUID,
+    svend_category TEXT,
+    merchant_name TEXT,
+    payee TEXT,
+    notes TEXT,
+    budget_fin_account_id UUID,
+    tags jsonb,
+    attachments_storage_names text[]
+) AS $$
+DECLARE
+    v_budget_id UUID;
+BEGIN
+    -- Get the budget ID from the team account slug
+    SELECT b.id INTO v_budget_id
+    FROM budgets b
+    JOIN accounts a ON b.team_account_id = a.id
+    WHERE a.slug = p_team_account_slug
+    AND a.is_personal_account = false;
+
+    -- Return transactions using the other function
+    RETURN QUERY
+    SELECT * FROM get_budget_transactions_within_range_by_budget_id(v_budget_id, NULL, NULL);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Grant execute permission to the authenticated role
+GRANT EXECUTE ON FUNCTION get_budget_transactions_by_team_account_slug(TEXT) TO authenticated;
+
+
+-- ============================================================
+-- Get budget transactions within range by budget id function
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_budget_transactions_within_range_by_budget_id(p_budget_id UUID, p_start_date TEXT, p_end_date TEXT)
 RETURNS TABLE (
     id UUID,
     date DATE,
@@ -498,8 +539,9 @@ BEGIN
     JOIN 
         category_groups cg ON c.group_id = cg.id
     WHERE 
-        a.slug = p_team_account_slug AND 
-        a.is_personal_account = false
+        b.id = p_budget_id
+        AND (p_start_date IS NULL OR fat.date >= p_start_date::date)
+        AND (p_end_date IS NULL OR fat.date < p_end_date::date)
     GROUP BY
         b.id,
         fat.id,
@@ -522,7 +564,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Grant execute permission to the authenticated role
-GRANT EXECUTE ON FUNCTION get_budget_transactions_by_team_account_slug(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_budget_transactions_within_range_by_budget_id(UUID, TEXT, TEXT) TO authenticated;
 
 -- End of budget table
 
@@ -531,15 +573,39 @@ GRANT EXECUTE ON FUNCTION get_budget_transactions_by_team_account_slug(TEXT) TO 
 -- category_groups table
 -- ============================================================
 
+-- Create the table without the check constraint
 CREATE TABLE IF NOT EXISTS public.category_groups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
     description TEXT,
+    budget_id UUID REFERENCES public.budgets(id) ON DELETE CASCADE,
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    budget_id UUID REFERENCES public.budgets(id) ON DELETE CASCADE, -- if present, group is custom (not built-in) and belongs to a budget
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (budget_id, name)
 );
+
+-- Create a function to check for built-in name reuse
+CREATE OR REPLACE FUNCTION check_category_group_name_reuse()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM public.category_groups 
+        WHERE name = NEW.name 
+        AND budget_id IS NULL 
+        AND id != NEW.id
+    ) THEN
+        RAISE EXCEPTION 'Cannot reuse a built-in category group name';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create a trigger that uses the function
+CREATE TRIGGER enforce_no_builtin_name_reuse
+    BEFORE INSERT OR UPDATE ON public.category_groups
+    FOR EACH ROW
+    EXECUTE FUNCTION check_category_group_name_reuse();
 
 -- Enable row level security for categories
 ALTER TABLE public.category_groups ENABLE ROW LEVEL SECURITY;
@@ -572,13 +638,37 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.category_groups TO service_role;
 
 CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
     description TEXT,
-    group_id UUID NOT NULL REFERENCES public.category_groups(id) ON DELETE CASCADE, -- parent group
-    budget_id UUID REFERENCES public.budgets(id) ON DELETE CASCADE, -- if present, category is custom (not built-in) and belongs to a budget
+    group_id UUID NOT NULL REFERENCES public.category_groups(id) ON DELETE CASCADE,
+    budget_id UUID REFERENCES public.budgets(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (budget_id, name)  -- Prevents duplicate names within same budget or without budget
 );
+
+-- Create a function to check for built-in name reuse
+CREATE OR REPLACE FUNCTION check_category_name_reuse()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM public.categories 
+        WHERE name = NEW.name 
+        AND budget_id IS NULL 
+        AND id != NEW.id
+    ) THEN
+        RAISE EXCEPTION 'Cannot reuse a built-in category name';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create a trigger that uses the function
+CREATE TRIGGER enforce_no_builtin_name_reuse
+    BEFORE INSERT OR UPDATE ON public.categories
+    FOR EACH ROW
+    EXECUTE FUNCTION check_category_name_reuse();
+
 
 -- Create a function to enforce the constraint
 CREATE OR REPLACE FUNCTION check_category_budget_matches_group()
@@ -936,8 +1026,8 @@ CREATE TABLE if not exists budget_tags (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     budget_id UUID NOT NULL REFERENCES budgets(id),
     name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (name, budget_id)
+    UNIQUE (name, budget_id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 revoke all on budget_tags from public, service_role;
@@ -1240,7 +1330,8 @@ create table if not exists public.budget_goals (
   id uuid primary key default uuid_generate_v4(),
   budget_id uuid not null references public.budgets(id) on delete cascade,
   type budget_goal_type_enum not null,
-  tracking jsonb not null default '{}',
+  spending_tracking jsonb not null default '{}',
+  spending_recommendations jsonb not null default '{}',
 
   name text not null,
   amount numeric not null,
@@ -1523,4 +1614,3 @@ CREATE TRIGGER set_timestamp
 BEFORE INSERT OR UPDATE ON public.budget_goals
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
-

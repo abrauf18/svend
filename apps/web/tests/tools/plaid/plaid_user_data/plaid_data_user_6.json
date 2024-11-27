@@ -1,0 +1,591 @@
+{
+  "override_accounts": [
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "starting_balance": 2682.09,
+      "transactions": [
+        {
+          "date_transacted": "2024-11-16",
+          "date_posted": "2024-11-17",
+          "amount": 500.00,
+          "description": "Transfer to Savings",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-15",
+          "date_posted": "2024-11-16",
+          "amount": -3500.00,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-05",
+          "date_posted": "2024-11-06",
+          "amount": 2150.00,
+          "description": "Credit Card Payment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-02",
+          "date_posted": "2024-11-03",
+          "amount": 500.00,
+          "description": "Transfer to Savings",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": -3500.00,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-16",
+          "date_posted": "2024-10-17",
+          "amount": 500.00,
+          "description": "Transfer to Savings",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-15",
+          "date_posted": "2024-10-16",
+          "amount": -3500.00,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-05",
+          "date_posted": "2024-10-06",
+          "amount": 2150.00,
+          "description": "Credit Card Payment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-02",
+          "date_posted": "2024-10-03",
+          "amount": 500.00,
+          "description": "Transfer to Savings",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": -3500.00,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-16",
+          "date_posted": "2024-09-17",
+          "amount": 500.00,
+          "description": "Transfer to Savings",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-15",
+          "date_posted": "2024-09-16",
+          "amount": -3500.00,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": 2250.00,
+          "description": "Credit Card Payment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-02",
+          "date_posted": "2024-09-03",
+          "amount": 500.00,
+          "description": "Transfer to Savings",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": -3500.00,
+          "description": "Salary Deposit",
+          "currency": "USD"
+        }
+      ],
+      "identity": {
+        "names": [
+          "John Smith"
+        ],
+        "addresses": [
+          {
+            "primary": true,
+            "data": {
+              "country": "US",
+              "city": "New York",
+              "street": "10003 Broadway Road",
+              "postal_code": "10003",
+              "region": "NY"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "starting_balance": 2000.09,
+      "transactions": [
+        {
+          "date_transacted": "2024-11-16",
+          "date_posted": "2024-11-17",
+          "amount": -500.00,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-02",
+          "date_posted": "2024-11-03",
+          "amount": -500.00,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": -25.75,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-16",
+          "date_posted": "2024-10-17",
+          "amount": -500.00,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-02",
+          "date_posted": "2024-10-03",
+          "amount": -500.00,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": -24.50,
+          "description": "Interest Income",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-16",
+          "date_posted": "2024-09-17",
+          "amount": -500.00,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-02",
+          "date_posted": "2024-09-03",
+          "amount": -500.00,
+          "description": "Transfer from Checking",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": -23.25,
+          "description": "Interest Income",
+          "currency": "USD"
+        }
+      ],
+      "identity": {
+        "names": [
+          "John Smith"
+        ],
+        "addresses": [
+          {
+            "primary": true,
+            "data": {
+              "country": "US",
+              "city": "New York",
+              "street": "10003 Broadway Road",
+              "postal_code": "10003",
+              "region": "NY"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "credit",
+      "subtype": "credit card",
+      "starting_balance": 0,
+      "transactions": [
+        {
+          "date_transacted": "2024-11-25",
+          "date_posted": "2024-11-26",
+          "amount": 82.35,
+          "description": "WHOLE FOODS. Merchant name: Whole Foods Market",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-24",
+          "date_posted": "2024-11-25",
+          "amount": 42.50,
+          "description": "REGAL CINEMAS. Merchant name: Regal Entertainment Group",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-23",
+          "date_posted": "2024-11-24",
+          "amount": 35.99,
+          "description": "DOORDASH. Merchant name: DoorDash Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-22",
+          "date_posted": "2024-11-23",
+          "amount": 25.00,
+          "description": "UBER. Merchant name: Uber Technologies Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-20",
+          "date_posted": "2024-11-21",
+          "amount": 67.99,
+          "description": "TARGET.COM. Merchant name: Target Corporation",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-18",
+          "date_posted": "2024-11-19",
+          "amount": 129.99,
+          "description": "BEST BUY. Merchant name: Best Buy Co Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-15",
+          "date_posted": "2024-11-16",
+          "amount": 88.75,
+          "description": "TRADER JOES. Merchant name: Trader Joe's",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-12",
+          "date_posted": "2024-11-13",
+          "amount": 45.00,
+          "description": "AMC THEATRES. Merchant name: AMC Entertainment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-10",
+          "date_posted": "2024-11-11",
+          "amount": 28.50,
+          "description": "LYFT. Merchant name: Lyft Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-08",
+          "date_posted": "2024-11-09",
+          "amount": 156.43,
+          "description": "AMAZON.COM. Merchant name: Amazon.com Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-05",
+          "date_posted": "2024-11-06",
+          "amount": -2150.00,
+          "description": "Payment Received - Thank You",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-05",
+          "date_posted": "2024-11-06",
+          "amount": 85.42,
+          "description": "WHOLE FOODS. Merchant name: Whole Foods Market",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-03",
+          "date_posted": "2024-11-04",
+          "amount": 125.00,
+          "description": "Electricity Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-02",
+          "date_posted": "2024-11-03",
+          "amount": 89.99,
+          "description": "Internet Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": 1500.00,
+          "description": "Rent Payment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": 15.00,
+          "description": "CALENDLY. Merchant name: Calendly",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": 14.99,
+          "description": "NETFLIX. Merchant name: Netflix Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": 9.99,
+          "description": "SPOTIFY. Merchant name: Spotify USA Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-11-01",
+          "date_posted": "2024-11-02",
+          "amount": 45.00,
+          "description": "Amazon web services. Merchant name: Amazon Web Services",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-28",
+          "date_posted": "2024-10-29",
+          "amount": 32.50,
+          "description": "UBER EATS. Merchant name: Uber Technologies Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-25",
+          "date_posted": "2024-10-26",
+          "amount": 92.15,
+          "description": "WHOLE FOODS. Merchant name: Whole Foods Market",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-22",
+          "date_posted": "2024-10-23",
+          "amount": 89.99,
+          "description": "APPLE.COM. Merchant name: Apple Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-20",
+          "date_posted": "2024-10-21",
+          "amount": 45.00,
+          "description": "AMC THEATRES. Merchant name: AMC Entertainment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-15",
+          "date_posted": "2024-10-16",
+          "amount": 78.93,
+          "description": "TRADER JOES. Merchant name: Trader Joe's",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-12",
+          "date_posted": "2024-10-13",
+          "amount": 156.43,
+          "description": "AMAZON.COM. Merchant name: Amazon.com Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-10",
+          "date_posted": "2024-10-11",
+          "amount": 28.50,
+          "description": "LYFT. Merchant name: Lyft Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-08",
+          "date_posted": "2024-10-09",
+          "amount": 67.99,
+          "description": "TARGET.COM. Merchant name: Target Corporation",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-05",
+          "date_posted": "2024-10-06",
+          "amount": -2150.00,
+          "description": "Payment Received - Thank You",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-03",
+          "date_posted": "2024-10-04",
+          "amount": 125.00,
+          "description": "Electricity Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-02",
+          "date_posted": "2024-10-03",
+          "amount": 89.99,
+          "description": "Internet Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": 1500.00,
+          "description": "Rent Payment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": 15.00,
+          "description": "CALENDLY. Merchant name: Calendly",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": 14.99,
+          "description": "NETFLIX. Merchant name: Netflix Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": 9.99,
+          "description": "SPOTIFY. Merchant name: Spotify USA Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-10-01",
+          "date_posted": "2024-10-02",
+          "amount": 45.00,
+          "description": "Amazon web services. Merchant name: Amazon Web Services",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-28",
+          "date_posted": "2024-09-29",
+          "amount": 35.99,
+          "description": "DOORDASH. Merchant name: DoorDash Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-25",
+          "date_posted": "2024-09-26",
+          "amount": 88.24,
+          "description": "WHOLE FOODS. Merchant name: Whole Foods Market",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-22",
+          "date_posted": "2024-09-23",
+          "amount": 42.50,
+          "description": "REGAL CINEMAS. Merchant name: Regal Entertainment Group",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-20",
+          "date_posted": "2024-09-21",
+          "amount": 129.99,
+          "description": "BEST BUY. Merchant name: Best Buy Co Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-18",
+          "date_posted": "2024-09-19",
+          "amount": 25.00,
+          "description": "UBER. Merchant name: Uber Technologies Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-15",
+          "date_posted": "2024-09-16",
+          "amount": 82.31,
+          "description": "TRADER JOES. Merchant name: Trader Joe's",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-12",
+          "date_posted": "2024-09-13",
+          "amount": 156.43,
+          "description": "AMAZON.COM. Merchant name: Amazon.com Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-10",
+          "date_posted": "2024-09-11",
+          "amount": 28.50,
+          "description": "LYFT. Merchant name: Lyft Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-08",
+          "date_posted": "2024-09-09",
+          "amount": 89.99,
+          "description": "APPLE.COM. Merchant name: Apple Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-05",
+          "date_posted": "2024-09-06",
+          "amount": -2250.00,
+          "description": "Payment Received - Thank You",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-03",
+          "date_posted": "2024-09-04",
+          "amount": 125.00,
+          "description": "Electricity Bill",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-02",
+          "date_posted": "2024-09-03",
+          "amount": 89.99,
+          "description": "Internet Service",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": 1500.00,
+          "description": "Rent Payment",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": 15.00,
+          "description": "CALENDLY. Merchant name: Calendly",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": 14.99,
+          "description": "NETFLIX. Merchant name: Netflix Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": 9.99,
+          "description": "SPOTIFY. Merchant name: Spotify USA Inc",
+          "currency": "USD"
+        },
+        {
+          "date_transacted": "2024-09-01",
+          "date_posted": "2024-09-02",
+          "amount": 45.00,
+          "description": "Amazon web services. Merchant name: Amazon Web Services",
+          "currency": "USD"
+        }
+      ]
+    }
+  ]
+}

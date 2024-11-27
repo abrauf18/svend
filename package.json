@@ -35,7 +35,7 @@
     "env:generate": "turbo gen env",
     "env:validate": "turbo gen validate-env",
     "aws:sso": "aws sso login --sso-session=svend",
-    "aws:env:local": "node .aws/tools/env/pull.js svend-dev",
+    "aws:env:local": "pnpm --filter cdk aws:env:local",
     "vercel:env:local": "vercel env pull --yes --environment=development"
   },
   "prettier": "@kit/prettier-config",

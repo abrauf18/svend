@@ -1,50 +1,79 @@
 import 'server-only';
 
 import { SupabaseClient } from '@supabase/supabase-js';
-
-import { getLogger } from '@kit/shared/logger';
 import { Database } from '@kit/supabase/database';
-
-export function createAccountOnboardingService() {
-  return new AccountOnboardingService();
-}
+import { createBudgetService, IBudgetService, BudgetAnalysisResult, OnboardingRecommendSpendingAndGoalsResult } from './budget.service';
+import { Configuration } from 'plaid';
 
 /**
- * @name AccountOnboardingService
+ * @name OnboardingService
  * @description Service for common account onboarding operations
- * @param Database - The Supabase database type to use
- * @example
- * const client = getSupabaseClient();
- * const accountsService = new DeletePersonalAccountService();
+ * @param supabase - The Supabase client instance
  */
-class AccountOnboardingService {
+class OnboardingService {
+  private supabase: SupabaseClient<Database>;
+  private plaidConfiguration?: Configuration;
+
+  private budgetService: IBudgetService;
   private namespace = 'accounts.onboarding';
 
+  constructor(supabase: SupabaseClient<Database>, plaidConfiguration?: Configuration) {
+    this.supabase = supabase;
+    this.budgetService = createBudgetService(supabase);
+    this.plaidConfiguration = plaidConfiguration;
+  }
+
   /**
-   * @name updateContextKey
-   * Update the context key for a user during onboarding.
-   * This method validates the context key and updates it in the database.
+   * @name getAccountState
+   * Fetch the onboarding state for a user account.
    */
+  async getAccountState(userId: string): Promise<ServiceResult<AccountState>> {
+    const { data: dbOnboardingData, error: fetchOnboardingError } = await this.supabase
+      .from('onboarding')
+      .select('state->account')
+      .eq('account_id', userId)
+      .single();
+
+    if (fetchOnboardingError) {
+      return {
+        data: null,
+        error: `Error fetching onboarding state: ${fetchOnboardingError.message}`
+      };
+    }
+
+    return {
+      data: {
+        budgetId: (dbOnboardingData.account as any).budgetId,
+        contextKey: (dbOnboardingData.account as any).contextKey
+      },
+      error: null
+    };
+  }
+
+  /**
+ * @name updateContextKey
+ * Update the context key for a user during onboarding.
+ * This method validates the context key and updates it in the database.
+ */
   async updateContextKey(params: {
-    supabase: SupabaseClient<Database>;
     userId: string;
     contextKey: string;
     validContextKeys: string[];
-  }): Promise<string | null> {
-    const logger = await getLogger();
+  }): Promise<ServiceResult<null>> {
+    const { userId, contextKey, validContextKeys } = params;
 
-    const { supabase, userId, contextKey, validContextKeys } = params;
-
-    // Fetch the current onboardingstate
-    const { data: dbOnboardingData, error: fetchOnboardingError } = await supabase
+    // Fetch the current onboarding state
+    const { data: dbOnboardingData, error: fetchOnboardingError } = await this.supabase
       .from('onboarding')
       .select('state')
       .eq('account_id', userId)
       .single();
 
     if (fetchOnboardingError) {
-      console.error('Error fetching onboarding state:', fetchOnboardingError);
-      throw fetchOnboardingError;
+      return {
+        data: null,
+        error: `Error fetching onboarding state: ${fetchOnboardingError.message}`
+      };
     }
 
     let dbUpdatedOnboardingState = dbOnboardingData.state as any;
@@ -53,47 +82,44 @@ class AccountOnboardingService {
     const currentIndex = validContextKeys.indexOf(dbUpdatedOnboardingState.account.contextKey);
     if (currentIndex === -1) {
       if (!['start', 'plaid'].includes(dbUpdatedOnboardingState.account.contextKey)) {
-        throw new Error('Invalid contextKey value found in onboarding state');
+        return {
+          data: null,
+          error: 'Invalid contextKey value found in onboarding state'
+        };
       } else if (dbUpdatedOnboardingState.account.contextKey === 'start' || contextKey !== 'profile_goals') {
-        return `Invalid contextKey transition: ${dbUpdatedOnboardingState.account.contextKey} -> ${contextKey}`;
+        return {
+          data: null,
+          error: `Invalid contextKey transition: ${dbUpdatedOnboardingState.account.contextKey} -> ${contextKey}`
+        };
       }
     } else {
       if (contextKey !== validContextKeys[currentIndex - 1] && contextKey !== validContextKeys[currentIndex + 1]) {
-        return `Invalid contextKey transition: ${dbUpdatedOnboardingState.account.contextKey} -> ${contextKey}`;
+        return {
+          data: null,
+          error: `Invalid contextKey transition: ${dbUpdatedOnboardingState.account.contextKey} -> ${contextKey}`
+        };
       }
     }
 
     // validate data state for contextKey transition
     const budgetId = dbUpdatedOnboardingState.account.budgetId;
 
-    // 'plaid' -> 'profile_goals'
-    // validate plaid - at least one budget_fin_accounts row is present
+    // Validate transitions based on contextKey
     if (contextKey === 'profile_goals') {
       if (!budgetId) {
-        console.error('BudgetId not found in onboarding state');
-        throw new Error('BudgetId not found in onboarding state');
+        return { data: null, error: 'BudgetId not found in onboarding state' };
       }
 
-      const { data: plaidAccounts, error: plaidAccountsError } = await supabase
-        .from('budget_fin_accounts')
-        .select('*')
-        .eq('budget_id', budgetId)
-        .limit(1);
-
+      const { error: plaidAccountsError } = await this.budgetService.hasLinkedFinAccounts(budgetId);
       if (plaidAccountsError) {
-        console.error('Error fetching plaid accounts:', plaidAccountsError);
-        throw plaidAccountsError;
-      }
-
-      if (!plaidAccounts || plaidAccounts.length === 0) {
-        return 'No Plaid accounts found for budget';
+        return { data: null, error: plaidAccountsError };
       }
     }
 
     // 'profile_goals' -> 'analyze_spending'
     // validate profile and goals - acct_fin_profile must be filled out with required fields
     if (contextKey === 'analyze_spending') {
-      const { data: acctFinProfile, error: acctFinProfileError } = await supabase
+      const { data: acctFinProfile, error: acctFinProfileError } = await this.supabase
         .from('acct_fin_profile')
         .select('*')
         .eq('account_id', userId)
@@ -105,46 +131,18 @@ class AccountOnboardingService {
       }
 
       if (!acctFinProfile || !acctFinProfile.full_name || !acctFinProfile.age || !acctFinProfile.marital_status || acctFinProfile.dependents === null || !acctFinProfile.income_level || !acctFinProfile.savings) {
-        return 'Incomplete account financial profile';
+        return { data: null, error: 'Incomplete account financial profile' };
       }
-
-      // const { data: budgetGoals, error: budgetGoalsError } = await supabase
-      //   .from('budget_goals')
-      //   .select('*')
-      //   .eq('budget_id', budgetId)
-      //   .single();
-
-      // if (budgetGoalsError) {
-      //   console.error('Error fetching budget goals:', budgetGoalsError);
-      //   throw budgetGoalsError;
-      // }
-
-      // if (!budgetGoals || !budgetGoals.primary_goal || !budgetGoals.goal_timeline || !budgetGoals.monthly_contribution) {
-      //   console.error('Incomplete budget goals');
-      //   return false;
-      // }
     }
 
     // 'analyze_spending' -> 'analyze_spending_in_progress'
     // No additional validation needed
 
     // 'analyze_spending_in_progress' -> 'budget_setup'
-    // validate category spending - budgets.category_spending must be present and valid
     if (contextKey === 'budget_setup') {
-      const { data: budget, error: budgetError } = await supabase
-        .from('budgets')
-        .select('category_spending')
-        .eq('id', budgetId)
-        .single();
-
+      const { error: budgetError } = await this.budgetService.validateBudgetReadyForOnboardingUserSetup(budgetId);
       if (budgetError) {
-        console.error('Error fetching budget:', budgetError);
-        throw budgetError;
-      }
-
-      // TODO: improve JSON validation
-      if (!budget || !budget.category_spending) {
-        return 'Category spending not set for budget';
+        return { data: null, error: budgetError };
       }
     }
 
@@ -154,16 +152,183 @@ class AccountOnboardingService {
     dbUpdatedOnboardingState.account.contextKey = contextKey;
 
     // Update the state in the database
-    const { error: onboardingUpdateError } = await supabase
+    const { error: onboardingUpdateError } = await this.supabase
       .from('onboarding')
       .update({ state: dbUpdatedOnboardingState })
       .eq('account_id', userId);
 
     if (onboardingUpdateError) {
-      console.error('Error updating onboarding state:', onboardingUpdateError);
-      throw onboardingUpdateError;
+      return {
+        data: null,
+        error: `Error updating onboarding state: ${onboardingUpdateError.message}`
+      };
     }
 
-    return null; // Success case
+    return { data: null, error: null };
+  }
+
+  async budgetAnalysis(userId: string): Promise<ServiceResult<OnboardingRecommendSpendingAndGoalsResult>> {
+    try {
+      // Validate onboarding state - pass through the exact error
+      const { data: state, error: stateError } = await this.budgetAnalysisGetValidState(userId);
+      if (stateError || !state) {
+        return {
+          data: null,
+          error: stateError || 'SERVER_ERROR:[budgetAnalysis] Failed to validate budget analysis state'
+        };
+      }
+
+      // Start analysis by updating context
+      const startResult = await this.updateContextKey({
+        userId,
+        contextKey: 'analyze_spending_in_progress',
+        validContextKeys: ['profile_goals', 'analyze_spending', 'analyze_spending_in_progress', 'budget_setup', 'end']
+      });
+
+      if (startResult.error) {
+        await this.budgetAnalysisRollbackState(userId);
+        return {
+          data: null,
+          error: `SERVER_ERROR:[budgetAnalysis.updateContextKey] ${startResult.error}`
+        };
+      }
+
+      const budgetService = createBudgetService(this.supabase);
+
+      try {
+        // Fetch Plaid items
+        const { data: itemSummaries, error: itemsError } =
+          await budgetService.getPlaidConnectionItemSummaries(state.budgetId);
+
+        if (itemsError || !itemSummaries) {
+          throw new Error(itemsError || 'Failed to fetch Plaid connection items');
+        }
+
+        // Perform analysis
+        const { data: analysisResult, error: analysisError } =
+          await budgetService.onboardingAnalysis(state.budgetId, itemSummaries, this.plaidConfiguration!);
+
+        if (analysisError || !analysisResult?.spendingRecommendations || !analysisResult?.spendingTrackings) {
+          throw new Error(analysisError || 'No recommendations or tracking data generated');
+        }
+
+        if (!Object.keys(analysisResult.spendingRecommendations.balanced).length) {
+          throw new Error('No balanced spending recommendations generated');
+        } else if (!Object.keys(analysisResult.spendingRecommendations.conservative).length) {
+          throw new Error('No conservative spending recommendations generated');
+        } else if (!Object.keys(analysisResult.spendingRecommendations.relaxed).length) {
+          throw new Error('No relaxed spending recommendations generated');
+        }
+
+        // Update recommendations and tracking
+        const { error: updateError } = await budgetService.updateSpending(
+          state.budgetId,
+          analysisResult.spendingRecommendations,
+          analysisResult.spendingTrackings
+        );
+
+        if (updateError) {
+          throw new Error(updateError);
+        }
+
+        const { error: updateGoalTrackingsError } = await budgetService.updateGoalSpending(state.budgetId, analysisResult.goalSpendingRecommendations!, analysisResult.goalSpendingTrackings!);
+        if (updateGoalTrackingsError) {
+          throw new Error(updateGoalTrackingsError);
+        }
+
+        // Only advance to budget_setup if everything succeeded
+        const completeResult = await this.updateContextKey({
+          userId,
+          contextKey: 'budget_setup',
+          validContextKeys: ['profile_goals', 'analyze_spending', 'analyze_spending_in_progress', 'budget_setup', 'end']
+        });
+
+        if (completeResult.error) {
+          throw new Error(completeResult.error);
+        }
+
+        return { data: analysisResult, error: null };
+
+      } catch (error: any) {
+        // Ensure rollback happens for any error in the analysis process
+        await this.budgetAnalysisRollbackState(userId);
+        return {
+          data: null,
+          error: `SERVER_ERROR:[budgetAnalysis] ${error.message}`
+        };
+      }
+
+    } catch (error: any) {
+      console.error('[budgetAnalysis] Unexpected error:', error);
+      await this.budgetAnalysisRollbackState(userId);
+      return {
+        data: null,
+        error: `SERVER_ERROR:[budgetAnalysis] Unexpected error: ${error.message}`
+      };
+    }
+  }
+
+  async budgetAnalysisGetValidState(userId: string): Promise<ServiceResult<AccountState>> {
+    const { data: state, error: stateError } = await this.getAccountState(userId);
+
+    if (stateError || !state?.budgetId) {
+      return {
+        data: null,
+        error: `SERVER_ERROR:${stateError || 'Failed to get account state'}`
+      };
+    }
+
+    switch (state.contextKey) {
+      case 'analyze_spending_in_progress':
+        return {
+          data: null,
+          error: 'Already analyzing spending'
+        };
+      case 'analyze_spending':
+        break; // Valid state, do nothing
+      default:
+        return {
+          data: null,
+          error: `CLIENT_ERROR:Invalid state: ${state.contextKey}`
+        };
+    }
+
+    return { data: state, error: null };
+  }
+
+  private async budgetAnalysisRollbackState(userId: string): Promise<void> {
+    try {
+      const result = await this.updateContextKey({
+        userId,
+        contextKey: 'analyze_spending',
+        validContextKeys: ['profile_goals', 'analyze_spending', 'analyze_spending_in_progress', 'budget_setup', 'end']
+      });
+
+      if (result.error) {
+        console.error('Failed to rollback context key:', result.error);
+      }
+    } catch (error) {
+      console.error('Unexpected error during rollback:', error);
+    }
   }
 }
+
+/**
+ * Creates an instance of the OnboardingService.
+ * @param supabaseClient - The Supabase client instance
+ * @returns An instance of OnboardingService.
+ */
+export function createOnboardingService(supabaseClient: SupabaseClient, plaidConfiguration?: Configuration) {
+  return new OnboardingService(supabaseClient, plaidConfiguration);
+}
+
+
+export type AccountState = {
+  budgetId: string;
+  contextKey: string;
+};
+
+export type ServiceResult<T> = {
+  data: T | null;
+  error: string | null;
+};

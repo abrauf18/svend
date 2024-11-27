@@ -9,7 +9,12 @@ import { ItemDeleteDialog } from './plaid-item-delete-dialog';
 import { Switch } from '@kit/ui/switch';
 import { PlaidConnectionItemsSkeleton } from './plaid-connection-items-skeleton';
 
-export function PlaidConnectionItems({ loading = false }) {
+interface PlaidConnectionItemsProps {
+    loading?: boolean;
+    setLoading: (loading: boolean) => void;
+}
+
+export function PlaidConnectionItems({ loading = false, setLoading }: PlaidConnectionItemsProps) {
 
     const { state, accountPlaidConnItemRemoveOne, accountPlaidItemAccountUnlinkOne, accountPlaidItemAccountLinkOne } = useOnboardingContext();
 
@@ -23,15 +28,17 @@ export function PlaidConnectionItems({ loading = false }) {
     }, [loading]);
 
     const closeItemDeleteDialog = (svendItemId: string) => {
-        return (role: string) => {
+        return async (role: string) => {
             switch (role) {
                 case 'confirm':
                     console.log('Confirmed deletion for item:', svendItemId);
-                    apiCallDeletePlaidConnectionItem(svendItemId)
-                        .then(() => {
-                            // update local state
-                            accountPlaidConnItemRemoveOne(svendItemId);
-                        });
+                    setLoading(true);
+                    try {
+                        await apiCallDeletePlaidConnectionItem(svendItemId);
+                        accountPlaidConnItemRemoveOne(svendItemId);
+                    } finally {
+                        setLoading(false);
+                    }
                     break;
                 case 'cancel':
                     console.log('Cancelled deletion for item:', svendItemId);

@@ -347,8 +347,9 @@ export type Database = {
           fin_account_id: string
           id: string
           name: string
+          spending_recommendations: Json
+          spending_tracking: Json
           target_date: string
-          tracking: Json
           type: Database["public"]["Enums"]["budget_goal_type_enum"]
           updated_at: string
         }
@@ -365,8 +366,9 @@ export type Database = {
           fin_account_id: string
           id?: string
           name: string
+          spending_recommendations?: Json
+          spending_tracking?: Json
           target_date: string
-          tracking?: Json
           type: Database["public"]["Enums"]["budget_goal_type_enum"]
           updated_at?: string
         }
@@ -383,8 +385,9 @@ export type Database = {
           fin_account_id?: string
           id?: string
           name?: string
+          spending_recommendations?: Json
+          spending_tracking?: Json
           target_date?: string
-          tracking?: Json
           type?: Database["public"]["Enums"]["budget_goal_type_enum"]
           updated_at?: string
         }
@@ -437,39 +440,39 @@ export type Database = {
       budgets: {
         Row: {
           budget_type: Database["public"]["Enums"]["budget_type"]
-          category_spending: Json
           created_at: string | null
           current_onboarding_step: Database["public"]["Enums"]["budget_onboarding_step_enum"]
           end_date: string | null
           id: string
           is_active: boolean
-          recommended_category_spending: Json
+          spending_recommendations: Json
+          spending_tracking: Json
           start_date: string
           team_account_id: string
           updated_at: string | null
         }
         Insert: {
           budget_type?: Database["public"]["Enums"]["budget_type"]
-          category_spending?: Json
           created_at?: string | null
           current_onboarding_step?: Database["public"]["Enums"]["budget_onboarding_step_enum"]
           end_date?: string | null
           id?: string
           is_active?: boolean
-          recommended_category_spending?: Json
+          spending_recommendations?: Json
+          spending_tracking?: Json
           start_date?: string
           team_account_id: string
           updated_at?: string | null
         }
         Update: {
           budget_type?: Database["public"]["Enums"]["budget_type"]
-          category_spending?: Json
           created_at?: string | null
           current_onboarding_step?: Database["public"]["Enums"]["budget_onboarding_step_enum"]
           end_date?: string | null
           id?: string
           is_active?: boolean
-          recommended_category_spending?: Json
+          spending_recommendations?: Json
+          spending_tracking?: Json
           start_date?: string
           team_account_id?: string
           updated_at?: string | null
@@ -1679,8 +1682,8 @@ export type Database = {
           id: string
           team_account_id: string
           budget_type: string
-          category_spending: Json
-          recommended_category_spending: Json
+          spending_tracking: Json
+          spending_recommendations: Json
           is_active: boolean
           start_date: string
           end_date: string
@@ -1725,6 +1728,29 @@ export type Database = {
       get_budget_transactions_by_team_account_slug: {
         Args: {
           p_team_account_slug: string
+        }
+        Returns: {
+          id: string
+          date: string
+          amount: number
+          iso_currency_code: string
+          svend_category_group_id: string
+          svend_category_group: string
+          svend_category_id: string
+          svend_category: string
+          merchant_name: string
+          payee: string
+          notes: string
+          budget_fin_account_id: string
+          tags: Json
+          attachments_storage_names: string[]
+        }[]
+      }
+      get_budget_transactions_within_range_by_budget_id: {
+        Args: {
+          p_budget_id: string
+          p_start_date: string
+          p_end_date: string
         }
         Returns: {
           id: string

@@ -3,9 +3,8 @@ import { Card, CardHeader, CardContent } from '@kit/ui/card';
 import { Progress } from '@kit/ui/progress';
 import { Trans } from '@kit/ui/trans';
 import { useOnboardingContext } from '@kit/accounts/components';
-import { OnboardingState } from '~/lib/model/onboarding.types';
 import { Budget } from '~/lib/model/budget.types';
-import { BudgetRecommendation } from '~/lib/server/budget.service';
+import { OnboardingRecommendSpendingAndGoalsResult } from '~/lib/server/budget.service';
 
 export default function OnboardingStep2AnalyzingData() {
   const { state, accountBudgetUpdate, accountNextStep } = useOnboardingContext();
@@ -32,10 +31,14 @@ export default function OnboardingStep2AnalyzingData() {
   }, [isMounted]);
 
   useEffect(() => {
-    if (Object.keys(state.account.budget.categoryGroupSpending).length > 0) {
+    if (
+      state.account.budget.spendingTracking &&
+      Object.keys(state.account.budget.spendingTracking).length > 0 &&
+      state.account.contextKey === 'analyze_spending'
+    ) {
       accountNextStep();
     }
-  }, [state]);
+  }, [state.account.budget.spendingTracking]);
 
   const analyzeSpending = async () => {
     const response = await fetch('/api/onboarding/account/budget/analysis', {
@@ -56,18 +59,25 @@ export default function OnboardingStep2AnalyzingData() {
   
     // update local state
     const { analysisResult } = await response.json();
+    if (!analysisResult) {
+      throw new Error('No analysis result received from analysis');
+    }
+
+    const { spendingRecommendations, spendingTrackings, goalSpendingRecommendations, goalSpendingTrackings } = analysisResult as OnboardingRecommendSpendingAndGoalsResult;
+
     const handleBudgetUpdate = () => {
       const newBudget: Budget = {
-        id: state.account.budget.id,
-        budgetType: state.account.budget.budgetType,
-        categoryGroupSpending: analysisResult.balanced.spending,
-        recommendedCategoryGroupSpending: {
-          balanced: analysisResult.balanced.spending,
-          conservative: analysisResult.conservative.spending,
-          relaxed: analysisResult.relaxed.spending
+        ...state.account.budget,
+        spendingTracking: spendingTrackings,
+        spendingRecommendations: {
+          balanced: spendingRecommendations!.balanced,
+          conservative: spendingRecommendations!.conservative,
+          relaxed: spendingRecommendations!.relaxed
         },
+        goalSpendingRecommendations: goalSpendingRecommendations,
+        goalSpendingTrackings: goalSpendingTrackings,
         goals: state.account.budget.goals,
-        onboardingStep: 'analyze_spending_in_progress',
+        onboardingStep: 'budget_setup',
         linkedFinAccounts: state.account.budget.linkedFinAccounts
       } as Budget;
   
