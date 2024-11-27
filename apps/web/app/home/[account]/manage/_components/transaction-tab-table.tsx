@@ -152,7 +152,7 @@ export function TransactionTable(props: TransactionTableProps) {
       accessorKey: 'date',
       header: 'Date',
       cell: ({ row }) => {
-        const formattedDate = formatDate(row.getValue('date') as string);
+        const formattedDate = formatDate(row.original.transaction.date as string);
         return <div className="w-[120px]">{formattedDate}</div>;
       },
     },
@@ -200,7 +200,7 @@ export function TransactionTable(props: TransactionTableProps) {
       accessorKey: 'amount',
       header: () => <div className="w-[120px] pr-2 text-right">Amount</div>,
       cell: ({ row }) => {
-        const amount = parseFloat(row.getValue('amount'));
+        const amount = row.original.transaction.amount;
         const formatted = new Intl.NumberFormat('en-US', {
           style: 'currency',
           currency: 'USD',
