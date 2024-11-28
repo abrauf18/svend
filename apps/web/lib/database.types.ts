@@ -1573,6 +1573,22 @@ export type Database = {
         }
         Returns: boolean
       }
+      create_budget_category_group: {
+        Args: {
+          p_budget_id: string
+          p_name: string
+          p_description?: string
+        }
+        Returns: {
+          id: string
+          name: string
+          description: string
+          budget_id: string
+          is_enabled: boolean
+          created_at: string
+          updated_at: string
+        }[]
+      }
       create_budget_fin_account_transaction: {
         Args: {
           p_budget_id: string
@@ -1699,19 +1715,18 @@ export type Database = {
           p_budget_id: string
         }
         Returns: {
-          category_id: string
-          category_name: string
-          category_description: string
-          category_budget_id: string
-          category_created_at: string
-          category_updated_at: string
+          budget_id: string
           group_id: string
           group_name: string
           group_description: string
-          group_budget_id: string
           group_is_enabled: boolean
           group_created_at: string
           group_updated_at: string
+          category_id: string
+          category_name: string
+          category_description: string
+          category_created_at: string
+          category_updated_at: string
         }[]
       }
       get_budget_tags_by_team_account_slug: {

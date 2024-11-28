@@ -63,11 +63,15 @@ export function TransactionTable(props: TransactionTableProps) {
     if (!workspace?.budgetTransactions) return;
 
     const filteredTransactions = workspace.budgetTransactions.filter((budgetTransaction) => {
-      const transactionDate = new Date(budgetTransaction.transaction.date);
-      return (
-        transactionDate.getFullYear() === props.selectedMonth.getFullYear() &&
-        transactionDate.getMonth() === props.selectedMonth.getMonth()
-      );
+      // Parse date parts to create date in local timezone
+      const [year, month, day] = budgetTransaction.transaction.date.split('-').map(Number);
+      const transactionDate = new Date(year!, month! - 1, day); // month is 0-based in JS Date
+      
+      const selectedMonth = props.selectedMonth.getMonth();
+      const selectedYear = props.selectedMonth.getFullYear();
+      
+      return transactionDate.getMonth() === selectedMonth && 
+             transactionDate.getFullYear() === selectedYear;
     });
 
     setBaseTransactions(filteredTransactions);

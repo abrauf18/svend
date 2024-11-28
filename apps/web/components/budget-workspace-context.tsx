@@ -10,7 +10,7 @@ import {
 
 import { User } from '@supabase/supabase-js';
 import { Database } from '~/lib/database.types';
-import { Budget, BudgetCategoryGroups, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
+import { Budget, BudgetCategoryGroups, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag, BudgetSpendingTrackingsByMonth } from '~/lib/model/budget.types';
 import { Category, CategoryGroup } from '~/lib/model/fin.types';
 
 interface BudgetWorkspace {
@@ -39,6 +39,7 @@ interface BudgetWorkspaceContextValue {
     categoryId: string,
     description: string,
   ) => void;
+  updateBudgetSpending: (spendingTracking: BudgetSpendingTrackingsByMonth) => void;
 }
 
 export const BudgetWorkspaceContext =
@@ -158,6 +159,16 @@ export function BudgetWorkspaceContextProvider(
     }));
   };
   
+  const updateBudgetSpending = useCallback((spendingTracking: BudgetSpendingTrackingsByMonth) => {
+    setWorkspace((prev) => ({
+      ...prev,
+      budget: {
+        ...prev.budget,
+        spendingTracking,
+      },
+    }));
+  }, []);
+
   useEffect(() => {
     console.log('Budget workspace updated:', workspace);
   }, [workspace]);
@@ -172,7 +183,8 @@ export function BudgetWorkspaceContextProvider(
         updateCategoryGroupDescription,
         updateCategoryDescription,
         updateTransaction,
-        addBudgetTag
+        addBudgetTag,
+        updateBudgetSpending,
       }}
     >
       {props.children}

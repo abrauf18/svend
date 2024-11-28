@@ -1,77 +1,178 @@
 import React from 'react';
+import { Progress } from '@kit/ui/progress';
+import { cn } from '@kit/ui/utils';
+import { useBudgetWorkspace } from '~/components/budget-workspace-context';
+import { BudgetSpendingCategoryGroupTracking } from '~/lib/model/budget.types';
+import { BarChart3, Infinity } from 'lucide-react';
 
-function TransactionOverview() {
+// Reuse the same helper functions from budget-manage-table
+const calculateProgressBar = (actual: number, target: number): number => {
+  if (actual === 0) return 0;
+  if (target === 0) return 100;
+  return Math.min((Math.abs(actual) / Math.abs(target)) * 100, 100);
+};
+
+const calculateProgressPercentage = (actual: number, target: number): number => {
+  if (target === 0) return 100;
+  return (Math.abs(actual) / Math.abs(target)) * 100;
+};
+
+const calculateMonthlyPace = (selectedDate: Date): number => {
+  const today = new Date();
+  const isCurrentMonth = selectedDate.getMonth() === today.getMonth() 
+    && selectedDate.getFullYear() === today.getFullYear();
+
+  if (isCurrentMonth) {
+    return (today.getDate() / new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()) * 100;
+  }
+  return 100;
+};
+
+const getProgressBarColors = (actual: number, target: number, monthlyPace: number) => {
+  if (actual === 0) {
+    if (target > 0) return "bg-gradient-to-r from-green-100 to-green-500 [&>div]:bg-primary";
+    if (target < 0) return "bg-gradient-to-r from-red-100 to-red-500 [&>div]:bg-primary";
+  }
+
+  const progressPercentage = calculateProgressPercentage(actual, target);
+  if (progressPercentage > monthlyPace + 10) return "[&>div]:bg-red-500";
+  if (progressPercentage < monthlyPace - 10) return "[&>div]:bg-green-500";
+  return "[&>div]:bg-primary";
+};
+
+const getEffectiveSpending = (group: BudgetSpendingCategoryGroupTracking): { actual: number; target: number } => {
+  if (group.targetSource === 'category') {
+    return {
+      actual: group.categories.reduce((sum, cat) => sum + cat.spendingActual, 0),
+      target: group.categories.reduce((sum, cat) => sum + cat.spendingTarget, 0)
+    };
+  }
+  return {
+    actual: group.spendingActual,
+    target: group.spendingTarget
+  };
+};
+
+// Add selectedDate to props
+interface TransactionOverviewProps {
+    selectedDate: Date;
+}
+
+// Update getProgressDisplay helper function
+const getProgressDisplay = (actual: number, target: number): React.ReactNode => {
+  if (actual === 0) return "0%";
+  if (target === 0) return <Infinity className="h-3 w-3" />;
+  
+  const percentage = Math.round((Math.abs(actual) / Math.abs(target)) * 100);
+  if (percentage > 1000) return ">1000%";
+  return `${percentage}%`;
+};
+
+function TransactionOverview({ selectedDate }: TransactionOverviewProps) {
+    const { workspace } = useBudgetWorkspace();
+    const currentMonth = selectedDate.toISOString().slice(0, 7);
+    
+    const monthlyTracking = workspace.budget.spendingTracking[currentMonth] || {};
+    
+    // Get all non-income groups and sort by actual spending
+    const expenseGroups = Object.values(monthlyTracking)
+        .filter(group => group.groupName !== 'Income')
+        .map(group => ({
+            ...group,
+            effectiveSpending: getEffectiveSpending(group)
+        }))
+        .sort((a, b) => Math.abs(b.effectiveSpending.actual) - Math.abs(a.effectiveSpending.actual));
+
+    // Take top 5 expense groups
+    const topExpenseGroups = expenseGroups.slice(0, 5);
+
+    // Calculate totals across ALL expense groups (not just top 5)
+    const totalActual = expenseGroups.reduce((sum, group) => 
+        sum + Math.abs(group.effectiveSpending.actual), 0);
+    const totalTarget = expenseGroups.reduce((sum, group) => 
+        sum + Math.abs(group.effectiveSpending.target), 0);
+
+    const formatCurrency = (amount: number): string => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(Math.abs(amount));
+    };
+
     return (
         <div className="bg-white p-4 rounded-lg shadow-lg">
-            {/* "Review Transactions" Section */}
-            <div className="text-center mb-4 p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, #FDFBFE 0%, #F6F1FF 100%)', boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.05)' }}>
-                <div className="bg-purple-100 p-4 rounded-full inline-block">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-6 h-6 text-purple-600">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+            {/* Progress Overview Section */}
+            <div className="text-center mb-4 p-4 rounded-lg bg-white dark:bg-gray-900">
+                <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded-full inline-block">
+                    <BarChart3 className="w-6 h-6 text-gray-900 dark:text-white" />
                 </div>
-                <p className="mt-2 text-[16px] font-bold text-purple-700">Review 1 Transactions</p>
-                <p className="text-[14px] text-gray-500">Ensure your transactions are categorized properly.</p>
+                <p className="mt-2 text-[16px] font-bold text-gray-900 dark:text-white">Check Your Spending</p>
+                <p className="text-[14px] text-gray-500 dark:text-gray-300">Monthly expense summary</p>
             </div>
 
-            {/* Transaction Overview Section */}
-            <div className="p-4 rounded-lg bg-[#F5FBFF] border border-gray-200">
-                <h3 className="text-[16px] font-medium text-gray-800">Transaction Overview</h3>
-                <div className="mt-4 space-y-2 text-[14px]">
-                    <div className="flex justify-between">
-                        <span>Income</span>
-                        <span>$3,000.00</span>
-                    </div>
+            {/* Top Expenses Overview */}
+            <div className="p-4 rounded-lg border border-gray-200 bg-white dark:bg-gray-900">
+                <h3 className="text-[16px] text-center font-bold text-gray-800 dark:text-white mb-4">
+                  {selectedDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </h3>
+                <div className="space-y-4">
+                    {topExpenseGroups.map((group) => (
+                        <div key={group.groupName}>
+                            <div className="flex justify-between text-xs">
+                                <span className="font-medium">{group.groupName}</span>
+                                <span className="font-bold">{formatCurrency(group.effectiveSpending.actual)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                                <Progress 
+                                    value={calculateProgressBar(
+                                        group.effectiveSpending.actual,
+                                        group.effectiveSpending.target
+                                    )}
+                                    className={cn(
+                                        "flex-grow",
+                                        getProgressBarColors(
+                                            group.effectiveSpending.actual,
+                                            group.effectiveSpending.target,
+                                            calculateMonthlyPace(selectedDate)
+                                        )
+                                    )}
+                                />
+                                <span className="text-xs text-muted-foreground flex items-center min-w-[48px] justify-end">
+                                    {getProgressDisplay(
+                                        group.effectiveSpending.actual,
+                                        group.effectiveSpending.target
+                                    )}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
 
-                    <div className="mt-2">
-                        <h4 className="font-semibold text-gray-600">Expenses</h4>
-
-                        <div className="flex justify-between">
-                            <span>Alcohol, Bars</span>
-                            <span>$150.00</span>
+                    {/* Monthly Totals */}
+                    <div className="pt-4 border-t border-gray-200">
+                        <div className="flex text-sm font-bold justify-between text-gray-700 dark:text-white">
+                            <span>Total</span>
+                            <span>{formatCurrency(totalActual)}</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                            <div className="bg-[#A3D6FF] h-2.5 rounded-full" style={{ width: '10%' }}></div>
+                        <div className="flex text-xs justify-between text-gray-700 dark:text-white">
+                            <span>Budget</span>
+                            <span>{formatCurrency(totalTarget)}</span>
                         </div>
-
-                        <div className="flex justify-between">
-                            <span>Food</span>
-                            <span>$1,000.00</span>
+                        <div className="flex items-center gap-2 mt-1">
+                            <Progress 
+                                value={calculateProgressBar(totalActual, totalTarget)}
+                                className={cn(
+                                    "flex-grow",
+                                    getProgressBarColors(
+                                        totalActual,
+                                        totalTarget,
+                                        calculateMonthlyPace(selectedDate)
+                                    )
+                                )}
+                            />
+                            <span className="text-xs text-muted-foreground flex items-center min-w-[48px] justify-end">
+                                {getProgressDisplay(totalActual, totalTarget)}
+                            </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                            <div className="bg-[#A3D6FF] h-2.5 rounded-full" style={{ width: '50%' }}></div>
-                        </div>
-
-                        <div className="flex justify-between">
-                            <span>Expenses 3</span>
-                            <span>$200.00</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                            <div className="bg-[#A3D6FF] h-2.5 rounded-full" style={{ width: '20%' }}></div>
-                        </div>
-
-                        <div className="flex justify-between">
-                            <span>Expenses 4</span>
-                            <span>$500.00</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                            <div className="bg-[#A3D6FF] h-2.5 rounded-full" style={{ width: '25%' }}></div>
-                        </div>
-
-                        <div className="flex justify-between">
-                            <span>Others</span>
-                            <span>$200.00</span>
-                        </div>
-                    </div>
-
-                    <div className="flex justify-between mt-4 font-medium text-gray-700">
-                        <span>Total Expense</span>
-                        <span>$2,050.00</span>
-                    </div>
-
-                    <div className="flex justify-between font-bold mt-2">
-                        <span>Net Income</span>
-                        <span className="text-[#0A91FF]">$950.00</span>
                     </div>
                 </div>
             </div>

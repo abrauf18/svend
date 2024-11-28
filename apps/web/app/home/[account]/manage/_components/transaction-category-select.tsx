@@ -17,7 +17,7 @@ interface CategoryGroup {
   categories: Category[];
 }
 
-interface CategorySelectProps {
+interface TransactionCategorySelectProps {
   value?: string;
   onValueChange: (value: string) => void;
   categoryGroups: CategoryGroup[];
@@ -40,13 +40,13 @@ const highlightMatch = (text: string, query: string) => {
   return text;
 };
 
-export function CategorySelect({
+export function TransactionCategorySelect({
   value,
   onValueChange,
   categoryGroups,
   disabled,
   placeholder = "Select category"
-}: CategorySelectProps) {
+}: TransactionCategorySelectProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
   const viewportRef = React.useRef<HTMLDivElement>(null);

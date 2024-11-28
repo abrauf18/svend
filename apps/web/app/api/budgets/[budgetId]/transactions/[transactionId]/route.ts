@@ -29,7 +29,6 @@ export const PUT = enhanceRouteHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    
     // Build update object only with provided fields
     const updateData: Record<string, any> = {};
     

@@ -25,14 +25,13 @@ export const POST = enhanceRouteHandler(
 
     const supabaseAdmin = getSupabaseServerAdminClient();
 
-    // Check if the user has permission to create a tag
+    // authorize user for budgets.write permission
     const budgetService = createBudgetService(supabaseAdmin);
     const hasPermission = await budgetService.hasPermission({
       budgetId: params.budgetId,
       userId: user.id,
       permission: 'budgets.write'
     });
-
     if (!hasPermission) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

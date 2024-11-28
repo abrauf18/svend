@@ -1,34 +1,35 @@
 'use client';
 
 import React, { useEffect, useRef, useState, FocusEvent } from 'react';
-
 import { CaretSortIcon, LockClosedIcon } from '@radix-ui/react-icons';
 import * as SelectPrimitive from '@radix-ui/react-select';
-
 import { Input } from '@kit/ui/input';
 import { cn } from '@kit/ui/utils';
-
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
-import { CategoryGroup } from '~/lib/model/fin.types';
 import { toast } from 'sonner';
+import { CategoryGroup } from '~/lib/model/fin.types';
 
-interface CategorySelectProps {
+const MAX_NAME_LENGTH = 50;
+const truncateText = 'truncate max-w-[300px]';
+
+interface CategoryManagementGroupSelectProps {
   value?: string | null;
   onValueChange: (value: string) => void;
-  categoryGroups: CategoryGroup[];
   disabled?: boolean;
   placeholder?: string;
-  onCreateNewCategory?: (categoryName: string) => void;
 }
 
-const highlightMatch = (
-  text: string | undefined,
-  query: string | undefined,
-) => {
-  if (!text || !query) return text ?? '';
-  const lowerText = text.toLowerCase();
-  const lowerQuery = query.toLowerCase();
-  if (lowerText.startsWith(lowerQuery)) {
+const filterAndSortGroups = (groups: CategoryGroup[], query: string) => {
+  if (!query) return groups;
+  return groups
+    .filter(group => group.name.toLowerCase().startsWith(query.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const highlightMatch = (text: string, query: string) => {
+  if (!query) return text;
+  
+  if (text.toLowerCase().startsWith(query.toLowerCase())) {
     return (
       <>
         <span className="font-bold">{text.slice(0, query.length)}</span>
@@ -36,86 +37,51 @@ const highlightMatch = (
       </>
     );
   }
+  
   return text;
 };
 
-const filterAndSortGroups = (groups: CategoryGroup[], query: string) => {
-  if (!query) {
-    // Split into built-in and custom groups
-    const builtIn = groups.filter(group => group.budgetId == null);
-    const custom = groups.filter(group => group.budgetId != null);
-
-    // Sort built-in groups: Income first, then alphabetically
-    const sortedBuiltIn = builtIn.sort((a, b) => {
-      if (a.name.toLowerCase() === 'income') return -1;
-      if (b.name.toLowerCase() === 'income') return 1;
-      return a.name.localeCompare(b.name);
-    });
-
-    // Sort custom groups alphabetically
-    const sortedCustom = custom.sort((a, b) => a.name.localeCompare(b.name));
-
-    // Combine the arrays
-    return [...sortedBuiltIn, ...sortedCustom];
-  }
-
-  const lowerQuery = query.toLowerCase().trim();
-  const filtered = groups.filter((group) => 
-    group.name.toLowerCase().startsWith(lowerQuery)
-  );
-
-  // Apply the same sorting logic to filtered results
-  const builtIn = filtered.filter(group => group.budgetId == null);
-  const custom = filtered.filter(group => group.budgetId != null);
-
-  const sortedBuiltIn = builtIn.sort((a, b) => {
-    if (a.name.toLowerCase() === 'income') return -1;
-    if (b.name.toLowerCase() === 'income') return 1;
-    return a.name.localeCompare(b.name);
-  });
-
-  const sortedCustom = custom.sort((a, b) => a.name.localeCompare(b.name));
-
-  return [...sortedBuiltIn, ...sortedCustom];
-};
-
-const truncateText = 'truncate overflow-hidden text-ellipsis whitespace-nowrap';
-
-const MAX_NAME_LENGTH = 50;
-const VALID_NAME_REGEX = /^[a-zA-Z][a-zA-Z0-9\s\-_]*$/;
-
-const validateName = (name: string): { isValid: boolean; error?: string } => {
-  if (!name) {
-    return { isValid: false, error: 'Name is required' };
-  }
-  
-  if (name.length > MAX_NAME_LENGTH || 
-      !/^[a-zA-Z]/.test(name.charAt(0)) || 
-      !VALID_NAME_REGEX.test(name)) {
-    return { 
-      isValid: false, 
-      error: 'Name must start with a letter and can only contain letters, numbers, spaces, dashes, and underscores' 
-    };
-  }
-
-  return { isValid: true };
-};
-
-export function BudgetGroupSelect({
+export function CategoryManagementGroupSelect({
   value,
   onValueChange,
-  categoryGroups,
   disabled,
   placeholder = 'Select group',
-}: CategorySelectProps) {
+}: CategoryManagementGroupSelectProps) {
+  const { workspace, addBudgetCategoryGroup } = useBudgetWorkspace();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const { workspace, addBudgetCategoryGroup } = useBudgetWorkspace();
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
-  const [isOpen, setIsOpen] = useState(false);
+  
+  const categoryGroups = Object.values(workspace.budgetCategories);
   const budgetId = workspace.budget.id;
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+
+  const validateName = (name: string) => {
+    if (!name.trim()) {
+      return { isValid: false, error: 'Name cannot be empty' };
+    }
+    if (name.length > MAX_NAME_LENGTH) {
+      return { isValid: false, error: `Name cannot exceed ${MAX_NAME_LENGTH} characters` };
+    }
+    if (!/^[a-zA-Z]/.test(name)) {
+      return { isValid: false, error: 'Name must start with a letter' };
+    }
+    if (!/^[a-zA-Z0-9\s.,'-]+$/.test(name)) {
+      return { isValid: false, error: 'Name can only contain letters, numbers, spaces, and basic punctuation' };
+    }
+    
+    // Check for uniqueness across all groups
+    const normalizedName = name.toLowerCase().trim();
+    const isNameTaken = categoryGroups.some(group => 
+      group.name.toLowerCase().trim() === normalizedName
+    );
+    if (isNameTaken) {
+      return { isValid: false, error: 'A group with this name already exists in your budget' };
+    }
+  
+    return { isValid: true, error: null };
+  };
 
   useEffect(() => {
     if (viewportRef.current) {
@@ -141,11 +107,9 @@ export function BudgetGroupSelect({
       }
     };
 
-    console.log('Selected group id', selectedGroupId);
-
     const timeoutId = setTimeout(scrollToFirstMatch, 50);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, value, selectedGroupId]);
+  }, [searchQuery, value]);
 
   const createNewGroup = async (
     budgetId: string,
@@ -168,28 +132,46 @@ export function BudgetGroupSelect({
 
   const handleCreateNew = async () => {
     try {
-      console.log('handleCreateNew called');
-      
       const validation = validateName(searchQuery);
       if (!validation.isValid) {
-        toast.error(validation.error);
+        toast.error(`Unable to create group. ${validation.error}. The group name must: (1) Be between 1-50 characters (2) Start with a letter (3) Contain only letters, numbers, spaces, and basic punctuation (4) Be unique in your budget. Please try again with a valid name.`, {
+          className: "bg-destructive text-destructive-foreground",
+          descriptionClassName: "text-destructive-foreground",
+          duration: 6000
+        });
         return;
       }
 
-      // Capitalize the first letter
       const formattedName = searchQuery.charAt(0).toUpperCase() + searchQuery.slice(1);
 
-      console.log(`Create new group: ${formattedName}`);
       setIsCreatingGroup(true);
       const newGroup = await createNewGroup(budgetId, formattedName, '');
+      if (!newGroup?.id) {
+        throw new Error('Invalid group returned from server');
+      }
+
       setSearchQuery('');
-      onValueChange(newGroup.id); 
+      onValueChange(newGroup.id);
       setIsOpen(false);
-      setIsCreatingGroup(false);
-    } catch (error) {
+      toast.success('Group created successfully');
+    } catch (error: any) {
       console.error('Error creating new group:', error);
+      const errorMessage = error?.message || '';
+      
+      if (errorMessage.toLowerCase().includes('duplicate')) {
+        toast.error('A group with this name already exists. Please choose a different name.', {
+          className: "bg-destructive text-destructive-foreground",
+          descriptionClassName: "text-destructive-foreground"
+        });
+      } else {
+        toast.error('Unable to create group. The group name must: (1) Be between 1-50 characters (2) Start with a letter (3) Contain only letters, numbers, spaces, and basic punctuation (4) Be unique in your budget. Please try again with a valid name.', {
+          className: "bg-destructive text-destructive-foreground",
+          descriptionClassName: "text-destructive-foreground",
+          duration: 6000
+        });
+      }
+    } finally {
       setIsCreatingGroup(false);
-      toast.error('Failed to create new group');
     }
   };
 
@@ -246,7 +228,7 @@ export function BudgetGroupSelect({
           className="relative z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
           position="popper"
           sideOffset={5}
-          onFocusCapture={(e: FocusEvent<HTMLDivElement>) => {
+          onFocusCapture={(e: FocusEvent) => {
             e.preventDefault();
             inputRef.current?.focus();
           }}
@@ -262,22 +244,6 @@ export function BudgetGroupSelect({
               maxLength={MAX_NAME_LENGTH}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                const matchingGroup = categoryGroups.find((group) =>
-                  group.name
-                    .toLowerCase()
-                    .includes(e.target.value.toLowerCase()),
-                );
-
-                if (matchingGroup) {
-                  setSelectedGroupId(matchingGroup.id);
-                } else if (value) {
-                  const parentGroup = categoryGroups.find((group) =>
-                    group.categories.some((category) => category.id === value),
-                  );
-                  if (parentGroup) {
-                    setSelectedGroupId(parentGroup.id);
-                  }
-                }
               }}
               placeholder="Search for groups"
               className={truncateText}

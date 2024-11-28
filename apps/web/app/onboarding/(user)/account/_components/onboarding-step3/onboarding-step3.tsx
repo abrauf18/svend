@@ -59,7 +59,7 @@ function OnboardingStep3CreateBudget() {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-2">
+    <div className="w-full max-w-6xl mx-auto p-2">
       <Card className="w-full">
         <CardHeader className="space-y-4">
           <div className="flex items-center space-x-2">

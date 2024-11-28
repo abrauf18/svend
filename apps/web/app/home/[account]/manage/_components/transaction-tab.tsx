@@ -20,6 +20,7 @@ import { TransactionPanel } from '~/home/[account]/manage/_components/transactio
 import TransactionOverview from '~/home/[account]/manage/_components/transaction-overview';
 import { TransactionTable } from '~/home/[account]/manage/_components/transaction-tab-table';
 import { BudgetFinAccountTransaction } from '~/lib/model/budget.types';
+import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 
 function TransactionTab() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -27,6 +28,29 @@ function TransactionTab() {
     BudgetFinAccountTransaction | undefined
   >(undefined);
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const { workspace } = useBudgetWorkspace();
+
+  // Find earliest transaction date
+  const earliestDate = React.useMemo(() => {
+    if (!workspace?.budgetTransactions?.length) return null;
+    
+    return workspace.budgetTransactions.reduce((earliest, current) => {
+      const [year, month] = current.transaction.date.split('-').map(Number);
+      const currentDate = new Date(year!, month! - 1); // month is 0-based in JS Date
+      
+      if (!earliest) return currentDate;
+      return currentDate < earliest ? currentDate : earliest;
+    }, null as Date | null);
+  }, [workspace?.budgetTransactions]);
+
+  // Check if current selected date is the earliest month
+  const isEarliestMonth = React.useMemo(() => {
+    if (!earliestDate) return false;
+    
+    return selectedDate.getFullYear() === earliestDate.getFullYear() &&
+           selectedDate.getMonth() === earliestDate.getMonth();
+  }, [selectedDate, earliestDate]);
 
   const handlePanelOpen = (open: boolean) => {
     setIsPanelOpen(open);
@@ -38,8 +62,6 @@ function TransactionTab() {
     setSelectedDate(date);
   };
 
-  const maxDate = new Date(new Date().getFullYear(), new Date().getMonth(), 0);
-
   return (
     <>
       <div className="flex w-full flex-col lg:flex-row">
@@ -48,7 +70,9 @@ function TransactionTab() {
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center sm:gap-0">
               <div className="flex flex-row items-center gap-2">
                 <button
-                  className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className={`rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                    isEarliestMonth ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                   onClick={() =>
                     handleDateChange(
                       new Date(
@@ -57,7 +81,7 @@ function TransactionTab() {
                       ),
                     )
                   }
-                  disabled={selectedDate.getMonth() === 0}
+                  disabled={isEarliestMonth}
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -68,7 +92,6 @@ function TransactionTab() {
                   dateFormat="MMMM yyyy"
                   showMonthYearPicker
                   className="w-[150px] bg-transparent text-center text-sm font-medium"
-                  maxDate={maxDate}
                   renderCustomHeader={({
                     date,
                     decreaseMonth,
@@ -81,6 +104,7 @@ function TransactionTab() {
                     <div className="flex items-center justify-between">
                       <button
                         onClick={decreaseMonth}
+                        disabled={!!earliestDate && date.getFullYear() === earliestDate.getFullYear() && date.getMonth() === earliestDate.getMonth()}
                         className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <ChevronLeft size={16} />
@@ -95,10 +119,16 @@ function TransactionTab() {
                       </button>
                     </div>
                   )}
+                  minDate={earliestDate ?? undefined}
                 />
 
                 <button
-                  className = {`rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700 ${selectedDate.getMonth() === new Date().getMonth() && selectedDate.getFullYear() === new Date().getFullYear() ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                    selectedDate.getMonth() === new Date().getMonth() && 
+                    selectedDate.getFullYear() === new Date().getFullYear() 
+                      ? 'opacity-50 cursor-not-allowed' 
+                      : ''
+                  }`}
                   onClick={() =>
                     handleDateChange(
                       new Date(
@@ -107,14 +137,17 @@ function TransactionTab() {
                       ),
                     )
                   }
-                  disabled={selectedDate.getMonth() === new Date().getMonth() && selectedDate.getFullYear() === new Date().getFullYear()}
+                  disabled={
+                    selectedDate.getMonth() === new Date().getMonth() && 
+                    selectedDate.getFullYear() === new Date().getFullYear()
+                  }
                 >
                   <ChevronRight size={16} />
                 </button>
               </div>
 
               <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
-                <Button variant="outline" className="w-full sm:w-auto">
+                {/* <Button variant="outline" className="w-full sm:w-auto">
                   <Trans i18nKey="common:transactionTabAddToGoalsBtn" />
                 </Button>
 
@@ -128,7 +161,7 @@ function TransactionTab() {
                   <SelectContent>
                     <SelectItem value="income">Add to cash</SelectItem>
                   </SelectContent>
-                </Select>
+                </Select> */}
               </div>
             </div>
 
@@ -143,7 +176,7 @@ function TransactionTab() {
         </div>
 
         <div className="w-full flex-shrink-0 p-4 lg:w-[300px]">
-          <TransactionOverview />
+          <TransactionOverview selectedDate={selectedDate} />
         </div>
       </div>
       {selectedTransaction && (

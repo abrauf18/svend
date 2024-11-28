@@ -15,12 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@kit/ui/sheet';
 import { Category, CategoryGroup } from '~/lib/model/fin.types';
 import { BudgetFinAccountTransaction, BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
-import { CategorySelect } from './category-select';
 import { TransactionTagSelect } from './transaction-tag-select';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { TransactionCategorySelect } from './transaction-category-select';
 
 interface DisabledFields {
   date?: boolean;
@@ -502,7 +502,7 @@ const getUniqueFileName = (
             {/* Categorization */}
             <div className="space-y-2">
               <Label htmlFor="category">Category<span className="text-destructive">*</span></Label>
-              <CategorySelect
+              <TransactionCategorySelect
                 value={selectedCategory?.id}
                 onValueChange={(value) => {
                   const selected = categoryGroups

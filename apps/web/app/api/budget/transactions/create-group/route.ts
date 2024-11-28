@@ -21,48 +21,30 @@ export const PUT = enhanceRouteHandler(
   async ({ body }) => {
     const supabaseAdmin = getSupabaseServerAdminClient();
 
-    // Add uniqueness check for group names
-    const { data: existingGroup } = await supabaseAdmin
-      .from('category_groups')
-      .select('id')
-      .eq('budget_id', body.budgetId)
-      .ilike('name', body.groupName)
-      .single();
-
-    if (existingGroup) {
-      return NextResponse.json(
-        { success: false, error: 'Group name already exists.' },
-        { status: 400 }
-      );
-    }
-
     const { data: newGroup, error: createError } = await supabaseAdmin
-      .from('category_groups')
-      .insert({
-        name: body.groupName,
-        description: body.description,
-        budget_id: body.budgetId,
+      .rpc('create_budget_category_group', {
+        p_budget_id: body.budgetId,
+        p_name: body.groupName,
+        p_description: body.description
       })
-      .select('*')
       .single();
-
     if (createError) {
       return NextResponse.json(
-        { success: false, error: createError.message },
-        { status: 500 }
+        { success: false, error: createError.message.startsWith('409:') ? createError.message.substring(4) : createError.message },
+        { status: createError.message.startsWith('409:') ? 409 : 500 }  // Use 409 for conflict errors, otherwise 500
       );
     }
 
     return NextResponse.json({
       success: true,
       categoryGroup: {
-        id: newGroup?.id,
-        name: newGroup?.name,
-        description: newGroup?.description,
-        budgetId: newGroup?.budget_id,
-        createdAt: newGroup?.created_at,
-        updatedAt: newGroup?.updated_at,
-        isEnabled: newGroup?.is_enabled,
+        id: newGroup.id,
+        name: newGroup.name,
+        description: newGroup.description,
+        budgetId: newGroup.budget_id,
+        createdAt: newGroup.created_at,
+        updatedAt: newGroup.updated_at,
+        isEnabled: newGroup.is_enabled,
         categories: [],
       }
     });

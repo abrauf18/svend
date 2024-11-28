@@ -576,7 +576,7 @@ GRANT EXECUTE ON FUNCTION get_budget_transactions_within_range_by_budget_id(UUID
 -- Create the table without the check constraint
 CREATE TABLE IF NOT EXISTS public.category_groups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
+    name VARCHAR(50) NOT NULL,
     description TEXT,
     budget_id UUID REFERENCES public.budgets(id) ON DELETE CASCADE,
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -638,7 +638,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.category_groups TO service_role;
 
 CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
+    name VARCHAR(50) NOT NULL,
     description TEXT,
     group_id UUID NOT NULL REFERENCES public.category_groups(id) ON DELETE CASCADE,
     budget_id UUID REFERENCES public.budgets(id) ON DELETE CASCADE,
@@ -746,40 +746,130 @@ GRANT SELECT ON public.built_in_categories TO authenticated;
 
 
 -- ============================================================
+-- create_budget_category_group function
+-- ============================================================
+CREATE OR REPLACE FUNCTION create_budget_category_group(
+    p_budget_id UUID,
+    p_name TEXT,
+    p_description TEXT DEFAULT NULL
+) RETURNS TABLE (
+    id UUID,
+    name VARCHAR(50),
+    description TEXT,
+    budget_id UUID,
+    is_enabled BOOLEAN,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+) AS $$
+DECLARE
+    v_new_group category_groups;
+    v_current_month TEXT;
+    v_spending_tracking JSONB;
+    v_empty_group_tracking JSONB;
+BEGIN
+    -- Check if name already exists for this budget
+    IF EXISTS (
+        SELECT 1 FROM category_groups cg  
+        WHERE cg.budget_id = p_budget_id  
+        AND LOWER(cg.name) = LOWER(p_name)
+    ) THEN
+        RAISE EXCEPTION '409:category group with name "%" already exists for this budget', p_name;
+    END IF;
+
+    -- Insert the new category group
+    INSERT INTO category_groups (
+        name,
+        description,
+        budget_id
+    ) 
+    VALUES (
+        p_name,
+        p_description,
+        p_budget_id
+    )
+    RETURNING * INTO v_new_group;
+
+    -- Get current month in 'yyyy-MM' format
+    v_current_month := to_char(CURRENT_DATE, 'YYYY-MM');
+
+    -- Create empty group tracking structure
+    v_empty_group_tracking := jsonb_build_object(
+        'groupName', p_name,
+        'groupId', v_new_group.id,
+        'targetSource', 'group',
+        'spendingActual', 0,
+        'spendingTarget', 0,
+        'isTaxDeductible', false,
+        'categories', jsonb_build_array()
+    );
+
+    -- Update the budget's spending_tracking
+    UPDATE budgets b
+    SET spending_tracking = CASE
+        -- If the current month exists, add the new group to it
+        WHEN b.spending_tracking ? v_current_month THEN
+            jsonb_set(
+                b.spending_tracking,
+                ARRAY[v_current_month, p_name],
+                v_empty_group_tracking
+            )
+        -- If the current month doesn't exist, create it with the new group
+        ELSE
+            jsonb_set(
+                COALESCE(b.spending_tracking, '{}'::jsonb),
+                ARRAY[v_current_month],
+                jsonb_build_object(p_name, v_empty_group_tracking)
+            )
+    END
+    WHERE b.id = p_budget_id;
+
+    RETURN QUERY
+    VALUES (
+      v_new_group.id,
+      v_new_group.name,
+      v_new_group.description,
+      v_new_group.budget_id,
+      v_new_group.is_enabled,
+      v_new_group.created_at,
+      v_new_group.updated_at
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- ============================================================
 -- get_budget_categories function
 -- ============================================================
 CREATE OR REPLACE FUNCTION get_budget_categories(p_budget_id UUID)
 RETURNS TABLE (
-    category_id UUID,
-    category_name VARCHAR(255),
-    category_description TEXT,
-    category_budget_id UUID,
-    category_created_at TIMESTAMP,
-    category_updated_at TIMESTAMP,
+    budget_id UUID,
     group_id UUID,
-    group_name VARCHAR(255),
+    group_name VARCHAR(50),
     group_description TEXT,
-    group_budget_id UUID,
     group_is_enabled BOOLEAN,
     group_created_at TIMESTAMP,
-    group_updated_at TIMESTAMP
+    group_updated_at TIMESTAMP,
+    category_id UUID,
+    category_name VARCHAR(50),
+    category_description TEXT,
+    category_created_at TIMESTAMP,
+    category_updated_at TIMESTAMP
 ) AS $$
 BEGIN
     RETURN QUERY
     SELECT 
-        c.id AS category_id,
-        c.name AS category_name,
-        c.description AS category_description,
-        c.budget_id AS category_budget_id,
-        c.created_at AS category_created_at,
-        c.updated_at AS category_updated_at,
+        cg.budget_id AS budget_id,
         cg.id AS group_id,
         cg.name AS group_name,
         cg.description AS group_description,
-        cg.budget_id AS group_budget_id,
         cg.is_enabled AS group_is_enable,
         cg.created_at AS group_created_at,
-        cg.updated_at AS group_updated_at
+        cg.updated_at AS group_updated_at,
+        c.id AS category_id,
+        c.name AS category_name,
+        c.description AS category_description,
+        c.created_at AS category_created_at,
+        c.updated_at AS category_updated_at
     FROM 
         public.category_groups cg
     LEFT JOIN 
@@ -1082,7 +1172,6 @@ BEGIN
     RETURN v_new_tag;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- Grant execute permission to the authenticated role
 GRANT EXECUTE ON FUNCTION create_budget_tag(UUID, TEXT) TO service_role;
 
@@ -1619,3 +1708,4 @@ CREATE TRIGGER set_timestamp
 BEFORE INSERT OR UPDATE ON public.budget_goals
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
+

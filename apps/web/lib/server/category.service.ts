@@ -103,7 +103,7 @@ class CategoryService implements ICategoryService {
       if (!categoryGroups[groupName]) {
         categoryGroups[groupName] = {
           id: category.group_id as string,
-          budgetId: category.group_budget_id,
+          budgetId: category.budget_id,
           name: groupName,
           description: category.group_description,
           isEnabled: category.group_is_enabled,
@@ -116,7 +116,7 @@ class CategoryService implements ICategoryService {
       if (category.category_id && category.category_name) {
         categoryGroups[groupName].categories.push({
           id: category.category_id,
-          budgetId: category.category_budget_id,
+          budgetId: category.budget_id,
           name: category.category_name,
           description: category.category_description,
           createdAt: category.category_created_at,

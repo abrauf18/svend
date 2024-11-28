@@ -225,17 +225,17 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
                             <TableRow className="grid grid-cols-12 p-4 gap-2">
                                 <TableHead className="col-span-1 flex items-center justify-center text-center text-xs">Advanced Mode</TableHead>
                                 <TableHead className="col-span-4 flex items-center justify-start pl-6">Category</TableHead>
-                                <TableHead className="col-span-3">
-                                    <div className="flex flex-col items-center justify-center h-full v-full">
+                                <TableHead className="col-span-4">
+                                    <div className="flex flex-col items-center justify-center h-full v-full gap-2">
                                         <div>Spending</div>
                                         <div className="text-xs inline-flex flex-row gap-1 items-center">
                                             (Current <ArrowRight className="h-4 w-4" /> Recommended)
                                         </div>
                                     </div>
                                 </TableHead>
-                                <TableHead className="col-span-3 flex items-center justify-center">
+                                <TableHead className="col-span-2 flex items-center justify-center">
                                     <div className="flex items-center justify-center gap-1 h-full text-center">
-                                        Budget Target
+                                        Target
                                     </div>
                                 </TableHead>
                                 <TableHead className="col-span-1 flex items-center justify-center">
@@ -261,19 +261,25 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
                                                 {spending.groupName}
                                             </div>
                                         </TableCell>
-                                        <TableCell className="col-span-3 font-bold flex items-center justify-center">
-                                            <div className="inline-flex flex-row gap-1 items-center justify-center w-full">
-                                                {formatCurrency(spending.spending!)}
-                                                <ArrowRight className="h-4 w-4" />
-                                                <span className={cn({
-                                                    'text-red-500': spending.recommendation! < spending.spending!,
-                                                    'text-green-500': spending.recommendation! > spending.spending!
-                                                })}>
-                                                    {formatCurrency(spending.recommendation!)}
-                                                </span>
+                                        <TableCell className="col-span-4 flex items-center justify-center h-full">
+                                            <div className="grid grid-cols-3 w-full px-6">
+                                                <div className="flex items-center justify-start h-full font-bold">
+                                                    {formatCurrency(spending.spending!)}
+                                                </div>
+                                                <div className="flex items-center justify-center h-full">
+                                                    <ArrowRight className="h-4 w-4" />
+                                                </div>
+                                                <div className="flex items-center justify-end h-full">
+                                                    <span className={cn("font-normal", {
+                                                        'text-red-500': spending.recommendation! < spending.spending!,
+                                                        'text-green-500': spending.recommendation! > spending.spending!
+                                                    })}>
+                                                        {formatCurrency(spending.recommendation!)}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="col-span-3 font-bold flex items-center justify-center relative">
+                                        <TableCell className="col-span-2 font-bold flex items-center justify-center relative">
                                             <FormField
                                                 control={form.control}
                                                 name={`categoryGroups.${groupIndex}.target`}
@@ -291,7 +297,7 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
                                                                     : field.value
                                                                 }
                                                                 className={cn(
-                                                                    "w-full text-right px-6",
+                                                                    "w-full text-right px-6 font-normal",
                                                                     form.formState.errors.categoryGroups?.[groupIndex]?.target && "border-red-500",
                                                                     spending.targetSource === 'category' && "bg-muted"
                                                                 )}
@@ -329,20 +335,26 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
                                             <TableCell className="col-span-4 col-start-2 capitalize pl-10 flex items-center">
                                                 {category.categoryName}
                                             </TableCell>
-                                            <TableCell className="col-span-3">
-                                                <div className="flex flex-row gap-1 items-center justify-center h-full w-full">
-                                                    {formatCurrency(category.spending!)}
-                                                    <ArrowRight className="h-4 w-4" />
-                                                    <span className={cn({
-                                                        'text-red-500': category.recommendation! < category.spending!,
-                                                        'text-green-500': category.recommendation! > category.spending!
-                                                    })}>
-                                                        {formatCurrency(category.recommendation!)}
-                                                    </span>
+                                            <TableCell className="col-span-4 flex items-center justify-center h-full pl-6 pr-3">
+                                                <div className="grid grid-cols-3 w-full px-6">
+                                                    <div className="flex items-center justify-start h-full font-bold">
+                                                        {formatCurrency(category.spending!)}
+                                                    </div>
+                                                    <div className="flex items-center justify-center h-full">
+                                                        <ArrowRight className="h-4 w-4" />
+                                                    </div>
+                                                    <div className="flex items-center justify-end h-full">
+                                                        <span className={cn("font-normal", {
+                                                            'text-red-500': category.recommendation! < category.spending!,
+                                                            'text-green-500': category.recommendation! > category.spending!
+                                                        })}>
+                                                            {formatCurrency(category.recommendation!)}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </TableCell>
                                             <TableCell className={cn(
-                                                "col-span-3 px-3 relative flex items-center justify-center",
+                                                "col-span-2 px-3 relative flex items-center justify-center",
                                                 form.formState.errors.categoryGroups?.[groupIndex]?.categories?.[childIndex]?.target && "pb-6"
                                             )}>
                                                 <FormField

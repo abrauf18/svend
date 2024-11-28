@@ -1,6 +1,7 @@
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { NextResponse } from 'next/server';
+import { createBudgetService } from '~/lib/server/budget.service';
 
 // PUT /api/budget/[budgetId]/onboarding/end
 // Updates the onboarding step to "end"
@@ -8,11 +9,28 @@ export async function PUT(
   request: Request,
   { params }: { params: { budgetId: string } }
 ) {
+  if (!params.budgetId) {
+    return NextResponse.json({ error: 'Budget ID is required' }, { status: 400 });
+  }
+
   const supabase = getSupabaseServerClient();
-  
-  // Get current user and ensure they're logged in
+
+  // authenticate user
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const supabaseAdmin = getSupabaseServerAdminClient();
+
+  // authorize user for budgets.write permission
+  const budgetService = createBudgetService(supabaseAdmin);
+  const hasPermission = await budgetService.hasPermission({
+    budgetId: params.budgetId,
+    userId: user.id,
+    permission: 'budgets.write'
+  });
+  if (!hasPermission) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -37,23 +55,6 @@ export async function PUT(
       { status: 409 }
     );
   }
-
-  // Check if user has budgets.write permission
-  const { data: hasPermission, error: permissionError } = await supabase
-    .rpc('has_team_permission', {
-      user_id: user.id,
-      team_account_id: budget.team_account_id,
-      permission_name: 'budgets.write'
-    });
-
-  if (permissionError || !hasPermission) {
-    return NextResponse.json(
-      { error: 'Insufficient permissions' }, 
-      { status: 403 }
-    );
-  }
-
-  const supabaseAdmin = getSupabaseServerAdminClient();
 
   // Update the budget's onboarding step to "end"
   const { error: updateError } = await supabaseAdmin
