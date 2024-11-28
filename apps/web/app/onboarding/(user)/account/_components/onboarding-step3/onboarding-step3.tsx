@@ -8,7 +8,6 @@ import { BudgetTable } from "./budget-table";
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import type { BudgetFormSchema } from './budget-table';
-import { BudgetCategoryGroupSpending } from '~/lib/model/budget.types';
 import { LoadingOverlay } from '@kit/ui/loading-overlay';
 
 function OnboardingStep3CreateBudget() {

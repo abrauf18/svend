@@ -95,20 +95,20 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
                 .pop() || new Date().toISOString().slice(0, 7); // Get the latest month in yyyy-MM format
 
             // Map and process all groups first
-            const spendingGroups = Object.entries(allCategories).map(([groupId, group]) => {
+            const spendingGroups = Object.entries(allCategories).map(([groupName, group]) => {
                 const groupTracking = budgetSpendingTrackingsByMonth[currentMonth]?.[group.name]
                     ? {
                         groupId: group.id,
-                        groupName: group.name,
-                        spending: budgetSpendingRecommendationsBalanced[group.name]?.spending ?? 0,
-                        recommendation: budgetSpendingRecommendationsBalanced[group.name]?.recommendation ?? 0,
-                        target: (budgetSpendingRecommendationsBalanced[group.name]?.recommendation ?? 0).toFixed(2),
-                        isTaxDeductible: budgetSpendingTrackingsByMonth[currentMonth][group.name]?.isTaxDeductible ?? false,
-                        targetSource: budgetSpendingTrackingsByMonth[currentMonth][group.name]?.targetSource ?? 'group' as const
+                        groupName: groupName,
+                        spending: budgetSpendingRecommendationsBalanced[groupName]?.spending ?? 0,
+                        recommendation: budgetSpendingRecommendationsBalanced[groupName]?.recommendation ?? 0,
+                        target: (budgetSpendingRecommendationsBalanced[groupName]?.recommendation ?? 0).toFixed(2),
+                        isTaxDeductible: budgetSpendingTrackingsByMonth[currentMonth][groupName]?.isTaxDeductible ?? false,
+                        targetSource: budgetSpendingTrackingsByMonth[currentMonth][groupName]?.targetSource ?? 'group' as const
                     }
                     : {
                         groupId: group.id,
-                        groupName: group.name,
+                        groupName: groupName,
                         spending: 0,
                         recommendation: 0,
                         target: "0.00",
@@ -119,7 +119,7 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
 
                 // Map all categories from allCategories, merging with existing spending data
                 const categories = group.categories.map(category => {
-                    const groupRecommendationCategory = budgetSpendingRecommendationsBalanced?.[group.name]?.categories?.find(c => c.categoryName === category.name);
+                    const groupRecommendationCategory = budgetSpendingRecommendationsBalanced?.[groupName]?.categories?.find(c => c.categoryName === category.name);
                     return {
                         id: category.id,
                         categoryName: category.name,
@@ -132,7 +132,7 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
 
                 return {
                     groupId: group.id,
-                    groupName: group.name,
+                    groupName: groupName,
                     spending: groupTracking.spending,
                     recommendation: groupTracking.recommendation,
                     target: groupTracking.target,

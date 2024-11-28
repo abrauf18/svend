@@ -7,7 +7,6 @@ import OnboardingStep2AnalyzingData from './onboarding-step2-analyzing/onboardin
 import OnboardingStep3CreateBudget from './onboarding-step3/onboarding-step3';
 import { useOnboardingContext } from '@kit/accounts/components';
 import { GlobalLoader } from '@kit/ui/global-loader';
-import { useRouter } from 'next/navigation';
 import { AccountOnboardingStepContextKey, accountOnboardingSteps } from '~/lib/model/onboarding.types';
 
 export const steps: Array<{
@@ -33,8 +32,6 @@ export const steps: Array<{
     ];
 
 export const OnboardingMultiStep = () => {
-    const router = useRouter();
-
     const { state, accountNextStep, accountPrevStep, accountPlaidConnItemAddOne, accountPlaidItemAccountUnlinkOne } = useOnboardingContext();
 
     const [loading, setLoading] = useState(true);
@@ -49,7 +46,7 @@ export const OnboardingMultiStep = () => {
     }, [state]);
 
     if (loading) {
-        return <GlobalLoader fullPage />;
+        return <GlobalLoader displayTopLoadingBar />;
     }
 
     if (!state || !accountNextStep || !accountPrevStep || !accountPlaidConnItemAddOne || !accountPlaidItemAccountUnlinkOne) {

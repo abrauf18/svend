@@ -1,5 +1,5 @@
 import { Database } from '../database.types';
-import { FinAccount, FinAccountTransaction } from './fin.types';
+import { CategoryGroup, FinAccount, FinAccountTransaction } from './fin.types';
 
 export type Budget = {
   id: string;
@@ -90,6 +90,9 @@ export type BudgetSpendingCategoryRecommendation = {
   spending: number; // total spending for the category from rolling month used to calculate recommendation
   recommendation: number; // recommendation for the category calculated from rolling month
 }
+
+// The key is the group name
+export type BudgetCategoryGroups = Record<string, CategoryGroup>;
 
 /**
  * Represents the spending tracking categorized by month and group.

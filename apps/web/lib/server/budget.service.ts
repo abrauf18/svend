@@ -11,7 +11,8 @@ import {
   BudgetSpendingRecommendations,
   BudgetSpendingTrackingsByMonth,
   BudgetFinAccountTransaction,
-  BudgetFinAccountTransactionTag
+  BudgetFinAccountTransactionTag,
+  BudgetCategoryGroups
 } from '../model/budget.types';
 import { createCategoryService, ICategoryService } from './category.service';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -1901,7 +1902,7 @@ class BudgetService {
    * @returns Object containing discretionary categories and category-to-group mapping
    */
   private async onboardingRecommendSpendingAndGoalsSetupCategories(
-    categoryGroups: Record<string, CategoryGroup>
+    categoryGroups: BudgetCategoryGroups
   ): Promise<{
     discretionaryCategories: string[],
     categoryToGroupMap: Record<string, string>
@@ -1941,7 +1942,7 @@ class BudgetService {
    */
   private calculateSpendingTrackings(
     budgetTransactions: BudgetFinAccountTransaction[],
-    categoryGroups: Record<string, CategoryGroup>
+    categoryGroups: BudgetCategoryGroups
   ): {
     spendingTrackingsByMonth: BudgetSpendingTrackingsByMonth
   } {
@@ -2071,7 +2072,7 @@ class BudgetService {
   private onboardingRecommendSpendingAndGoalsAnalyzeSpending(
     latestRollingMonthTransactions: BudgetFinAccountTransaction[],
     discretionaryCategories: string[],
-    categoryGroups: Record<string, CategoryGroup>,
+    categoryGroups: BudgetCategoryGroups,
     categoryToGroupMap: Record<string, string>
   ): {
     totalIncome: number,
@@ -2421,7 +2422,7 @@ class BudgetService {
   async onboardingRecommendSpendingAndGoals(
     transactions: BudgetFinAccountTransaction[],
     goals: BudgetGoal[],
-    categoryGroups: Record<string, CategoryGroup>
+    categoryGroups: BudgetCategoryGroups
   ): Promise<OnboardingRecommendSpendingAndGoalsResult> {
     try {
       // 1. Initialize and prepare transaction data
@@ -2572,7 +2573,7 @@ export interface IBudgetService {
   onboardingRecommendSpendingAndGoals: (
     transactions: BudgetFinAccountTransaction[],
     goals: BudgetGoal[],
-    categoryGroups: Record<string, CategoryGroup>
+    categoryGroups: BudgetCategoryGroups
   ) => Promise<OnboardingRecommendSpendingAndGoalsResult>;
   updateSpending: (
     budgetId: string,

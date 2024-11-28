@@ -1,15 +1,17 @@
-import { Category, CategoryGroup } from '../model/fin.types';
+import { CategoryGroup } from '../model/fin.types';
 import plaidSvendCategories from '../config/plaid_svend_categories.json';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { BudgetCategoryGroups } from '../model/budget.types';
+import { Database } from '../database.types';
 
 /**
  * @name CategoryService
  * @description Service for category-related operations
  */
 class CategoryService implements ICategoryService {
-  private supabase: SupabaseClient;
+  private supabase: SupabaseClient<Database>;
 
-  constructor(supabaseClient: SupabaseClient) {
+  constructor(supabaseClient: SupabaseClient<Database>) {
     this.supabase = supabaseClient;
   }
 
@@ -17,7 +19,7 @@ class CategoryService implements ICategoryService {
    * Fetches the default category groups from the Supabase database.
    * @returns A promise that resolves to a record of category groups.
    */
-  async getSvendDefaultCategoryGroups(): Promise<Record<string, CategoryGroup>> {
+  async getSvendDefaultCategoryGroups(): Promise<BudgetCategoryGroups> {
     const { data, error } = await this.supabase
       .from('built_in_categories')
       .select('*'); // Assuming group_id is available in the query
@@ -27,7 +29,7 @@ class CategoryService implements ICategoryService {
       return {};
     }
 
-    const categoryMap: Record<string, CategoryGroup> = {};
+    const categoryMap: BudgetCategoryGroups = {};
 
     data?.forEach((category) => {
       const groupId = category.group_id as string;
@@ -53,12 +55,12 @@ class CategoryService implements ICategoryService {
 
     return categoryMap;
   }
-  
+
   /**
    * Fetches the default category groups from the Supabase database.
    * @returns A promise that resolves to a record of category groups.
    */
-  async getBudgetCategoryGroupsByTeamAccountSlug(team_account_slug: string): Promise<Record<string, CategoryGroup>> {
+  async getBudgetCategoryGroupsByTeamAccountSlug(team_account_slug: string): Promise<BudgetCategoryGroups> {
     const { data, error } = await this.supabase
       .from('budgets')
       .select('budget_id:id, accounts!inner(slug)')
@@ -76,49 +78,54 @@ class CategoryService implements ICategoryService {
       console.error('No budget found for team account slug:', team_account_slug);
       return {};
     }
-    
+
     return this.getBudgetCategoryGroups(budget_id);
   }
-  
-    /**
-   * Fetches the default category groups from the Supabase database.
-   * @returns A promise that resolves to a record of category groups.
-   */
-  async getBudgetCategoryGroups(budget_id: string): Promise<Record<string, CategoryGroup>> {
+
+  /**
+ * Fetches the default category groups from the Supabase database.
+ * @returns A promise that resolves to a record of category groups.
+ */
+  async getBudgetCategoryGroups(budget_id: string): Promise<BudgetCategoryGroups> {
     const { data, error } = await this.supabase.rpc('get_budget_categories', {
       p_budget_id: budget_id
     });
 
     if (error) {
-      console.error('Error fetching Svend default categories:', error);
+      console.error('Error fetching budget categories:', error);
       return {};
     }
 
-    const categoryMap: Record<string, CategoryGroup> = {};
+    const categoryGroups: BudgetCategoryGroups = {};
 
-    data?.forEach((category: any) => {
-      const groupId = category.group_id as string;
-      if (!categoryMap[groupId]) {
-        categoryMap[groupId] = {
-          id: groupId,
-          name: category.group_name as string,
-          description: category.group_description as string,
-          isEnabled: category.group_is_enabled as boolean,
-          createdAt: category.group_created_at as string,
-          updatedAt: category.group_updated_at as string,
-          categories: [] // Initialize categories array
+    data?.forEach((category) => {
+      const groupName = category.group_name;
+      if (!categoryGroups[groupName]) {
+        categoryGroups[groupName] = {
+          id: category.group_id as string,
+          budgetId: category.group_budget_id,
+          name: groupName,
+          description: category.group_description,
+          isEnabled: category.group_is_enabled,
+          createdAt: category.group_created_at,
+          updatedAt: category.group_updated_at,
+          categories: []
         };
       }
-      categoryMap[groupId].categories.push({
-        id: category.category_id as string,
-        name: category.category_name as string,
-        description: category.category_description as string,
-        createdAt: category.category_created_at as string,
-        updatedAt: category.category_updated_at as string,
-      });
+
+      if (category.category_id && category.category_name) {
+        categoryGroups[groupName].categories.push({
+          id: category.category_id,
+          budgetId: category.category_budget_id,
+          name: category.category_name,
+          description: category.category_description,
+          createdAt: category.category_created_at,
+          updatedAt: category.category_updated_at,
+        });
+      }
     });
 
-    return categoryMap;
+    return categoryGroups;
   }
 
   /**
@@ -126,10 +133,10 @@ class CategoryService implements ICategoryService {
    * @param plaidDetailedCategories - An array of detailed category names from Plaid.
    * @returns A record of Plaid detailed category names to Svend categories.
    */
-  async mapPlaidCategoriesToSvendCategories(plaidDetailedCategories: string[]): Promise<Record<string, Category>> {
+  async mapPlaidCategoriesToSvendCategories(plaidDetailedCategories: string[]): Promise<BudgetCategoryGroups> {
     const defaultCategoryGroups = await this.getSvendDefaultCategoryGroups();
     const categoryIdMap = Object.fromEntries(
-      Object.values(defaultCategoryGroups).flatMap(group => 
+      Object.values(defaultCategoryGroups).flatMap(group =>
         group.categories.map(category => [category.name, category.id])
       )
     );
@@ -140,7 +147,7 @@ class CategoryService implements ICategoryService {
         id: categoryIdMap[svendCategoryName as string],
         name: svendCategoryName,
       }]);
-    
+
     return Object.fromEntries(svendCategories);
   }
 
@@ -165,8 +172,8 @@ export function createCategoryService(supabaseClient: SupabaseClient): ICategory
 }
 
 export interface ICategoryService {
-  getSvendDefaultCategoryGroups: () => Promise<Record<string, CategoryGroup>>;
-  getBudgetCategoryGroupsByTeamAccountSlug: (team_account_slug: string) => Promise<Record<string, CategoryGroup>>;
-  getBudgetCategoryGroups: (budget_id: string) => Promise<Record<string, CategoryGroup>>;
-  mapPlaidCategoriesToSvendCategories: (plaidDetailedCategories: string[]) => Promise<Record<string, Category>>;
+  getSvendDefaultCategoryGroups: () => Promise<BudgetCategoryGroups>;
+  getBudgetCategoryGroupsByTeamAccountSlug: (team_account_slug: string) => Promise<BudgetCategoryGroups>;
+  getBudgetCategoryGroups: (budget_id: string) => Promise<BudgetCategoryGroups>;
+  mapPlaidCategoriesToSvendCategories: (plaidDetailedCategories: string[]) => Promise<BudgetCategoryGroups>;
 }

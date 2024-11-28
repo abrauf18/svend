@@ -1,10 +1,17 @@
 'use client';
 
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
+
 import { User } from '@supabase/supabase-js';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Database } from '~/lib/database.types';
-import { Budget, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
-import { CategoryGroup } from '~/lib/model/fin.types';
+import { Budget, BudgetCategoryGroups, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
+import { Category, CategoryGroup } from '~/lib/model/fin.types';
 
 interface BudgetWorkspace {
   accounts: Database['public']['Views']['user_accounts']['Row'][];
@@ -12,7 +19,7 @@ interface BudgetWorkspace {
   user: User;
   budget: Budget;
   budgetTransactions: BudgetFinAccountTransaction[];
-  budgetCategories: Record<string, CategoryGroup>;
+  budgetCategories: BudgetCategoryGroups;
   budgetTags: BudgetFinAccountTransactionTag[];
 }
 
@@ -21,9 +28,21 @@ interface BudgetWorkspaceContextValue {
   updateBudgetOnboardingStep: (step: Database['public']['Tables']['budgets']['Row']['current_onboarding_step']) => void;
   updateTransaction: (transaction: BudgetFinAccountTransaction) => void;
   addBudgetTag: (tag: BudgetFinAccountTransactionTag) => void;
+  addBudgetCategoryGroup: (group: CategoryGroup) => void;
+  addBudgetCategory: (groupId: string, category: Category) => void;
+  updateCategoryGroupDescription: (
+    groupId: string,
+    description: string,
+  ) => void;
+  updateCategoryDescription: (
+    groupId: string,
+    categoryId: string,
+    description: string,
+  ) => void;
 }
 
-export const BudgetWorkspaceContext = createContext<BudgetWorkspaceContextValue>({} as BudgetWorkspaceContextValue);
+export const BudgetWorkspaceContext =
+  createContext<BudgetWorkspaceContextValue>({} as BudgetWorkspaceContextValue);
 
 export function useBudgetWorkspace() {
   return useContext(BudgetWorkspaceContext);
@@ -34,14 +53,93 @@ export function BudgetWorkspaceContextProvider(
 ) {
   const [workspace, setWorkspace] = useState<BudgetWorkspace>(props.value);
 
-  const updateBudgetOnboardingStep = useCallback((step: Database['public']['Tables']['budgets']['Row']['current_onboarding_step']) => {
-    setWorkspace(prev => ({
+  const updateBudgetOnboardingStep = useCallback(
+    (
+      step: Database['public']['Tables']['budgets']['Row']['current_onboarding_step'],
+    ) => {
+      setWorkspace((prev) => ({
+        ...prev,
+        budget: {
+          ...prev.budget,
+          onboardingStep: step,
+        },
+      }));
+    },
+    [],
+  );
+
+  const addBudgetCategoryGroup = useCallback((group: CategoryGroup) => {
+    // Reset workspace context with new group
+    setWorkspace((prev) => ({
       ...prev,
-      budget: {
-        ...prev.budget,
-        onboardingStep: step
-      }
+      budgetCategories: {
+        ...prev.budgetCategories,
+        [group.name]: group,
+      },
     }));
+  }, []);
+
+  const updateCategoryGroupDescription = useCallback(
+    (groupId: string, description: string) => {
+      setWorkspace((prev) => ({
+        ...prev,
+        budgetCategories: Object.fromEntries(
+          Object.entries(prev.budgetCategories).map(([key, group]) => [
+            key,
+            group.id === groupId
+              ? { ...group, description }
+              : group
+          ])
+        ),
+      }));
+    },
+    [],
+  );
+
+  const updateCategoryDescription = useCallback(
+    (groupId: string, categoryId: string, description: string) => {
+      setWorkspace((prev) => ({
+        ...prev,
+        budgetCategories: Object.fromEntries(
+          Object.entries(prev.budgetCategories).map(([key, group]) => [
+            key,
+            group.id === groupId
+              ? {
+                  ...group,
+                  categories: group.categories.map((cat) =>
+                    cat.id === categoryId
+                      ? { ...cat, description }
+                      : cat
+                  ),
+                }
+              : group
+          ])
+        ),
+      }));
+    },
+    [],
+  );
+
+  const addBudgetCategory = useCallback((groupId: string, category: Category) => {
+    setWorkspace((prev) => {
+      // Find the group by ID instead of name
+      const group = Object.values(prev.budgetCategories).find(g => g.id === groupId);
+      if (!group) {
+        console.error(`Group with ID ${groupId} not found`);
+        return prev;
+      }
+
+      return {
+        ...prev,
+        budgetCategories: {
+          ...prev.budgetCategories,
+          [group.name]: {
+            ...prev.budgetCategories[group.name]!,
+            categories: [...prev.budgetCategories[group.name]!.categories, category],
+          },
+        },
+      };
+    });
   }, []);
 
   const updateTransaction = (budgetTransaction: BudgetFinAccountTransaction) => {
@@ -61,14 +159,18 @@ export function BudgetWorkspaceContextProvider(
   };
   
   useEffect(() => {
-    console.log('Budget workspace updated:', workspace)
+    console.log('Budget workspace updated:', workspace);
   }, [workspace]);
 
   return (
-    <BudgetWorkspaceContext.Provider 
-      value={{ 
+    <BudgetWorkspaceContext.Provider
+      value={{
         workspace,
         updateBudgetOnboardingStep,
+        addBudgetCategoryGroup,
+        addBudgetCategory,
+        updateCategoryGroupDescription,
+        updateCategoryDescription,
         updateTransaction,
         addBudgetTag
       }}

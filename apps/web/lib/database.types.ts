@@ -1702,14 +1702,14 @@ export type Database = {
           category_id: string
           category_name: string
           category_description: string
-          budget_id: string
+          category_budget_id: string
           category_created_at: string
           category_updated_at: string
           group_id: string
           group_name: string
           group_description: string
-          group_is_enabled: boolean
           group_budget_id: string
+          group_is_enabled: boolean
           group_created_at: string
           group_updated_at: string
         }[]

@@ -644,7 +644,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
     budget_id UUID REFERENCES public.budgets(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (budget_id, name)  -- Prevents duplicate names within same budget or without budget
+    UNIQUE (budget_id, name)
 );
 
 -- Create a function to check for built-in name reuse
@@ -670,25 +670,27 @@ CREATE TRIGGER enforce_no_builtin_name_reuse
     EXECUTE FUNCTION check_category_name_reuse();
 
 
--- Create a function to enforce the constraint
-CREATE OR REPLACE FUNCTION check_category_budget_matches_group()
+-- Create function to validate category group budget match
+CREATE OR REPLACE FUNCTION validate_category_group_budget_match()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF (
-        (SELECT budget_id FROM public.category_groups WHERE id = NEW.group_id) IS NOT NULL AND
-        NEW.budget_id IS NOT NULL AND
-        NEW.budget_id <> (SELECT budget_id FROM public.category_groups WHERE id = NEW.group_id)
+    IF EXISTS (
+        SELECT 1
+        FROM public.category_groups
+        WHERE id = NEW.group_id
+        AND COALESCE(budget_id IS NOT NULL, false) != COALESCE(NEW.budget_id IS NOT NULL, false)
     ) THEN
-        RAISE EXCEPTION 'Budget ID does not match the group''s budget ID';
+        RAISE EXCEPTION 'Category budget_id must match its group''s budget_id status';
     END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create a trigger to use the function
-CREATE TRIGGER check_category_budget_matches_group_trigger
-BEFORE INSERT OR UPDATE ON public.categories
-FOR EACH ROW EXECUTE FUNCTION check_category_budget_matches_group();
+-- Create trigger to enforce the validation
+CREATE TRIGGER enforce_category_group_budget_match
+    BEFORE INSERT OR UPDATE ON public.categories
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_category_group_budget_match();
 
 
 -- Enable row level security for categories
@@ -751,14 +753,14 @@ RETURNS TABLE (
     category_id UUID,
     category_name VARCHAR(255),
     category_description TEXT,
-    budget_id UUID,
+    category_budget_id UUID,
     category_created_at TIMESTAMP,
     category_updated_at TIMESTAMP,
     group_id UUID,
     group_name VARCHAR(255),
     group_description TEXT,
-    group_is_enabled BOOLEAN,
     group_budget_id UUID,
+    group_is_enabled BOOLEAN,
     group_created_at TIMESTAMP,
     group_updated_at TIMESTAMP
 ) AS $$
@@ -768,22 +770,25 @@ BEGIN
         c.id AS category_id,
         c.name AS category_name,
         c.description AS category_description,
-        c.budget_id,
+        c.budget_id AS category_budget_id,
         c.created_at AS category_created_at,
         c.updated_at AS category_updated_at,
         cg.id AS group_id,
         cg.name AS group_name,
         cg.description AS group_description,
-        cg.is_enabled AS group_is_enable,
         cg.budget_id AS group_budget_id,
+        cg.is_enabled AS group_is_enable,
         cg.created_at AS group_created_at,
         cg.updated_at AS group_updated_at
     FROM 
-        public.categories c
-    JOIN 
-        public.category_groups cg ON c.group_id = cg.id
+        public.category_groups cg
+    LEFT JOIN 
+        public.categories c ON cg.id = c.group_id
     WHERE 
-        c.budget_id IS NULL OR c.budget_id = p_budget_id;
+        cg.budget_id IS NULL
+          OR cg.budget_id = p_budget_id
+          OR c.budget_id IS NULL
+          OR c.budget_id = p_budget_id;
 END;
 $$ LANGUAGE plpgsql;
 
