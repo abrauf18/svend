@@ -21,13 +21,13 @@ export class TeamBudgetsApi {
   async getBudgetWorkspace(slug: string) {
     const accountPromise = this.client.rpc('team_account_workspace', {
       account_slug: slug,
-    });
+    }).single();
     
     const accountsPromise = this.client.from('user_accounts').select('*');
 
     const budgetPromise = this.client.rpc('get_budget_by_team_account_slug', {
       p_team_account_slug: slug,
-    });
+    }).single();
 
     const budgetTransactionsPromise = this.client.rpc('get_budget_transactions_by_team_account_slug', {
       p_team_account_slug: slug,
@@ -55,7 +55,7 @@ export class TeamBudgetsApi {
       };
     }
 
-    const accountData = accountResult.data[0];
+    const accountData = accountResult.data;
 
     if (!accountData) {
       return {
@@ -96,7 +96,7 @@ export class TeamBudgetsApi {
       data: {
         account: accountData,
         accounts: accountsResult.data,
-        budget: budgetResult.data[0]!,
+        budget: budgetResult.data!,
         budgetTransactions: budgetTransactionsResult.data,
         budgetCategories: budgetCategoriesResult,
         budgetTags: budgetTagsResult.data,

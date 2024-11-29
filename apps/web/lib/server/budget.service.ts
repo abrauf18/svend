@@ -449,17 +449,7 @@ class BudgetService {
       }
 
       // Parse goals from the JSON array
-      let goals: BudgetGoal[] = [];
-      try {
-        if (rawGetBudgetResults.goals) {
-          goals = (rawGetBudgetResults.goals as any[])
-            .map(goal => this.parseBudgetGoal(goal))
-            .filter((goal): goal is BudgetGoal => goal !== null);
-        }
-      } catch (error) {
-        console.error('Error parsing goals:', error);
-        return null;
-      }
+      let goals: BudgetGoal[] = rawGetBudgetResults.goals as any[];
 
       // Return the complete budget object
       return {
@@ -494,8 +484,8 @@ class BudgetService {
   parseBudgetGoal(raw: Database['public']['Tables']['budget_goals']['Row'], budgetFinAccountBalance?: number): BudgetGoal | null {
     try {
       // Validate required fields exist
-      if (!raw.id || !raw.budget_id || !raw.type || !raw.amount ||
-        !raw.target_date || !raw.fin_account_id || !raw.name || !raw.spending_tracking || !raw.spending_recommendations) {
+      if (!raw.id || !raw.name || !raw.type || !raw.amount || !raw.budget_id ||
+        !raw.target_date || !raw.fin_account_id || !raw.spending_tracking || !raw.spending_recommendations) {
         return null;
       }
 
@@ -1807,7 +1797,7 @@ class BudgetService {
       return;
     }
 
-    // Get original monthly amounts and total
+    // Get total monthly goals amount
     const totalMonthlyGoals = Object.values(goalRecommendations)
       .reduce((sum, goal) => {
         const firstMonth = Object.keys(goal.monthlyAmounts)[0];
@@ -1815,17 +1805,19 @@ class BudgetService {
         return sum + (goal.monthlyAmounts[firstMonth] || 0);
       }, 0);
 
-    if (totalMonthlyGoals > availableAfterSpending) {
-      // Only reduce if we don't have enough funds
+    if (totalMonthlyGoals <= availableAfterSpending) {
+      // We have enough funds - keep original timeline but recalculate amounts
       Object.values(goalRecommendations).forEach(goalRec => {
         const originalMonths = Object.keys(goalRec.monthlyAmounts).sort();
-        const totalNeeded = Object.values(goalRec.monthlyAmounts).reduce((sum, amt) => sum + amt, 0);
-        const adjustmentRatio = availableAfterSpending / totalMonthlyGoals;
+        const totalNeeded = Object.values(goalRec.monthlyAmounts)
+          .reduce((sum, amt) => sum + amt, 0);
         const monthCount = originalMonths.length;
 
-        // Use helper to calculate monthly allocations with adjusted total
-        const adjustedTotal = totalNeeded * adjustmentRatio;
-        const monthlyAllocations = this.calculateMonthlyAllocationsWithRemainder(adjustedTotal, monthCount);
+        // Use helper to calculate monthly allocations
+        const monthlyAllocations = this.calculateMonthlyAllocationsWithRemainder(
+          totalNeeded,
+          monthCount
+        );
 
         // Create new monthly amounts with original timeline
         const newMonthlyAmounts: Record<string, number> = {};
@@ -1838,22 +1830,45 @@ class BudgetService {
         goalRec.monthlyAmounts = newMonthlyAmounts;
       });
     } else {
-      // We have enough funds - keep original timeline but recalculate amounts
+      // Not enough funds - need to extend timeline
       Object.values(goalRecommendations).forEach(goalRec => {
         const originalMonths = Object.keys(goalRec.monthlyAmounts).sort();
-        const totalNeeded = Object.values(goalRec.monthlyAmounts).reduce((sum, amt) => sum + amt, 0);
-        const monthCount = originalMonths.length;
+        if (originalMonths.length === 0) return;
+
+        const totalNeeded = Object.values(goalRec.monthlyAmounts)
+          .reduce((sum, amt) => sum + amt, 0);
+
+        // Calculate proportion of available funds for this goal
+        const firstMonth = originalMonths[0]!;
+        const originalMonthlyAmount = goalRec.monthlyAmounts[firstMonth]!;
+        const proportion = originalMonthlyAmount / totalMonthlyGoals;
+        const availableForGoal = availableAfterSpending * proportion;
+
+        // Calculate needed months with available funds
+        const monthsNeeded = Math.ceil(totalNeeded / availableForGoal);
+        const actualMonthCount = Math.max(originalMonths.length, monthsNeeded);
 
         // Use helper to calculate monthly allocations
-        const monthlyAllocations = this.calculateMonthlyAllocationsWithRemainder(totalNeeded, monthCount);
+        const monthlyAllocations = this.calculateMonthlyAllocationsWithRemainder(
+          totalNeeded,
+          actualMonthCount
+        );
 
-        // Create new monthly amounts with original timeline
+        // Create new monthly amounts with extended timeline
         const newMonthlyAmounts: Record<string, number> = {};
 
-        // Generate months
-        originalMonths.forEach((monthKey, i) => {
+        // Parse starting date from first original month
+        const [startYear, startMonth] = originalMonths[0]!.split('-').map(Number);
+
+        // Generate all months
+        for (let i = 0; i < actualMonthCount; i++) {
+          const totalMonths = (startMonth! - 1) + i;
+          const year = startYear! + Math.floor(totalMonths / 12);
+          const month = (totalMonths % 12) + 1;
+          const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
+          
           newMonthlyAmounts[monthKey] = monthlyAllocations[i]!;
-        });
+        }
 
         goalRec.monthlyAmounts = newMonthlyAmounts;
       });
