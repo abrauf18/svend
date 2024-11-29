@@ -1,15 +1,35 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction } from '@kit/ui/alert-dialog';
 import { Button } from '@kit/ui/button';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@kit/ui/utils';
 import { buttonVariants } from '@kit/ui/button';
+import { toast } from 'sonner';
 
-export function ItemDeleteDialog({ close }: { close: (role: string) => void }) {
+export function ItemDeleteDialog({ 
+	onConfirm,
+}: { 
+	onConfirm: () => Promise<void>;
+}) {
+	const [open, setOpen] = useState(false);
+	const [loading, setLoading] = useState(false);
+
+	const handleConfirm = async () => {
+		setLoading(true);
+		try {
+			await onConfirm();
+			setOpen(false);
+		} catch (error) {
+			toast.error('Failed to delete connection. Please try again.');
+		} finally {
+			setLoading(false);
+		}
+	};
+
 	return (
-		<AlertDialog>
+		<AlertDialog open={open} onOpenChange={setOpen}>
 			<AlertDialogTrigger asChild>
 				<Button variant="ghost" size="icon">
 					<Trash2 className="h-6 w-6" />
@@ -23,12 +43,23 @@ export function ItemDeleteDialog({ close }: { close: (role: string) => void }) {
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<AlertDialogFooter>
-					<AlertDialogCancel onClick={() => close('cancel')}>Cancel</AlertDialogCancel>
+					<AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
 					<AlertDialogAction
 						className={cn(buttonVariants({ variant: 'destructive' }))}
-						onClick={() => close('confirm')}
+						onClick={(e) => {
+							e.preventDefault();
+							handleConfirm();
+						}}
+						disabled={loading}
 					>
-						Delete
+						{loading ? (
+							<>
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								Deleting...
+							</>
+						) : (
+							'Delete'
+						)}
 					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>

@@ -10,46 +10,38 @@ import { Switch } from '@kit/ui/switch';
 import { PlaidConnectionItemsSkeleton } from './plaid-connection-items-skeleton';
 
 interface PlaidConnectionItemsProps {
-    loading?: boolean;
-    setLoading: (loading: boolean) => void;
+    loadingPlaidOAuth?: boolean;
+    loadingServer?: boolean;
+    setLoadingPlaidOAuth: (loading: boolean) => void;
+    setLoadingServer: (loading: boolean) => void;
 }
 
-export function PlaidConnectionItems({ loading = false, setLoading }: PlaidConnectionItemsProps) {
+export function PlaidConnectionItems({ 
+    loadingPlaidOAuth = false, 
+    loadingServer = false, 
+    setLoadingPlaidOAuth,
+    setLoadingServer 
+}: PlaidConnectionItemsProps) {
 
     const { state, accountPlaidConnItemRemoveOne, accountPlaidItemAccountUnlinkOne, accountPlaidItemAccountLinkOne } = useOnboardingContext();
 
     useLayoutEffect(() => {
-        if (loading) {
+        if (loadingPlaidOAuth) {
             const skeletonElement = document.querySelector('.plaid-connection-skeleton');
             if (skeletonElement) {
                 skeletonElement.scrollIntoView({ behavior: 'smooth' });
             }
         }
-    }, [loading]);
+    }, [loadingPlaidOAuth]);
 
-    const closeItemDeleteDialog = (svendItemId: string) => {
-        return async (role: string) => {
-            switch (role) {
-                case 'confirm':
-                    console.log('Confirmed deletion for item:', svendItemId);
-                    setLoading(true);
-                    try {
-                        await apiCallDeletePlaidConnectionItem(svendItemId);
-                        accountPlaidConnItemRemoveOne(svendItemId);
-                    } finally {
-                        setLoading(false);
-                    }
-                    break;
-                case 'cancel':
-                    console.log('Cancelled deletion for item:', svendItemId);
-                    break;
-                default:
-                    let err = new Error(`Invalid role: ${role}`);
-                    console.error(err);
-                    throw err;
-            }
+    const handleDeleteItem = async (svendItemId: string) => {
+        try {
+            await apiCallDeletePlaidConnectionItem(svendItemId);
+            accountPlaidConnItemRemoveOne(svendItemId);
+        } catch (error) {
+            throw error; // This will be caught by the dialog component
         }
-    }
+    };
 
     const getLastLinkedItemAccountId = (svendItemId: string): string | null => {
         const linkedAccounts = state.account.plaidConnectionItems
@@ -169,7 +161,9 @@ export function PlaidConnectionItems({ loading = false, setLoading }: PlaidConne
                 <div key={plaidItem.svendItemId} className="mb-4 border border-primary rounded-lg space-y-4 p-6">
                     <div className="flex items-center justify-between p-4 border border-gray-600 rounded-lg">
                         <span className="font-semibold text-[16px] underline">{plaidItem.institutionName}</span>
-                        <ItemDeleteDialog close={closeItemDeleteDialog(plaidItem.svendItemId)} />
+                        <ItemDeleteDialog 
+                            onConfirm={() => handleDeleteItem(plaidItem.svendItemId)} 
+                        />
                     </div>
                     <div className="pl-4 mt-2">
                         {plaidItem.itemAccounts?.map((plaidItemAccount) => (
@@ -205,7 +199,7 @@ export function PlaidConnectionItems({ loading = false, setLoading }: PlaidConne
                     </div>
                 </div>
             ))}
-            {loading && <PlaidConnectionItemsSkeleton className="plaid-connection-skeleton" />}
+            {loadingPlaidOAuth && <PlaidConnectionItemsSkeleton className="plaid-connection-skeleton" />}
         </div>
     );
 }

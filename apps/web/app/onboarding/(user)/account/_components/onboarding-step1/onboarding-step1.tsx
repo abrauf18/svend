@@ -9,7 +9,8 @@ import { usePlaidLink, PlaidLinkOptions } from 'react-plaid-link';
 
 function OnboardingStep1ConnectPlaidAccounts() {
   const [hasPlaidConnection, setHasPlaidConnection] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loadingPlaidOAuth, setLoadingPlaidOAuth] = useState(false);
+  const [loadingServer, setLoadingServer] = useState(false);
   const { state, accountNextStep, accountPlaidConnItemAddOne } = useOnboardingContext();
   const [linkToken, setLinkToken] = useState<string | null>(null);
 
@@ -43,15 +44,15 @@ function OnboardingStep1ConnectPlaidAccounts() {
       console.log('Plaid onboarding successful:', result);
 
       await accountPlaidConnItemAddOne(result.plaidConnectionItem);
-      setLoading(false);
+      setLoadingPlaidOAuth(false);
     } catch (error) {
       console.error('Error during Plaid onboarding:', error);
-      setLoading(false);
+      setLoadingPlaidOAuth(false);
     }
   }, [state, accountPlaidConnItemAddOne]);
 
   const onExit = useCallback(() => {
-    setLoading(false);
+    setLoadingPlaidOAuth(false);
   }, []);
 
   const config: PlaidLinkOptions = {
@@ -69,7 +70,7 @@ function OnboardingStep1ConnectPlaidAccounts() {
   }, [open, ready]);
 
   const createLinkToken = async () => {
-    setLoading(true);
+    setLoadingPlaidOAuth(true);
 
     if (!state?.account.budget?.id) {
       console.error('Budget ID not found');
@@ -94,7 +95,7 @@ function OnboardingStep1ConnectPlaidAccounts() {
       setLinkToken(link_token);
     } catch (error) {
       console.error('Error creating link token:', error);
-      setLoading(false);
+      setLoadingPlaidOAuth(false);
     }
   };
 
@@ -137,19 +138,24 @@ function OnboardingStep1ConnectPlaidAccounts() {
               <Trans i18nKey={'onboarding:connectAccountsInstructionText'} />
             </p>
 
-            <PlaidConnectionItems loading={loading} setLoading={setLoading} />
+            <PlaidConnectionItems 
+              loadingPlaidOAuth={loadingPlaidOAuth}
+              loadingServer={loadingServer}
+              setLoadingPlaidOAuth={setLoadingPlaidOAuth}
+              setLoadingServer={setLoadingServer}
+            />
           </div>
         </CardContent>
 
         <CardFooter className="flex-shrink-0 border-t pt-4">
           <div className="flex space-x-4">
-            <Button onClick={() => createLinkToken()} disabled={loading}>
+            <Button onClick={() => createLinkToken()} disabled={loadingPlaidOAuth}>
               <Trans i18nKey={'onboarding:connectAccountsButtonLabel'} />
             </Button>
             <Button 
               variant="outline" 
               className="w-full md:w-auto" 
-              disabled={!hasPlaidConnection || loading}
+              disabled={!hasPlaidConnection || loadingPlaidOAuth}
               onClick={accountNextStep}
             >
               <Trans i18nKey={'onboarding:connectAccountsNextButtonLabel'} />
