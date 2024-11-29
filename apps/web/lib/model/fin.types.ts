@@ -1,3 +1,5 @@
+import { Transaction, TransactionStream } from "plaid";
+
 export type FinAccount = {
   id: string;
   source: 'plaid' | 'svend';
@@ -20,7 +22,24 @@ export interface FinAccountTransaction {
   merchantName: string; // Name of the merchant involved in the transaction
   payee?: string; // Name of the payee for the transaction
   isoCurrencyCode?: string; // ISO currency code for the transaction
-  rawData?: any; // Raw data from Plaid
+  recurrenceDetails?: any;
+  isRecurring?: boolean;
+  plaidRawData?: Transaction; // Raw data from Plaid
+  createdAt?: string; // Timestamp
+  updatedAt?: string; // Timestamp
+}
+
+// Interface representing a financial account recurring transaction
+export interface FinAccountRecurringTransaction {
+  id: string; // Unique identifier for the transaction
+  plaidAccountId?: string; // UUID referencing the Plaid account associated with the transaction
+  manualAccountId?: string; // UUID referencing the manual account associated with the transaction
+  plaidDetailedCategory?: string; // Detailed category from Plaid
+  plaidCategoryConfidence?: string; // Confidence level for the category from Plaid
+  finAccountTransactionIds: string[]; // Array of UUIDs referencing the fin account transactions associated with the recurring transaction
+  plaidRawData?: TransactionStream; // Raw data from Plaid
+  createdAt?: string; // Timestamp
+  updatedAt?: string; // Timestamp
 }
 
 export interface CategoryGroup {

@@ -99,7 +99,7 @@ function OnboardingStep1ConnectPlaidAccounts() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-4 h-[calc(100vh-6rem)]">
+    <div className="mx-auto w-full max-w-6xl h-[calc(100vh-6rem)]">
       <Card className="w-full h-full flex flex-col">
         <CardHeader className="space-y-4 flex-shrink-0">
           <div className="flex items-center space-x-2">

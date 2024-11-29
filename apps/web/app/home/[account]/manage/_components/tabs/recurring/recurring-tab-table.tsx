@@ -30,21 +30,21 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 
-import { BudgetFinAccountTransaction } from '~/lib/model/budget.types';
+import { BudgetFinAccountRecurringTransaction } from '~/lib/model/budget.types';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { useDebounce } from '~/lib/hooks/use-debounce';
 import { TransactionSearchService } from '~/lib/services/transaction-search.service';
 
-interface TransactionTableProps {
-  onSelectTransaction: (row: BudgetFinAccountTransaction) => void;
+interface RecurringTableProps {
+  onSelectTransaction: (row: BudgetFinAccountRecurringTransaction) => void;
   onOpenChange: (open: boolean) => void;
   selectedMonth: Date;
 }
 
-export function TransactionTable(props: TransactionTableProps) {
+export function RecurringTable(props: RecurringTableProps) {
   const transactionSearchService = React.useMemo(() => new TransactionSearchService(), []);
 
-  const [transactions, setTransactions] = useState<BudgetFinAccountTransaction[]>([]);
+  const [transactions, setTransactions] = useState<BudgetFinAccountRecurringTransaction[]>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -56,27 +56,31 @@ export function TransactionTable(props: TransactionTableProps) {
   const { workspace } = useBudgetWorkspace();
 
   // Keep track of base transactions separately
-  const [baseTransactions, setBaseTransactions] = useState<BudgetFinAccountTransaction[]>([]);
+  const [baseTransactions, setBaseTransactions] = useState<BudgetFinAccountRecurringTransaction[]>([]);
   
   // Update base transactions when workspace or month changes
   useEffect(() => {
-    if (!workspace?.budgetTransactions) return;
+    if (!workspace?.budgetRecurringTransactions) return;
 
-    const filteredTransactions = workspace.budgetTransactions.filter((budgetTransaction) => {
-      // Parse date parts to create date in local timezone
-      const [year, month, day] = budgetTransaction.transaction.date.split('-').map(Number);
-      const transactionDate = new Date(year!, month! - 1, day); // month is 0-based in JS Date
-      
+    const filteredTransactions = workspace.budgetRecurringTransactions.filter((budgetTransaction) => {
+      const latestDate = getLatestTransactionDate(budgetTransaction);
       const selectedMonth = props.selectedMonth.getMonth();
       const selectedYear = props.selectedMonth.getFullYear();
       
-      return transactionDate.getMonth() === selectedMonth && 
-             transactionDate.getFullYear() === selectedYear;
+      return latestDate.getMonth() === selectedMonth && 
+             latestDate.getFullYear() === selectedYear;
     });
 
-    setBaseTransactions(filteredTransactions);
-    setTransactions(filteredTransactions);
-  }, [workspace?.budgetTransactions, props.selectedMonth]);
+    // Sort transactions by date before setting them
+    const sortedTransactions = [...filteredTransactions].sort((a, b) => {
+      const dateA = getLatestTransactionDate(a).getTime();
+      const dateB = getLatestTransactionDate(b).getTime();
+      return dateB - dateA; // Descending order
+    });
+
+    setBaseTransactions(sortedTransactions);
+    setTransactions(sortedTransactions);
+  }, [workspace?.budgetRecurringTransactions, props.selectedMonth]);
 
   // Sort transactions based on search
   useEffect(() => {
@@ -90,12 +94,22 @@ export function TransactionTable(props: TransactionTableProps) {
       return;
     }
 
-    const scoredTransactions = baseTransactions.map(t => ({
-      budgetTransaction: t,
-      score: transactionSearchService.getSearchScore(t, searchTerms)
-    }));
+    const scoredTransactions = baseTransactions.map(t => {
+      const associatedTransactions = workspace?.budgetTransactions?.filter(
+        bt => t.transaction.finAccountTransactionIds.includes(bt.transaction.id)
+      ) ?? [];
 
-    // Track which transactions had non-zero scores
+      return {
+        budgetTransaction: t,
+        score: transactionSearchService.getRecurringWithAssociatedScore(
+          t, 
+          searchTerms,
+          workspace?.budgetTags ?? [],
+          associatedTransactions
+        )
+      };
+    });
+
     const matchedIds = new Set(
       scoredTransactions
         .filter(st => st.score > 0)
@@ -103,28 +117,40 @@ export function TransactionTable(props: TransactionTableProps) {
     );
     setScoredTransactionIds(matchedIds);
 
-    // Sort and update transactions
-    setTransactions(
-      scoredTransactions
-        .sort((a, b) => b.score - a.score)
-        .map(st => st.budgetTransaction)
-    );
-  }, [debouncedSearch, baseTransactions]);
+    const hasMatches = matchedIds.size > 0;
+    if (hasMatches) {
+      setTransactions(
+        scoredTransactions
+          .sort((a, b) => b.score - a.score)
+          .map(st => st.budgetTransaction)
+      );
+    } else {
+      setTransactions(baseTransactions);
+    }
+  }, [debouncedSearch, baseTransactions, workspace?.budgetTransactions]);
 
-  // Private function to format date
-  const formatDate = (dateString: string): string => {
-    const date = new Date();
-    date.setFullYear(Number(dateString.split('-')[0]));
-    date.setMonth(Number(dateString.split('-')[1]) - 1);
-    date.setDate(Number(dateString.split('-')[2]));
-    return date.toLocaleDateString(navigator.language, {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+  const getLatestTransactionDate = (recurringTransaction: BudgetFinAccountRecurringTransaction): Date => {
+    // Get all associated transactions
+    const associatedTransactions = workspace?.budgetTransactions?.filter(
+      t => recurringTransaction.transaction.finAccountTransactionIds.includes(t.transaction.id)
+    ) ?? [];
+
+    // If no associated transactions, return a default date (e.g., start of current month)
+    if (associatedTransactions.length === 0) {
+      const date = new Date();
+      date.setDate(1);
+      return date;
+    }
+
+    // Find the latest date
+    return associatedTransactions.reduce((latest, current) => {
+      const [year, month, day] = current.transaction.date.split('-').map(Number);
+      const currentDate = new Date(year!, month! - 1, day!);
+      return currentDate > latest ? currentDate : latest;
+    }, new Date(0));
   };
 
-  const columns: ColumnDef<BudgetFinAccountTransaction>[] = [
+  const columns: ColumnDef<BudgetFinAccountRecurringTransaction>[] = [
     {
       id: 'select',
       header: ({ table }) => (
@@ -154,10 +180,16 @@ export function TransactionTable(props: TransactionTableProps) {
     },
     {
       accessorKey: 'date',
-      header: 'Date',
+      header: 'Latest Transaction Date',
       cell: ({ row }) => {
-        const formattedDate = formatDate(row.original.transaction.date as string);
-        return <div className="w-[120px]">{formattedDate}</div>;
+        const latestDate = getLatestTransactionDate(row.original);
+        return <div className="w-[120px]">
+          {latestDate.toLocaleDateString(navigator.language, {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          })}
+        </div>;
       },
     },
     {
@@ -185,32 +217,10 @@ export function TransactionTable(props: TransactionTableProps) {
 
         // Fallback to svend categories if no categoryId or category not found
         return (
-          <div className="w-[350px] truncate capitalize">
+          <div className="w-[250px] truncate capitalize">
             {`${row.original.categoryGroup} > ${row.original.category}`}
           </div>
         );
-      },
-    },
-    {
-      accessorKey: 'merchant_name',
-      header: 'Merchant Name',
-      cell: ({ row }) => (
-        <div className="w-[200px] truncate capitalize">
-          {row.original.merchantName || row.original.payee}
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'amount',
-      header: () => <div className="w-[200px] pr-2 text-right">Amount</div>,
-      cell: ({ row }) => {
-        const amount = row.original.transaction.amount;
-        const formatted = new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: 'USD',
-        }).format(amount);
-
-        return <div className="w-[200px] pr-2 text-right">{formatted}</div>;
       },
     },
     {
@@ -223,7 +233,7 @@ export function TransactionTable(props: TransactionTableProps) {
         const account_name = linkedAccount?.name;
         const account_mask = linkedAccount?.mask;
         return (
-          <div className="w-[250px]">
+          <div className="w-[150px]">
             <span className="truncate font-medium">{account_name}</span>
             &nbsp;&nbsp;
             <span className="text-sm text-muted-foreground">
@@ -240,7 +250,7 @@ export function TransactionTable(props: TransactionTableProps) {
         const notes = (row.getValue('notes') as string) || '';
         const truncatedNotes =
           notes.length > 50 ? `${notes.slice(0, 50)}...` : notes;
-        return <div className="w-[350px] truncate">{truncatedNotes}</div>;
+        return <div className="w-[250px] truncate">{truncatedNotes}</div>;
       },
     },
     {
@@ -251,7 +261,7 @@ export function TransactionTable(props: TransactionTableProps) {
         if (!tags || !Array.isArray(tags)) return null;
 
         return (
-          <div className="w-[350px] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="w-[200px] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex gap-1 overflow-x-auto pb-4 -mb-4">
               {tags.map((tag) => (
                 <span
@@ -288,26 +298,6 @@ export function TransactionTable(props: TransactionTableProps) {
 
         return tags.some(tag =>
           searchTerms.some((term: string) => tag.name.toLowerCase().includes(term))
-        );
-      },
-    },
-    {
-      accessorKey: 'isSave',
-      header: () => (
-        <div className="w-[40px] text-center">
-          <File className="mx-auto h-4 w-4" />
-        </div>
-      ),
-      cell: ({ row }) => {
-        const hasAttachments = row.original.budgetAttachmentsStorageNames?.length ?? 0 > 0;
-        return (
-          <div className="w-[40px] text-center">
-            {hasAttachments ? (
-              <Files className="mx-auto h-4 w-4 transform scale-125" strokeWidth={2.5} />
-            ) : (
-              <File className="mx-auto h-4 w-4 transform scale-110 text-muted-foreground" />
-            )}
-          </div>
         );
       },
     },

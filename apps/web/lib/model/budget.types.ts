@@ -1,5 +1,5 @@
 import { Database } from '../database.types';
-import { CategoryGroup, FinAccount, FinAccountTransaction } from './fin.types';
+import { CategoryGroup, FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from './fin.types';
 
 export type Budget = {
   id: string;
@@ -23,6 +23,17 @@ export interface BudgetFinAccountTransaction {
   notes: string; // Notes for the transaction
   budgetTags: BudgetFinAccountTransactionTag[]; // Tags associated with the transaction
   budgetAttachmentsStorageNames: string[]; // Storage names for attachments
+}
+
+export interface BudgetFinAccountRecurringTransaction {
+  transaction: FinAccountRecurringTransaction;
+  budgetFinAccountId: string; // UUID referencing the financial account link to the budget
+  categoryGroupId?: string; // UUID referencing the group of the category associated with the transaction
+  categoryGroup?: string; // Group of the category associated with the transaction
+  categoryId?: string; // UUID referencing the category associated with the transaction
+  category?: string; // Name of the category associated with the transaction
+  notes: string; // Notes for the transaction
+  budgetTags: BudgetFinAccountTransactionTag[]; // Tags associated with the transaction
 }
 
 export interface BudgetFinAccountTransactionTag {

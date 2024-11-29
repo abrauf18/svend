@@ -25,6 +25,7 @@
     "test": "turbo test --cache-dir=.turbo",
     "test:web:last-report": "pnpm --filter web-e2e exec playwright show-report",
     "test:web:budgets": "pnpm test --filter web-e2e -- --grep 'budgets'",
+    "test:web:budgets:transaction-search": "pnpm test --filter web-e2e -- --grep 'budgets/transaction-search'",
     "update": "pnpm update -r",
     "supabase:web:start": "pnpm --filter web supabase:start",
     "supabase:web:stop": "pnpm --filter web supabase:stop",

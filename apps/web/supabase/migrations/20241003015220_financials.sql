@@ -973,23 +973,23 @@ create table if not exists public.fin_account_transactions (
   plaid_category_confidence text,
   merchant_name text,
   payee text,
---   category_id text,
---   counterparties jsonb,
---   datetime timestamp with time zone,
---   authorized_date date,
---   authorized_datetime timestamp with time zone,
---   name text not null,
---   merchant_entity_id text,
---   logo_url text,
---   website text,
---   payment_channel text,
---   pending boolean default false,
---   pending_transaction_id uuid,
---   personal_finance_category jsonb,
---   transaction_id text not null,
---   transaction_code text,
---   transaction_type text,
-  raw_data jsonb,
+  -- category_id text,
+  -- counterparties jsonb,
+  -- datetime timestamp with time zone,
+  -- authorized_date date,
+  -- authorized_datetime timestamp with time zone,
+  -- name text not null,
+  -- merchant_entity_id text,
+  -- logo_url text,
+  -- website text,
+  -- payment_channel text,
+  -- pending boolean default false,
+  -- pending_transaction_id uuid,
+  -- personal_finance_category jsonb,
+  -- transaction_id text not null,
+  -- transaction_code text,
+  -- transaction_type text,
+  plaid_raw_data jsonb,
   created_at timestamp with time zone default current_timestamp,
   updated_at timestamp with time zone default current_timestamp
 );
@@ -1001,7 +1001,7 @@ revoke all on public.fin_account_transactions from public, service_role;
 alter table fin_account_transactions enable row level security;
 
 -- Create policies
-create policy read_budget_fin_account_transactions
+create policy read_fin_account_transactions
     on public.fin_account_transactions
     for select
     to authenticated
@@ -1037,53 +1037,170 @@ create policy read_owned_fin_account_transactions
     );
 
 
+-- Grant necessary permissions
+grant select on public.fin_account_transactions to authenticated;
+grant select, insert, update, delete on public.fin_account_transactions to service_role;
+
+
+
 -- ============================================================
--- Can update fin account transaction function
+-- create_budget_fin_account_transactions function
 -- ============================================================
-CREATE OR REPLACE FUNCTION can_update_fin_account_transaction(transaction_id UUID, user_id UUID)
-RETURNS BOOLEAN AS $$
+-- First, create a composite type for the input parameters
+CREATE TYPE budget_transaction_input AS (
+    budget_fin_account_id UUID,
+    amount NUMERIC,
+    date DATE,
+    svend_category_id UUID,
+    merchant_name TEXT,
+    payee TEXT,
+    iso_currency_code TEXT,
+    plaid_category_detailed TEXT,
+    plaid_category_confidence TEXT,
+    raw_data JSONB
+);
+
+-- Modified function to handle arrays
+CREATE OR REPLACE FUNCTION create_budget_fin_account_transactions(
+    p_budget_id UUID,
+    p_transactions budget_transaction_input[]
+) RETURNS SETOF UUID AS $$
+DECLARE
+    v_transaction budget_transaction_input;
+    v_plaid_account_id UUID;
+    v_manual_account_id UUID;
+    v_fin_transaction_id UUID;
+    v_team_account_id UUID;
 BEGIN
-    RETURN EXISTS (
-        -- Check if user has write access to the budget for this transaction
-        SELECT 1
-        FROM public.fin_account_transactions fat
-        JOIN public.budget_fin_accounts bfa ON 
-            (bfa.plaid_account_id = fat.plaid_account_id AND fat.plaid_account_id IS NOT NULL) OR
-            (bfa.manual_account_id = fat.manual_account_id AND fat.manual_account_id IS NOT NULL)
-        JOIN public.budgets b ON bfa.budget_id = b.id
-        WHERE fat.id = transaction_id
-        AND public.has_team_permission(user_id, b.team_account_id, 'budgets.write')
-    )
-    OR EXISTS (
-        -- Check if user owns the account for this transaction
-        SELECT 1
-        FROM public.fin_account_transactions fat
-        WHERE fat.id = transaction_id
-        AND (
-            (fat.plaid_account_id IS NOT NULL AND EXISTS (
-                SELECT 1 
-                FROM public.plaid_accounts
-                WHERE id = fat.plaid_account_id
-                AND owner_account_id = user_id
-            ))
-            OR 
-            (fat.manual_account_id IS NOT NULL AND EXISTS (
-                SELECT 1 
-                FROM public.manual_fin_accounts
-                WHERE id = fat.manual_account_id
-                AND owner_account_id = user_id
-            ))
+    -- Get the team_account_id from the budget
+    SELECT team_account_id INTO v_team_account_id
+    FROM budgets
+    WHERE id = p_budget_id;
+
+    -- Loop through each transaction in the input array
+    FOREACH v_transaction IN ARRAY p_transactions
+    LOOP
+        -- Get the plaid_account_id or manual_account_id from budget_fin_accounts
+        SELECT plaid_account_id, manual_account_id 
+        INTO v_plaid_account_id, v_manual_account_id
+        FROM budget_fin_accounts
+        WHERE id = v_transaction.budget_fin_account_id;
+
+        IF v_plaid_account_id IS NULL AND v_manual_account_id IS NULL THEN
+            RAISE EXCEPTION 'Invalid budget_fin_account_id';
+        END IF;
+
+        -- Insert into fin_account_transactions
+        INSERT INTO fin_account_transactions (
+            plaid_account_id,
+            manual_account_id,
+            amount,
+            date,
+            merchant_name,
+            payee,
+            iso_currency_code,
+            plaid_category_detailed,
+            plaid_category_confidence,
+            plaid_raw_data
+        ) VALUES (
+            v_plaid_account_id,
+            v_manual_account_id,
+            v_transaction.amount,
+            v_transaction.date,
+            v_transaction.merchant_name,
+            v_transaction.payee,
+            COALESCE(v_transaction.iso_currency_code, 'USD'),
+            v_transaction.plaid_category_detailed,
+            v_transaction.plaid_category_confidence,
+            v_transaction.raw_data
         )
-    );
+        RETURNING id INTO v_fin_transaction_id;
+
+        -- Insert into budget_fin_account_transactions
+        INSERT INTO budget_fin_account_transactions (
+            budget_id,
+            fin_account_transaction_id,
+            svend_category_id,
+            merchant_name,
+            payee
+        ) VALUES (
+            p_budget_id,
+            v_fin_transaction_id,
+            v_transaction.svend_category_id,
+            v_transaction.merchant_name,
+            v_transaction.payee
+        );
+
+        -- Return each transaction ID
+        RETURN NEXT v_fin_transaction_id;
+    END LOOP;
+
+    RETURN;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant execute permission to authenticated users
-GRANT EXECUTE ON FUNCTION can_update_fin_account_transaction TO service_role;
+
+-- ============================================================
+-- fin_account_recurring_transactions table
+-- ============================================================
+
+-- Create table
+create table if not exists public.fin_account_recurring_transactions (
+  id uuid primary key default uuid_generate_v4(),
+  plaid_account_id uuid references public.plaid_accounts(id) on delete cascade,
+  manual_account_id uuid references public.manual_fin_accounts(id) on delete cascade,
+  fin_account_transaction_ids uuid[] default '{}',
+  plaid_category_detailed text,
+  plaid_category_confidence text,
+  plaid_raw_data jsonb,
+  created_at timestamp with time zone default current_timestamp,
+  updated_at timestamp with time zone default current_timestamp
+);
+
+-- Revoke all permissions
+revoke all on public.fin_account_recurring_transactions from public, service_role;
+
+-- Enable row level security
+alter table fin_account_recurring_transactions enable row level security;
+
+-- Create policies
+create policy read_fin_account_recurring_transactions
+    on public.fin_account_recurring_transactions
+    for select
+    to authenticated
+    using (
+        exists (
+            select 1
+            from public.budget_fin_accounts bfa
+            join public.budgets b on bfa.budget_id = b.id
+            where (bfa.plaid_account_id = fin_account_recurring_transactions.plaid_account_id and bfa.plaid_account_id is not null)
+                or (bfa.manual_account_id = fin_account_recurring_transactions.manual_account_id and bfa.manual_account_id is not null)
+                and public.is_team_member(b.team_account_id, auth.uid())
+        ) -- budget member can read
+    );
+
+create policy read_owned_fin_account_recurring_transactions
+    on public.fin_account_recurring_transactions
+    for select
+    to authenticated
+    using (
+        (plaid_account_id is not null and exists (
+            select 1 
+            from public.plaid_accounts
+            where id = fin_account_recurring_transactions.plaid_account_id
+            and owner_account_id = auth.uid()
+        ))
+        or 
+        (manual_account_id is not null and exists (
+            select 1 
+            from public.manual_fin_accounts
+            where id = fin_account_recurring_transactions.manual_account_id
+            and owner_account_id = auth.uid()
+        ))
+    );
 
 -- Grant necessary permissions
-grant select on public.fin_account_transactions to authenticated;
-grant select, update, insert on public.fin_account_transactions to service_role;
+grant select on public.fin_account_recurring_transactions to authenticated;
 
 
 -- ============================================================
@@ -1114,32 +1231,271 @@ grant execute on function update_fin_account_transaction(UUID, UUID, TEXT, TEXT)
 
 
 -- ============================================================
+-- Junction table for budget-transaction relationships
+-- ============================================================
+CREATE TABLE if not exists public.budget_fin_account_recurring_transactions (
+    budget_id UUID NOT NULL REFERENCES public.budgets(id),
+    fin_account_recurring_transaction_id UUID NOT NULL REFERENCES public.fin_account_recurring_transactions(id),
+    svend_category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
+    notes TEXT,
+    tag_ids UUID[] default '{}',
+    PRIMARY KEY (budget_id, fin_account_recurring_transaction_id)
+);
+
+revoke all on budget_fin_account_recurring_transactions from public, service_role;
+
+alter table budget_fin_account_recurring_transactions enable row level security;
+
+-- Create policies
+create policy read_budget_fin_account_recurring_transactions
+    on public.budget_fin_account_recurring_transactions
+    for select
+    to authenticated
+    using (
+        EXISTS (
+            SELECT 1 FROM public.budgets b WHERE id = budget_id AND public.is_team_member(b.team_account_id, auth.uid())
+        )
+    );
+
+-- Grant necessary permissions
+grant select on public.budget_fin_account_recurring_transactions to authenticated;
+grant select, update, insert on public.budget_fin_account_recurring_transactions to service_role;
+
+
+-- ============================================================
+-- create_budget_fin_account_recurring_transactions function
+-- ============================================================
+
+-- Create a composite type for the recurring transaction input parameters
+CREATE TYPE budget_recurring_transaction_input AS (
+    budget_fin_account_id UUID,
+    fin_account_transaction_ids UUID[],
+    svend_category_id UUID,
+    plaid_category_detailed TEXT,
+    plaid_category_confidence TEXT,
+    raw_data JSONB
+);
+
+-- Modified function to handle arrays of recurring transactions
+CREATE OR REPLACE FUNCTION create_budget_fin_account_recurring_transactions(
+    p_budget_id UUID,
+    p_transactions budget_recurring_transaction_input[]
+) RETURNS SETOF UUID AS $$
+DECLARE
+    v_transaction budget_recurring_transaction_input;
+    v_plaid_account_id UUID;
+    v_manual_account_id UUID;
+    v_recurring_transaction_id UUID;
+    v_team_account_id UUID;
+BEGIN
+    -- Get the team_account_id from the budget
+    SELECT team_account_id INTO v_team_account_id
+    FROM budgets
+    WHERE id = p_budget_id;
+
+    -- Loop through each transaction in the input array
+    FOREACH v_transaction IN ARRAY p_transactions
+    LOOP
+        -- Get the plaid_account_id or manual_account_id from budget_fin_accounts
+        SELECT plaid_account_id, manual_account_id 
+        INTO v_plaid_account_id, v_manual_account_id
+        FROM budget_fin_accounts
+        WHERE id = v_transaction.budget_fin_account_id;
+
+        IF v_plaid_account_id IS NULL AND v_manual_account_id IS NULL THEN
+            RAISE EXCEPTION 'Invalid budget_fin_account_id';
+        END IF;
+
+        -- Insert into fin_account_recurring_transactions
+        INSERT INTO fin_account_recurring_transactions (
+            plaid_account_id,
+            manual_account_id,
+            fin_account_transaction_ids,
+            plaid_category_detailed,
+            plaid_category_confidence,
+            plaid_raw_data
+        ) VALUES (
+            v_plaid_account_id,
+            v_manual_account_id,
+            v_transaction.fin_account_transaction_ids,
+            v_transaction.plaid_category_detailed,
+            v_transaction.plaid_category_confidence,
+            v_transaction.raw_data
+        )
+        RETURNING id INTO v_recurring_transaction_id;
+
+        -- Insert into budget_fin_account_recurring_transactions
+        INSERT INTO budget_fin_account_recurring_transactions (
+            budget_id,
+            fin_account_recurring_transaction_id,
+            svend_category_id
+        ) VALUES (
+            p_budget_id,
+            v_recurring_transaction_id,
+            v_transaction.svend_category_id
+        );
+
+        -- Return each transaction ID
+        RETURN NEXT v_recurring_transaction_id;
+    END LOOP;
+
+    RETURN;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- ============================================================
+-- Get budget recurring transactions by team account slug function
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_budget_recurring_transactions_by_team_account_slug(p_team_account_slug TEXT)
+RETURNS TABLE (
+    id UUID,
+    budget_fin_account_id UUID,
+    svend_category_group_id UUID,
+    svend_category_group TEXT,
+    svend_category_id UUID,
+    svend_category TEXT,
+    notes TEXT,
+    tags jsonb,
+    fin_account_transaction_ids UUID[],
+    plaid_raw_data jsonb,
+    created_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE
+) AS $$
+DECLARE
+    v_budget_id UUID;
+BEGIN
+    -- Get the budget ID from the team account slug
+    SELECT b.id INTO v_budget_id
+    FROM budgets b
+    JOIN accounts a ON b.team_account_id = a.id
+    WHERE a.slug = p_team_account_slug
+    AND a.is_personal_account = false;
+
+    -- Return transactions using the other function
+    RETURN QUERY
+    SELECT * FROM get_budget_recurring_transactions_by_budget_id(v_budget_id);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Grant execute permission to the authenticated role
+grant execute on function get_budget_recurring_transactions_by_team_account_slug(TEXT) to authenticated;
+
+
+-- ============================================================
+-- Get budget recurring transactions within range by budget id function
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_budget_recurring_transactions_by_budget_id(p_budget_id UUID)
+RETURNS TABLE (
+    id UUID,
+    budget_fin_account_id UUID,
+    svend_category_group_id UUID,
+    svend_category_group TEXT,
+    svend_category_id UUID,
+    svend_category TEXT,
+    notes TEXT,
+    tags jsonb,
+    fin_account_transaction_ids UUID[],
+    plaid_raw_data jsonb,
+    created_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        fart.id,
+        bfa.id AS budget_fin_account_id,
+        cg.id AS svend_category_group_id,
+        cg.name::TEXT AS svend_category_group,
+        c.id AS svend_category_id,
+        c.name::TEXT AS svend_category,
+        bfart.notes,
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', bt.id,
+                        'name', bt.name
+                    )
+                )
+                FROM budget_tags bt
+                WHERE bt.id = ANY(bfart.tag_ids)
+            ),
+            '[]'::jsonb
+        ) AS tags,
+        fart.fin_account_transaction_ids,
+        fart.plaid_raw_data,
+        fart.created_at,
+        fart.updated_at
+    FROM 
+        fin_account_recurring_transactions fart
+    JOIN 
+        budget_fin_accounts bfa ON 
+            (bfa.plaid_account_id = fart.plaid_account_id AND fart.plaid_account_id IS NOT NULL) OR 
+            (bfa.manual_account_id = fart.manual_account_id AND fart.manual_account_id IS NOT NULL)
+    JOIN 
+        budgets b ON bfa.budget_id = b.id
+    JOIN
+        accounts a ON b.team_account_id = a.id
+    LEFT JOIN
+        budget_fin_account_recurring_transactions bfart ON fart.id = bfart.fin_account_recurring_transaction_id AND b.id = bfart.budget_id
+    JOIN 
+        categories c ON bfart.svend_category_id = c.id
+    JOIN 
+        category_groups cg ON c.group_id = cg.id
+    WHERE 
+        b.id = p_budget_id
+    GROUP BY
+        b.id,
+        cg.id,
+        cg.name,
+        c.id,
+        c.name,
+        fart.id,
+        bfart.notes,
+        bfart.svend_category_id,
+        bfart.tag_ids,
+        bfa.id
+    ORDER BY 
+        fart.created_at DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Grant execute permission to the authenticated role
+grant execute on function get_budget_recurring_transactions_by_budget_id(UUID) to authenticated;
+
+
+-- End of budget_fin_account_recurring_transactions table
+
+
+-- ============================================================
 -- budget_tags table
 -- ============================================================
 
-CREATE TABLE if not exists budget_tags (
+CREATE TABLE if not exists public.budget_tags (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    budget_id UUID NOT NULL REFERENCES budgets(id),
+    budget_id UUID NOT NULL REFERENCES public.budgets(id),
     name VARCHAR(255) NOT NULL,
     UNIQUE (name, budget_id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-revoke all on budget_tags from public, service_role;
+revoke all on public.budget_tags from public, service_role;
 
-alter table budget_tags enable row level security;
+alter table public.budget_tags enable row level security;
 
-CREATE POLICY read_budget_tags
-    ON public.budget_tags
-    FOR SELECT
-    TO authenticated
-    USING (
-        budget_id IS NULL 
-        OR
-        EXISTS (
-            SELECT 1 FROM public.budgets 
-            WHERE id = budget_id 
-            AND public.is_team_member(team_account_id, auth.uid())
+create policy read_budget_tags
+    on public.budget_tags
+    for select
+    to authenticated
+    using (
+        budget_id is null
+        or
+        exists (
+            select 1
+            from public.budgets
+            where id = budget_id
+            and public.is_team_member(team_account_id, auth.uid())
         )
     );
 
@@ -1203,9 +1559,9 @@ grant execute on function get_budget_tags_by_team_account_slug(TEXT) to authenti
 -- ============================================================
 -- Junction table for budget-transaction relationships
 -- ============================================================
-CREATE TABLE if not exists budget_fin_account_transactions (
-    budget_id UUID NOT NULL REFERENCES budgets(id),
-    fin_account_transaction_id UUID NOT NULL REFERENCES fin_account_transactions(id),
+CREATE TABLE if not exists public.budget_fin_account_transactions (
+    budget_id UUID NOT NULL REFERENCES public.budgets(id),
+    fin_account_transaction_id UUID NOT NULL REFERENCES public.fin_account_transactions(id),
     svend_category_id UUID NOT NULL REFERENCES public.categories(id) ON DELETE SET NULL,
     merchant_name TEXT,
     payee TEXT,
@@ -1214,9 +1570,9 @@ CREATE TABLE if not exists budget_fin_account_transactions (
     PRIMARY KEY (budget_id, fin_account_transaction_id)
 );
 
-revoke all on budget_fin_account_transactions from public, service_role;
+revoke all on public.budget_fin_account_transactions from public, service_role;
 
-alter table budget_fin_account_transactions enable row level security;
+alter table public.budget_fin_account_transactions enable row level security;
 
 -- Create policies
 create policy read_budget_fin_account_transactions
@@ -1234,94 +1590,6 @@ grant select on public.budget_fin_account_transactions to authenticated;
 grant select, update, insert on public.budget_fin_account_transactions to service_role;
 
 -- End of budget_fin_account_transactions table
-
-
--- ============================================================
--- create_budget_fin_account_transaction function
--- ============================================================
-CREATE OR REPLACE FUNCTION create_budget_fin_account_transaction(
-    p_budget_id UUID,
-    p_budget_fin_account_id UUID,
-    p_amount NUMERIC,
-    p_date DATE,
-    p_svend_category_id UUID,
-    p_merchant_name TEXT DEFAULT NULL,
-    p_payee TEXT DEFAULT NULL,
-    p_iso_currency_code TEXT DEFAULT 'USD',
-    p_plaid_category_detailed TEXT DEFAULT NULL,
-    p_plaid_category_confidence TEXT DEFAULT NULL,
-    p_raw_data JSONB DEFAULT NULL
-) RETURNS UUID AS $$
-DECLARE
-    v_plaid_account_id UUID;
-    v_manual_account_id UUID;
-    v_transaction_id UUID;
-    v_team_account_id UUID;
-BEGIN
-    -- Get the team_account_id from the budget
-    SELECT team_account_id INTO v_team_account_id
-    FROM budgets
-    WHERE id = p_budget_id;
-
-    -- Get the plaid_account_id or manual_account_id from budget_fin_accounts
-    SELECT plaid_account_id, manual_account_id 
-    INTO v_plaid_account_id, v_manual_account_id
-    FROM budget_fin_accounts
-    WHERE id = p_budget_fin_account_id;
-
-    IF v_plaid_account_id IS NULL AND v_manual_account_id IS NULL THEN
-        RAISE EXCEPTION 'Invalid budget_fin_account_id';
-    END IF;
-
-    -- Insert into fin_account_transactions
-    INSERT INTO fin_account_transactions (
-        plaid_account_id,
-        manual_account_id,
-        amount,
-        date,
-        merchant_name,
-        payee,
-        iso_currency_code,
-        plaid_category_detailed,
-        plaid_category_confidence,
-        raw_data
-    ) VALUES (
-        v_plaid_account_id,
-        v_manual_account_id,
-        p_amount,
-        p_date,
-        p_merchant_name,
-        p_payee,
-        p_iso_currency_code,
-        p_plaid_category_detailed,
-        p_plaid_category_confidence,
-        p_raw_data
-    )
-    RETURNING id INTO v_transaction_id;
-
-    -- Insert into budget_fin_account_transactions
-    INSERT INTO budget_fin_account_transactions (
-        budget_id,
-        fin_account_transaction_id,
-        svend_category_id,
-        merchant_name,
-        payee
-    ) VALUES (
-        p_budget_id,
-        v_transaction_id,
-        p_svend_category_id,
-        p_merchant_name,
-        p_payee
-    );
-
-    RETURN v_transaction_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Grant execute permission to service_role
-GRANT EXECUTE ON FUNCTION create_budget_fin_account_transaction(
-    UUID, UUID, NUMERIC, DATE, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, JSONB
-) TO service_role;
 
 
 -- ============================================================

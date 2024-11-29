@@ -33,17 +33,22 @@ export class TeamBudgetsApi {
       p_team_account_slug: slug,
     });
 
+    const budgetRecurringTransactionsPromise = this.client.rpc('get_budget_recurring_transactions_by_team_account_slug', {
+      p_team_account_slug: slug,
+    });
+
     const budgetCategoriesPromise = this.categoryService.getBudgetCategoryGroupsByTeamAccountSlug(slug);
 
     const budgetTagsPromise = this.client.rpc('get_budget_tags_by_team_account_slug', {
       p_team_account_slug: slug,
     });
 
-    const [accountResult, accountsResult, budgetResult, budgetTransactionsResult, budgetCategoriesResult, budgetTagsResult] = await Promise.all([
+    const [accountResult, accountsResult, budgetResult, budgetTransactionsResult, budgetRecurringTransactionsResult, budgetCategoriesResult, budgetTagsResult] = await Promise.all([
       accountPromise,
       accountsPromise,
       budgetPromise,
       budgetTransactionsPromise,
+      budgetRecurringTransactionsPromise,
       budgetCategoriesPromise,
       budgetTagsPromise,
     ]);
@@ -85,6 +90,13 @@ export class TeamBudgetsApi {
       };
     }
 
+    if (budgetRecurringTransactionsResult.error) {
+      return {
+        error: budgetRecurringTransactionsResult.error,
+        data: null,
+      };
+    }
+
     if (budgetTagsResult.error) {
       return {
         error: budgetTagsResult.error,
@@ -98,6 +110,7 @@ export class TeamBudgetsApi {
         accounts: accountsResult.data,
         budget: budgetResult.data!,
         budgetTransactions: budgetTransactionsResult.data,
+        budgetRecurringTransactions: budgetRecurringTransactionsResult.data,
         budgetCategories: budgetCategoriesResult,
         budgetTags: budgetTagsResult.data,
       },

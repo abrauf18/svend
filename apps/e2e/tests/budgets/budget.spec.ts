@@ -335,11 +335,12 @@ test.describe('Budget Service', () => {
   test('B) should leave spending as is if goals are set but all allocations and expenses are covered', async () => {
     const transactions = createSampleTransactionsScenarioCovered();
 
-    const currentDateOfMonth = new Date().getDate() + 1;
-    const currentMonth = new Date().getMonth() + 2;
+    const currentDateOfMonth = new Date().getDate();
+    const currentMonth = new Date().getMonth() + 1;
+
     const goals = [
-      createSampleGoal('emergency_fund', 12000, `2025-${currentMonth}-${currentDateOfMonth-1}`),
-      createSampleGoal('vacation', 6000, `2025-${currentMonth}-${currentDateOfMonth-1}`)
+      createSampleGoal('emergency_fund', 12000, `2025-${currentMonth}-${currentDateOfMonth}`),
+      createSampleGoal('vacation', 6000, `2025-${currentMonth}-${currentDateOfMonth}`)
     ];
 
     const result = await budgetService.onboardingRecommendSpendingAndGoals(transactions, goals, categoryGroups);
@@ -387,11 +388,11 @@ test.describe('Budget Service', () => {
       let emergencyFundMonthlyAmounts = getGoalRecommendationMonthlyAmounts(conservativeGoalRecommendations['emergency_fund']!);
       let vacationMonthlyAmounts = getGoalRecommendationMonthlyAmounts(conservativeGoalRecommendations['vacation']!);
       if (i < conservativeAllocationCount - 1) {
-        expect(emergencyFundMonthlyAmounts[i]).toEqual(1333.33);
-        expect(vacationMonthlyAmounts[i]).toEqual(666.66);
+        expect(emergencyFundMonthlyAmounts[i]).toEqual(1333.34);
+        expect(vacationMonthlyAmounts[i]).toEqual(666.67);
       } else {
-        expect(emergencyFundMonthlyAmounts[i]).toEqual(1333.36);
-        expect(vacationMonthlyAmounts[i]).toEqual(666.72);
+        expect(emergencyFundMonthlyAmounts[i]).toEqual(1333.28);
+        expect(vacationMonthlyAmounts[i]).toEqual(666.64);
       }
     }
 

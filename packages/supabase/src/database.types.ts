@@ -231,6 +231,59 @@ export type Database = {
           },
         ]
       }
+      budget_fin_account_recurring_transactions: {
+        Row: {
+          budget_id: string
+          fin_account_recurring_transaction_id: string
+          notes: string | null
+          svend_category_id: string | null
+          tag_ids: string[] | null
+        }
+        Insert: {
+          budget_id: string
+          fin_account_recurring_transaction_id: string
+          notes?: string | null
+          svend_category_id?: string | null
+          tag_ids?: string[] | null
+        }
+        Update: {
+          budget_id?: string
+          fin_account_recurring_transaction_id?: string
+          notes?: string | null
+          svend_category_id?: string | null
+          tag_ids?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_fin_account_recurring__fin_account_recurring_transa_fkey"
+            columns: ["fin_account_recurring_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "fin_account_recurring_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_fin_account_recurring_transaction_svend_category_id_fkey"
+            columns: ["svend_category_id"]
+            isOneToOne: false
+            referencedRelation: "built_in_categories"
+            referencedColumns: ["category_id"]
+          },
+          {
+            foreignKeyName: "budget_fin_account_recurring_transaction_svend_category_id_fkey"
+            columns: ["svend_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_fin_account_recurring_transactions_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_fin_account_transactions: {
         Row: {
           budget_id: string
@@ -661,6 +714,57 @@ export type Database = {
           },
         ]
       }
+      fin_account_recurring_transactions: {
+        Row: {
+          created_at: string | null
+          fin_account_transaction_ids: string[] | null
+          id: string
+          manual_account_id: string | null
+          plaid_account_id: string | null
+          plaid_category_confidence: string | null
+          plaid_category_detailed: string | null
+          plaid_raw_data: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fin_account_transaction_ids?: string[] | null
+          id?: string
+          manual_account_id?: string | null
+          plaid_account_id?: string | null
+          plaid_category_confidence?: string | null
+          plaid_category_detailed?: string | null
+          plaid_raw_data?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fin_account_transaction_ids?: string[] | null
+          id?: string
+          manual_account_id?: string | null
+          plaid_account_id?: string | null
+          plaid_category_confidence?: string | null
+          plaid_category_detailed?: string | null
+          plaid_raw_data?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_account_recurring_transactions_manual_account_id_fkey"
+            columns: ["manual_account_id"]
+            isOneToOne: false
+            referencedRelation: "manual_fin_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_account_recurring_transactions_plaid_account_id_fkey"
+            columns: ["plaid_account_id"]
+            isOneToOne: false
+            referencedRelation: "plaid_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fin_account_transactions: {
         Row: {
           amount: number
@@ -674,7 +778,7 @@ export type Database = {
           plaid_account_id: string | null
           plaid_category_confidence: string | null
           plaid_category_detailed: string | null
-          raw_data: Json | null
+          plaid_raw_data: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -689,7 +793,7 @@ export type Database = {
           plaid_account_id?: string | null
           plaid_category_confidence?: string | null
           plaid_category_detailed?: string | null
-          raw_data?: Json | null
+          plaid_raw_data?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -704,7 +808,7 @@ export type Database = {
           plaid_account_id?: string | null
           plaid_category_confidence?: string | null
           plaid_category_detailed?: string | null
-          raw_data?: Json | null
+          plaid_raw_data?: Json | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1559,13 +1663,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      can_update_fin_account_transaction: {
-        Args: {
-          transaction_id: string
-          user_id: string
-        }
-        Returns: boolean
-      }
       can_use_feature: {
         Args: {
           p_account_id: string
@@ -1589,21 +1686,19 @@ export type Database = {
           updated_at: string
         }[]
       }
-      create_budget_fin_account_transaction: {
+      create_budget_fin_account_recurring_transactions: {
         Args: {
           p_budget_id: string
-          p_budget_fin_account_id: string
-          p_amount: number
-          p_date: string
-          p_svend_category_id: string
-          p_merchant_name?: string
-          p_payee?: string
-          p_iso_currency_code?: string
-          p_plaid_category_detailed?: string
-          p_plaid_category_confidence?: string
-          p_raw_data?: Json
+          p_transactions: Database["public"]["CompositeTypes"]["budget_recurring_transaction_input"][]
         }
-        Returns: string
+        Returns: string[]
+      }
+      create_budget_fin_account_transactions: {
+        Args: {
+          p_budget_id: string
+          p_transactions: Database["public"]["CompositeTypes"]["budget_transaction_input"][]
+        }
+        Returns: string[]
       }
       create_budget_tag: {
         Args: {
@@ -1727,6 +1822,44 @@ export type Database = {
           category_description: string
           category_created_at: string
           category_updated_at: string
+        }[]
+      }
+      get_budget_recurring_transactions_by_budget_id: {
+        Args: {
+          p_budget_id: string
+        }
+        Returns: {
+          id: string
+          budget_fin_account_id: string
+          svend_category_group_id: string
+          svend_category_group: string
+          svend_category_id: string
+          svend_category: string
+          notes: string
+          tags: Json
+          fin_account_transaction_ids: string[]
+          plaid_raw_data: Json
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      get_budget_recurring_transactions_by_team_account_slug: {
+        Args: {
+          p_team_account_slug: string
+        }
+        Returns: {
+          id: string
+          budget_fin_account_id: string
+          svend_category_group_id: string
+          svend_category_group: string
+          svend_category_id: string
+          svend_category: string
+          notes: string
+          tags: Json
+          fin_account_transaction_ids: string[]
+          plaid_raw_data: Json
+          created_at: string
+          updated_at: string
         }[]
       }
       get_budget_tags_by_team_account_slug: {
@@ -2071,6 +2204,26 @@ export type Database = {
         budget_fin_account_id: string | null
         created_at: string | null
         updated_at: string | null
+      }
+      budget_recurring_transaction_input: {
+        budget_fin_account_id: string | null
+        fin_account_transaction_ids: string[] | null
+        svend_category_id: string | null
+        plaid_category_detailed: string | null
+        plaid_category_confidence: string | null
+        raw_data: Json | null
+      }
+      budget_transaction_input: {
+        budget_fin_account_id: string | null
+        amount: number | null
+        date: string | null
+        svend_category_id: string | null
+        merchant_name: string | null
+        payee: string | null
+        iso_currency_code: string | null
+        plaid_category_detailed: string | null
+        plaid_category_confidence: string | null
+        raw_data: Json | null
       }
       invitation: {
         email: string | null

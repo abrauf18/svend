@@ -1,10 +1,10 @@
 'use client';
 
 import { useRouter, usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kit/ui/tabs"
 import TransactionTab from "~/home/[account]/manage/_components/transaction-tab";
-import RecurringTab from "~/home/[account]/manage/_components/recurring-tab";
+import RecurringTab from "~/home/[account]/manage/_components/tabs/recurring/recurring-tab";
 import GoalsTab from "~/home/[account]/manage/_components/goals-tab";
 import BudgetTab from './budget-tab';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@kit/ui/alert-dialog"

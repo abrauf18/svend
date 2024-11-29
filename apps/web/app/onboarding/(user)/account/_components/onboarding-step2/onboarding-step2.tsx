@@ -118,7 +118,7 @@ function OnboardingStep2ProfileGoals() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-4 h-[calc(100vh-6rem)]">
+    <div className="mx-auto w-full max-w-6xl h-[calc(100vh-6rem)]">
       <Card className="w-full h-full flex flex-col">
         <CardHeader className="space-y-4 flex-shrink-0">
           <div className="flex items-center space-x-2">
@@ -151,23 +151,24 @@ function OnboardingStep2ProfileGoals() {
               className="w-full md:w-1/2 lg:w-full"
             />
           </div>
-          <br />
-          <div>
-            <p className="w-full md:w-auto">Part {currentSubStep} of 6</p>
-          </div>
-          <div className="flex space-x-1">
-            {[1, 2, 3, 4, 5, 6].map((step) => (
-              <span
-                key={step}
-                className={`h-2 w-2 ${currentSubStep >= step ? 'bg-primary' : 'bg-muted'} rounded-full`}
-              ></span>
-            ))}
+          <div className="flex items-center space-x-4">
+            <p className="w-full md:w-auto text-xs font-medium pl-4">Part {currentSubStep} of 6</p>
+            <div className="flex space-x-1">
+              {[1, 2, 3, 4, 5, 6].map((step) => (
+                <span
+                  key={step}
+                  className={`h-2 w-2 ${currentSubStep >= step ? 'bg-primary' : 'bg-muted'} rounded-full`}
+                ></span>
+              ))}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4 flex-1 overflow-y-auto card-content">
-          <p className="max-w-md text-sm text-muted-foreground">
-            <Trans i18nKey={'onboarding:finBackgroundInstructionText'} />
-          </p>
+          {currentSubStep === 1 && (
+            <p className="max-w-xl text-sm text-muted-foreground">
+              <Trans i18nKey={'onboarding:finBackgroundInstructionText'} />
+            </p>
+          )}
           {renderStep()}
         </CardContent>
         <CardFooter className="flex-shrink-0 border-t pt-4">

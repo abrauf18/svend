@@ -7,18 +7,16 @@ import { createBudgetService } from '~/lib/server/budget.service';
 
 const schema = z.object({
   categoryId: z.string().uuid().optional(),
-  merchantName: z.string().optional(),
-  payee: z.string().optional(),
   notes: z.string().optional(),
   tags: z.array(z.object({ id: z.string().uuid() }))
 });
 
-// PUT /api/budgets/[budgetId]/transactions/[transactionId]
-// Update a transaction
+// PUT /api/budgets/[budgetId]/transactions-recurring/[transactionId]
+// Update a recurring transaction
 export const PUT = enhanceRouteHandler(
   async ({ body, params }) => {
     if (!params.budgetId || !params.transactionId) {
-      return NextResponse.json({ error: 'Budget ID and Transaction ID are required' }, { status: 400 });
+      return NextResponse.json({ error: 'Budget ID and RecurringTransaction ID are required' }, { status: 400 });
     }
 
     const supabase = getSupabaseServerClient();
@@ -33,8 +31,6 @@ export const PUT = enhanceRouteHandler(
     const updateData: Record<string, any> = {};
     
     if (body.categoryId) updateData.svend_category_id = body.categoryId;
-    if (body.merchantName !== undefined) updateData.merchant_name = body.merchantName;
-    if (body.payee !== undefined) updateData.payee = body.payee;
     if (body.notes !== undefined) updateData.notes = body.notes;
     if (body.tags) updateData.tag_ids = body.tags.map(tag => tag.id);
     
@@ -59,12 +55,11 @@ export const PUT = enhanceRouteHandler(
 
     // Update the transaction with only the provided fields
     const { data: dbTransactionData, error: updateError } = await supabaseAdmin
-      .from('budget_fin_account_transactions')
+      .from('budget_fin_account_recurring_transactions')
       .update(updateData)
       .eq('budget_id', params.budgetId)
-      .eq('fin_account_transaction_id', params.transactionId)
-      .select('fin_account_transactions (date)')
-      .single();
+      .eq('fin_account_recurring_transaction_id', params.transactionId)
+      .select();
 
     if (updateError) {
       return NextResponse.json(
@@ -73,21 +68,11 @@ export const PUT = enhanceRouteHandler(
       );
     }
 
-    if (!dbTransactionData) {
+    if (!dbTransactionData || dbTransactionData.length === 0) {
       return NextResponse.json(
-        { error: 'Transaction not found' },
+        { error: 'Recurring transaction not found' },
         { status: 404 }
       );
-    }
-
-    // TODO: convert to function to make transaction in case of category change
-    if (body.categoryId) {
-      const transactionDate = dbTransactionData.fin_account_transactions!.date;
-      const formattedDate = new Date(transactionDate).toISOString().slice(0, 7); // formats to YYYY-MM
-      const { error: recalculateSpendingError } = await budgetService.updateRecalculateSpending(params.budgetId, [formattedDate]);
-      if (recalculateSpendingError) {
-        return NextResponse.json({ error: `Error recalculating spending after transaction category change: ${recalculateSpendingError}` }, { status: 500 });
-      }
     }
 
     return NextResponse.json({ message: 'Transaction updated successfully' });

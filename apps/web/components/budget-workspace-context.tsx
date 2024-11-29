@@ -10,7 +10,7 @@ import {
 
 import { User } from '@supabase/supabase-js';
 import { Database } from '~/lib/database.types';
-import { Budget, BudgetCategoryGroups, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag, BudgetSpendingTrackingsByMonth } from '~/lib/model/budget.types';
+import { Budget, BudgetCategoryGroups, BudgetFinAccountRecurringTransaction, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag, BudgetSpendingTrackingsByMonth } from '~/lib/model/budget.types';
 import { Category, CategoryGroup } from '~/lib/model/fin.types';
 
 interface BudgetWorkspace {
@@ -19,6 +19,7 @@ interface BudgetWorkspace {
   user: User;
   budget: Budget;
   budgetTransactions: BudgetFinAccountTransaction[];
+  budgetRecurringTransactions: BudgetFinAccountRecurringTransaction[];
   budgetCategories: BudgetCategoryGroups;
   budgetTags: BudgetFinAccountTransactionTag[];
 }
@@ -27,6 +28,7 @@ interface BudgetWorkspaceContextValue {
   workspace: BudgetWorkspace;
   updateBudgetOnboardingStep: (step: Database['public']['Tables']['budgets']['Row']['current_onboarding_step']) => void;
   updateTransaction: (transaction: BudgetFinAccountTransaction) => void;
+  updateRecurringTransaction: (transaction: BudgetFinAccountRecurringTransaction) => void;
   addBudgetTag: (tag: BudgetFinAccountTransactionTag) => void;
   addBudgetCategoryGroup: (group: CategoryGroup) => void;
   addBudgetCategory: (groupId: string, category: Category) => void;
@@ -151,6 +153,15 @@ export function BudgetWorkspaceContextProvider(
       ),
     }));
   };
+
+  const updateRecurringTransaction = (budgetTransaction: BudgetFinAccountRecurringTransaction) => {
+    setWorkspace(prev => ({
+      ...prev,
+      budgetRecurringTransactions: prev.budgetRecurringTransactions.map((t) =>
+        t.transaction.id === budgetTransaction.transaction.id ? budgetTransaction : t
+      ),
+    }));
+  };
   
   const addBudgetTag = (tag: BudgetFinAccountTransactionTag) => {
     setWorkspace(prev => ({
@@ -183,6 +194,7 @@ export function BudgetWorkspaceContextProvider(
         updateCategoryGroupDescription,
         updateCategoryDescription,
         updateTransaction,
+        updateRecurringTransaction,
         addBudgetTag,
         updateBudgetSpending,
       }}
