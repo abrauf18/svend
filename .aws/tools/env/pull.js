@@ -3,8 +3,7 @@ import { writeFileSync } from 'fs';
 
 const envFileName = '.env.aws.local';
 
-async function pullEnv(profile) {
-  // Configure AWS SDK to use the specified profile
+async function pullEnv(profile, outputPath) {
   process.env.AWS_PROFILE = profile;
 
   const secretsManager = new SecretsManager({});
@@ -18,8 +17,8 @@ async function pullEnv(profile) {
         .map(([key, value]) => `${key}=${value}`)
         .join('\n');
 
-      writeFileSync(`apps/web/${envFileName}`, envContent);
-      console.log(`Successfully created ${envFileName}`);
+      writeFileSync(`${outputPath}/${envFileName}`, envContent);
+      console.log(`Successfully created ${envFileName} in ${outputPath}`);
     } else {
       console.error('Secret value is not a string');
     }
@@ -28,11 +27,11 @@ async function pullEnv(profile) {
   }
 }
 
-// Check if a profile argument is provided
-if (process.argv.length < 3) {
-  console.error('Please provide an AWS CLI profile as an argument');
+if (process.argv.length < 4) {
+  console.error('Usage: node pull.js <aws-profile> <output-path>');
   process.exit(1);
 }
 
 const awsProfile = process.argv[2];
-pullEnv(awsProfile);
+const outputPath = process.argv[3];
+pullEnv(awsProfile, outputPath);
