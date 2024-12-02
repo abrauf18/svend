@@ -48,6 +48,7 @@ class CategoryService implements ICategoryService {
         id: category.category_id as string,
         name: category.category_name as string,
         description: category.category_description as string,
+        isDiscretionary: category.category_is_discretionary as boolean,
         createdAt: category.category_created_at as string,
         updatedAt: category.category_updated_at as string,
       });
@@ -112,13 +113,14 @@ class CategoryService implements ICategoryService {
           categories: []
         };
       }
-
+      
       if (category.category_id && category.category_name) {
         categoryGroups[groupName].categories.push({
           id: category.category_id,
           budgetId: category.budget_id,
           name: category.category_name,
           description: category.category_description,
+          isDiscretionary: category.category_is_discretionary,
           createdAt: category.category_created_at,
           updatedAt: category.category_updated_at,
         });

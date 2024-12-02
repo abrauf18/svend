@@ -58,6 +58,7 @@ export interface Category {
   budgetId?: string; // Optional UUID referencing budgets
   name: string; // Category name
   description?: string; // Optional description
+  isDiscretionary: boolean; // Indicates if the group is discretionary
   createdAt: string; // Timestamp
   updatedAt: string; // Timestamp
 }

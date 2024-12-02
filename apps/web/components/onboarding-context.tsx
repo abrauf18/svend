@@ -18,7 +18,7 @@ import {
   AccountOnboardingState,
 } from '../lib/model/onboarding.types';
 import { ProfileData } from '../lib/model/fin.types';
-import { Budget, BudgetGoal, BudgetSpendingRecommendations, BudgetSpendingTrackingsByMonth } from '../lib/model/budget.types';
+import { Budget, BudgetCategoryGroups, BudgetGoal, BudgetSpendingRecommendations, BudgetSpendingTrackingsByMonth } from '../lib/model/budget.types';
 
 import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
 
@@ -80,8 +80,10 @@ export function OnboardingContextProvider({
         goals: [],
         onboardingStep: 'start',
         linkedFinAccounts: [],
+        categoryGroups: {} as BudgetCategoryGroups,
       } as Budget,
       userId: undefined,
+      svendCategoryGroups: {} as BudgetCategoryGroups,
     } as AccountOnboardingState,
   });
 

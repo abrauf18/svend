@@ -12,12 +12,14 @@ import { FinancialGoals } from './part3-financial-goals';
 import { GoalsSavings } from './part4-goals-savings';
 import { GoalsDebt } from './part5-goals-debt';
 import { GoalsInvestment } from './part6-goals-investment';
+import { Loader2 } from 'lucide-react';
 
 
 function OnboardingStep2ProfileGoals() {
   const [currentSubStep, setCurrentSubStep] = useState(1);
   const [isFormValid, setIsFormValid] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
 
   const submitFormRef = useRef<(() => Promise<boolean>) | null>(null);
 
@@ -34,7 +36,7 @@ function OnboardingStep2ProfileGoals() {
           if (cardContent) {
             cardContent.scrollTop = 0;
           }
-          
+
           if (currentSubStep < 6) {
             setCurrentSubStep((prev) => prev + 1);
           } else {
@@ -53,12 +55,18 @@ function OnboardingStep2ProfileGoals() {
     }
   };
 
-  const handleSkipStep = () => {
+  const handleSkipStep = async () => {
+    if (currentSubStep === 6) {
+      setIsSkipping(true);
+    }
+
     if (currentSubStep < 6) {
       setCurrentSubStep((prev) => prev + 1);
     } else {
       accountNextStep();
     }
+
+    setIsSkipping(false);
   };
 
   // Renders the appropriate step component
@@ -190,8 +198,16 @@ function OnboardingStep2ProfileGoals() {
                 variant="outline"
                 className="w-full md:w-auto"
                 onClick={handleSkipStep}
+                disabled={isSkipping && currentSubStep === 6}
               >
-                <Trans i18nKey="skip" />
+                {isSkipping && currentSubStep === 6 ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </span>
+                ) : (
+                  <Trans i18nKey="skip" />
+                )}
               </Button>
             )}
           </div>

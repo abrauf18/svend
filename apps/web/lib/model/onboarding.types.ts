@@ -1,4 +1,4 @@
-import { Budget } from "./budget.types";
+import { Budget, BudgetCategoryGroups } from "./budget.types";
 import { ProfileData } from "./fin.types";
 
 // Define the enum for onboarding steps
@@ -76,6 +76,7 @@ export type AccountOnboardingState = {
   contextKey?: AccountOnboardingStepContextKey;
   userId?: string;
   plaidConnectionItems?: AccountOnboardingPlaidConnectionItem[];
+  svendCategoryGroups?: BudgetCategoryGroups;
 };
 
 export type OnboardingState = {

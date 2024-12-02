@@ -77,13 +77,13 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
     const supabase = getSupabaseBrowserClient();
     const categoryService = createCategoryService(supabase);
 
-    useEffect(() => {
-        const subscription = form.watch((value) => {
-            console.log('Form values:', JSON.stringify(value, null, 2));
-        });
+    // useEffect(() => {
+    //     const subscription = form.watch((value) => {
+    //         console.log('Form values:', JSON.stringify(value, null, 2));
+    //     });
 
-        return () => subscription.unsubscribe();
-    }, [form]);
+    //     return () => subscription.unsubscribe();
+    // }, [form]);
 
     useEffect(() => {
         async function initializeCategories() {

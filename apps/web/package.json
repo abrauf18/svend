@@ -21,6 +21,7 @@
     "supabase:start": "supabase status || supabase start",
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
+    "supabase:reset:linked": "supabase db reset --linked",
     "supabase:status": "supabase status",
     "supabase:test": "supabase db test",
     "supabase:db:lint": "supabase db lint",
@@ -91,7 +92,7 @@
     "dotenv-cli": "^7.4.2",
     "eslint": "^8.57.0",
     "prettier": "^3.3.3",
-    "supabase": "^1.219.2",
+    "supabase": "^1.226.3",
     "tailwindcss": "3.4.12",
     "typescript": "^5.6.2"
   },

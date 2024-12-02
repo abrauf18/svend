@@ -561,6 +561,7 @@ export type Database = {
           description: string | null
           group_id: string
           id: string
+          is_discretionary: boolean
           name: string
           updated_at: string | null
         }
@@ -570,6 +571,7 @@ export type Database = {
           description?: string | null
           group_id: string
           id?: string
+          is_discretionary?: boolean
           name: string
           updated_at?: string | null
         }
@@ -579,6 +581,7 @@ export type Database = {
           description?: string | null
           group_id?: string
           id?: string
+          is_discretionary?: boolean
           name?: string
           updated_at?: string | null
         }
@@ -1581,6 +1584,7 @@ export type Database = {
           category_created_at: string | null
           category_description: string | null
           category_id: string | null
+          category_is_discretionary: boolean | null
           category_name: string | null
           category_updated_at: string | null
           group_created_at: string | null
@@ -1820,6 +1824,7 @@ export type Database = {
           category_id: string
           category_name: string
           category_description: string
+          category_is_discretionary: boolean
           category_created_at: string
           category_updated_at: string
         }[]

@@ -74,6 +74,7 @@ export async function middleware(request: NextRequest) {
       // Redirect to /onboarding/account if onboarding is not complete
       console.log('middleware redirect to /onboarding/account if contextKey != end >> contextKey:', account?.contextKey);
       if (account?.contextKey as AccountOnboardingStepContextKey != 'end') {
+        console.log(`redirecting to accont onboarding for user ${user.id} with onboarding context ${account.contextKey}`)
         return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/account`);
       }
     }

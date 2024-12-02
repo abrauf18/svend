@@ -32,13 +32,7 @@ class ResendMailer implements Mailer {
             html: config.html,
           };
 
-    console.log('[Resend] Attempting to send email:', {
-      to: [config.to],
-      from: config.from,
-      subject: config.subject,
-      apiKeyLength: RESEND_API_KEY?.length || 0,
-      isApiKeyDefined: !!RESEND_API_KEY
-    });
+    console.log(`[Resend] Sending email from ${config.from} to ${config.to} >> Subject: ${config.subject}`);
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -55,12 +49,6 @@ class ResendMailer implements Mailer {
     });
 
     const data = await res.json();
-    
-    console.log('[Resend] API Response:', {
-      status: res.status,
-      ok: res.ok,
-      responseData: data,
-    });
 
     if (!res.ok) {
       console.error('[Resend] Failed to send email:', {
@@ -68,6 +56,7 @@ class ResendMailer implements Mailer {
         error: data,
         to: config.to,
         from: config.from,
+        responseData: data
       });
       throw new Error(`Failed to send email: ${JSON.stringify(data)}`);
     }

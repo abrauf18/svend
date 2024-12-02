@@ -1,19 +1,128 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardFooter } from '@kit/ui/card';
 import { Progress } from '@kit/ui/progress';
 import { Trans } from '@kit/ui/trans';
 import { Button } from '@kit/ui/button';
-import { RecommendationCard } from "./recommendation-card";
 import { BudgetTable } from "./budget-table";
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import type { BudgetFormSchema } from './budget-table';
 import { LoadingOverlay } from '@kit/ui/loading-overlay';
+import { useOnboardingContext } from '~/components/onboarding-context';
+import { RecommendationCardDiscretionary, type DiscretionarySavingsRecommendation } from "./recommendation-card-discretionary";
+import { RecommendationCardGoalTimeline, type GoalTimelineRecommendation } from "./recommendation-card-goaltimeline";
+import { BudgetGoal } from '~/lib/model/budget.types';
 
 function OnboardingStep3CreateBudget() {
   const [isLoading, setIsLoading] = useState(false);
+  const [discretionarySavings, setDiscretionarySavings] = useState<DiscretionarySavingsRecommendation | null>(null);
+  const [goalTimeline, setGoalTimeline] = useState<GoalTimelineRecommendation | null>(null);
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const { state } = useOnboardingContext();
+
+  useEffect(() => {
+    function calculateDiscretionarySavings() {
+      const budgetSpendingRecommendationsBalanced = state.account.budget?.spendingRecommendations.balanced || {};
+
+      // Calculate total discretionary spending by looking at each category within groups
+      const currentSpending = Object.values(budgetSpendingRecommendationsBalanced)
+        .reduce((total, group) => {
+          // Sum up spending for discretionary categories within this group
+          const groupDiscretionarySpending = group.categories
+            .filter(category => {
+              const categoryConfig = Object.values(state?.account.svendCategoryGroups || {})
+                .flatMap(g => g.categories)
+                .find(c => c.name === category.categoryName);
+              return categoryConfig?.isDiscretionary || false;
+            })
+            .reduce((categoryTotal, category) => {
+              return categoryTotal + Math.abs(category.spending || 0);
+            }, 0);
+
+          return total + groupDiscretionarySpending;
+        }, 0);
+
+      setDiscretionarySavings({
+        currentSpending,
+        potentialSavings: currentSpending * 0.5 // 50% reduction
+      });
+
+      return currentSpending * 0.5; // Return potential savings for use in timeline calculation
+    }
+
+    function calculateGoalTimeline() {
+      const goals = state.account.budget?.goals || [];
+      if (goals.length === 0) return;
+
+      // Find the goal with the highest amount that has recommendations in both strategies
+      const goalWithRecommendations = goals
+        .filter(goal => {
+          const conservativeRecs = goal.spendingRecommendations?.conservative;
+          const balancedRecs = goal.spendingRecommendations?.balanced;
+          return conservativeRecs && balancedRecs;
+        })
+        .reduce((highest, current) => 
+          !highest || current.amount > highest.amount ? current : highest
+        , null as BudgetGoal | null);
+
+      if (!goalWithRecommendations) return;
+
+      // Get the monthly recommendations for both strategies
+      const conservativeRecs = goalWithRecommendations.spendingRecommendations.conservative;
+      const balancedRecs = goalWithRecommendations.spendingRecommendations.balanced;
+
+      // Compare number of allocation months between strategies
+      const balancedMonths = Object.keys(balancedRecs?.monthlyAmounts || {}).length;
+      const conservativeMonths = Object.keys(conservativeRecs?.monthlyAmounts || {}).length;
+
+      // Calculate income and spending for both strategies
+      const balancedIncome = Math.abs(state.account.budget?.spendingRecommendations.balanced?.['Income']?.recommendation || 0);
+      const balancedSpending = Object.values(state.account.budget?.spendingRecommendations.balanced || {})
+        .filter(group => group.groupName !== 'Income')
+        .reduce((total, group) => total + group.recommendation, 0);
+      
+      const conservativeIncome = Math.abs(state.account.budget?.spendingRecommendations.conservative?.['Income']?.recommendation || 0);
+      const conservativeSpending = Object.values(state.account.budget?.spendingRecommendations.conservative || {})
+        .filter(group => group.groupName !== 'Income')
+        .reduce((total, group) => total + group.recommendation, 0);
+      
+      // Calculate total monthly allocations for all goals
+      const balancedGoalAllocations = Object.values(state.account.budget?.goals || [])
+        .reduce((total, goal) => {
+          const monthlyAmounts = Object.values(goal.spendingRecommendations.balanced[goal.id]?.monthlyAmounts || {});
+          return total + (monthlyAmounts.length > 0 ? monthlyAmounts.reduce((sum, amount) => sum + amount, 0) / monthlyAmounts.length : 0);
+        }, 0);
+
+      const conservativeGoalAllocations = Object.values(state.account.budget?.goals || [])
+        .reduce((total, goal) => {
+          const monthlyAmounts = Object.values(goal.spendingRecommendations.conservative[goal.id]?.monthlyAmounts || {});
+          return total + (monthlyAmounts.length > 0 ? monthlyAmounts.reduce((sum, amount) => sum + amount, 0) / monthlyAmounts.length : 0);
+        }, 0);
+
+      // Only proceed if conservative strategy results in fewer months
+      if (conservativeMonths >= balancedMonths) return;
+
+      const monthlySpendingReduction = Math.abs(balancedSpending - conservativeSpending);
+
+      const availableFunds = balancedIncome - Math.abs(balancedSpending);
+      const isSpendingReductionNeeded = availableFunds < conservativeGoalAllocations;
+
+      setGoalTimeline({
+        currentTimeline: balancedMonths,
+        adjustedTimeline: conservativeMonths,
+        monthlyAdjustment: monthlySpendingReduction,
+        requiresSpendingReduction: isSpendingReductionNeeded,
+        availableFunds,
+        goalType: goalWithRecommendations.type
+      });
+    }
+
+    if (state.account.budget?.spendingRecommendations?.balanced) {
+      calculateDiscretionarySavings();
+      calculateGoalTimeline();
+    }
+  }, [state.account.budget?.spendingRecommendations, state.account.budget?.goals]);
 
   const handleBudgetSubmit = async (budgetData: z.infer<typeof BudgetFormSchema>) => {
     setIsLoading(true);
@@ -35,8 +144,6 @@ function OnboardingStep3CreateBudget() {
       }, {})
     };
 
-    console.log('Budget category group spending form submitted:', formReqData);
-
     try {
       const response = await fetch('/api/onboarding/account/budget/spending', {
         method: 'PUT',
@@ -51,6 +158,7 @@ function OnboardingStep3CreateBudget() {
       }
 
       const data = await response.json();
+      console.log('Budget saved, navigating to new budget:', data.budgetSlug);
       router.replace(`/home/${data.budgetSlug}`);
     } catch (error) {
       console.error('Error saving budget:', error);
@@ -83,7 +191,7 @@ function OnboardingStep3CreateBudget() {
             <span className="text-xl font-semibold">Svend</span>
           </div>
           <h2 className="text-2xl font-bold">
-            <Trans i18nKey={'onboarding:createBudgetTitle'} />
+            Let's create your budget
           </h2>
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">3 of 3</p>
@@ -91,32 +199,27 @@ function OnboardingStep3CreateBudget() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <h3 className="text-xl font-semibold">
+          <h3 className="text-xl font-semibold my-2">
             <Trans i18nKey={'onboarding:createBudgetSubtitleFinRecommendation'} />
           </h3>
           <p className="text-sm text-muted-foreground max-w-full">
             <Trans i18nKey={'onboarding:createBudgetFinRecommendationInstructions'} />
           </p>
-          <div className="flex flex-row flex-1 flex-wrap gap-[8px] justify-center">
-            <RecommendationCard
-              title={'onboarding:createBudgetCardGoalTitle'}
-              description={'onboarding:createBudgetCardGoalDescription'}
-            />
-
-            <RecommendationCard
-              title={'onboarding:createBudgetCardAdditionalTitle'}
-              description={'onboarding:createBudgetCardAdditionalDescription'}
-            />
-
-            <RecommendationCard
-              title={'onboarding:createBudgetCardAdditionalTitle'}
-              description={'onboarding:createBudgetCardAdditionalDescription'}
-            />
-
-            <RecommendationCard
-              title={'onboarding:createBudgetCardAdditionalTitle'}
-              description={'onboarding:createBudgetCardAdditionalDescription'}
-            />
+          <div className="flex flex-row flex-1 flex-wrap gap-[8px] py-8 justify-start">
+            {discretionarySavings && (
+              <div className="flex-1 min-w-[250px] max-w-[250px] shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] dark:shadow-[0_0_15px_rgba(255,255,255,0.05)] dark:hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] transition-shadow duration-300">
+                <RecommendationCardDiscretionary
+                  recommendation={discretionarySavings}
+                />
+              </div>
+            )}
+            {goalTimeline && (
+              <div className="flex-1 min-w-[250px] max-w-[250px] shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] dark:shadow-[0_0_15px_rgba(255,255,255,0.05)] dark:hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] transition-shadow duration-300">
+                <RecommendationCardGoalTimeline
+                  recommendation={goalTimeline}
+                />
+              </div>
+            )}
           </div>
 
           <h3 className="text-xl font-semibold">

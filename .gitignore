@@ -46,3 +46,6 @@ yarn-error.log*
 
 # contentlayer
 .contentlayer/
+
+# supabase local development
+**/supabase/seed.*.sql

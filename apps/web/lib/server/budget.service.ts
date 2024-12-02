@@ -1740,7 +1740,7 @@ class BudgetService {
         sum + group.categories
           .filter(cat => discretionaryCategories.includes(cat.categoryName))
           .reduce((catSum, cat) => catSum + cat.recommendation, 0)
-        , 0);
+      , 0);
     const availableAfterSpending = totalIncome - totalNonDiscretionarySpending - adjustedDiscretionarySpending;
 
     // If no money available for goals, clear all allocations
@@ -1842,7 +1842,7 @@ class BudgetService {
         sum + group.categories
           .filter(cat => discretionaryCategories.includes(cat.categoryName))
           .reduce((catSum, cat) => catSum + cat.recommendation, 0)
-        , 0);
+      , 0);
 
     // Calculate deficit if any
     const deficit = Math.max(0, totalDesiredSpending - totalIncome);
@@ -2189,16 +2189,9 @@ class BudgetService {
     categoryToGroupMap: Record<string, string>
   }> {
     // Define discretionary categories
-    const discretionaryCategories = [
-      'Shopping',
-      'Online Marketplaces',
-      'Superstores',
-      'Other Entertainment',
-      'Events & Amusement',
-      'Video Games',
-      'TV & Movies',
-      'Music & Audio'
-    ];
+    const discretionaryCategories = Object.values(categoryGroups)
+      .flatMap(group => group.categories.filter(cat => cat.isDiscretionary))
+      .map(cat => cat.name);
 
     // Create mapping of categories to their groups
     const categoryToGroupMap = Object.values(categoryGroups).reduce((acc, group) => {
@@ -2475,17 +2468,24 @@ class BudgetService {
       const targetDate = new Date(goal.targetDate);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
 
       // Get day of month from target date (will be used for all allocations)
       const targetDayOfMonth = targetDate.getDate();
+      
+      // Get adjusted target day for current month
+      const currentMonthLastDay = new Date(
+        today.getFullYear(),
+        today.getMonth() + 1,
+        0
+      ).getDate();
+      const adjustedTargetDay = Math.min(targetDayOfMonth, currentMonthLastDay);
 
-      // Start from next month if today's date is >= target day of month
+      // Initialize start date at beginning of current month
       let currentDate = new Date(today);
       currentDate.setDate(1); // Reset to start of month for clean iteration
 
-      if (today.getDate() >= targetDayOfMonth) {
+      // Determine if we need to start next month based on adjusted target day
+      if (today.getDate() >= adjustedTargetDay) {
         currentDate.setMonth(currentDate.getMonth() + 1);
       }
 
@@ -2495,14 +2495,8 @@ class BudgetService {
       const endYear = targetDate.getFullYear();
       const endMonth = targetDate.getMonth();
       
-      // Get the target day of month
-      const currentDayOfMonth = currentDate.getDate();
-
-      // Add an extra month if the target day is later than our current position
-      const needsExtraMonth = targetDayOfMonth > currentDayOfMonth;
-
-      // Calculate total months
-      const monthsUntilTarget = (endYear - startYear) * 12 + (endMonth - startMonth) + (needsExtraMonth ? 1 : 0);
+      // Calculate total months including both start and end months
+      const monthsUntilTarget = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
 
       // Calculate monthly amount
       const monthlyAmount = goal.amount / monthsUntilTarget;
@@ -2510,31 +2504,24 @@ class BudgetService {
 
       // Generate monthly dates with proper day of month handling
       for (let i = 0; i < monthsUntilTarget; i++) {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth() + 1;
+        // Get last day of current month
+        const lastDayOfMonth = new Date(
+          currentDate.getFullYear(),
+          currentDate.getMonth() + 1,
+          0
+        ).getDate();
 
-        // Determine the correct day for this month
-        let dayOfMonth = targetDayOfMonth;
-        const lastDayOfMonth = new Date(year, month, 0).getDate();
-
-        if (targetDayOfMonth > lastDayOfMonth) {
-          dayOfMonth = lastDayOfMonth;
-        }
-
-        // Create allocation date for validation
-        const allocationDate = new Date(year, month - 1, dayOfMonth);
-        
-        // Skip if allocation would be today or earlier
-        if (allocationDate <= today) {
-          currentDate.setMonth(currentDate.getMonth() + 1);
-          continue;
-        }
+        // Use target day unless it exceeds month length
+        const adjustedDay = Math.min(targetDayOfMonth, lastDayOfMonth);
+        currentDate.setDate(adjustedDay);
 
         // Format as YYYY-MM
         const monthKey = currentDate.toISOString().slice(0, 7);
         monthlyAmounts[monthKey] = monthlyAmount;
 
+        // Move to first day of next month
         currentDate.setMonth(currentDate.getMonth() + 1);
+        currentDate.setDate(1);
       }
 
       // Set recommendations for each strategy

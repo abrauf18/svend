@@ -6,6 +6,7 @@ import { Budget, BudgetSpendingRecommendations, BudgetSpendingTrackingsByMonth, 
 import { Configuration } from 'plaid';
 import { PlaidEnvironments } from 'plaid';
 import { createBudgetService } from '~/lib/server/budget.service';
+import { createCategoryService } from '~/lib/server/category.service';
 
 // GET /api/onboarding/account/state
 // Returns the current onboarding state for the account
@@ -233,6 +234,9 @@ export async function GET(request: Request) {
     console.error('Error creating signed URLs for institution logos:', error);
   }
 
+  const categoryService = createCategoryService(supabaseAdminClient);
+  const svendCategoryGroups = await categoryService.getSvendDefaultCategoryGroups();
+
   return NextResponse.json({
     success: true,
     message: 'Account onboarding state successfully retrieved',
@@ -241,7 +245,8 @@ export async function GET(request: Request) {
       contextKey: (dbAccountOnboardingState.account as any)?.contextKey,
       userId: user.id,
       plaidConnectionItems: plaidConnectionItems,
-      profileData: profileData
+      profileData: profileData,
+      svendCategoryGroups
     }
   });
 }

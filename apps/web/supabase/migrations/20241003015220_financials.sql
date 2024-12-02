@@ -640,6 +640,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) NOT NULL,
     description TEXT,
+    is_discretionary BOOLEAN NOT NULL DEFAULT FALSE,
     group_id UUID NOT NULL REFERENCES public.category_groups(id) ON DELETE CASCADE,
     budget_id UUID REFERENCES public.budgets(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -726,6 +727,7 @@ SELECT
     c.id AS category_id,  -- Select category ID
     c.name AS category_name,  -- Select category name
     c.description AS category_description,  -- Select category description
+    c.is_discretionary AS category_is_discretionary,  -- Select category is discretionary status
     c.created_at AS category_created_at,  -- Select category creation timestamp
     c.updated_at AS category_updated_at,  -- Select category update timestamp
     cg.id AS group_id,  -- Select group ID
@@ -852,6 +854,7 @@ RETURNS TABLE (
     category_id UUID,
     category_name VARCHAR(50),
     category_description TEXT,
+    category_is_discretionary BOOLEAN,
     category_created_at TIMESTAMP,
     category_updated_at TIMESTAMP
 ) AS $$
@@ -868,6 +871,7 @@ BEGIN
         c.id AS category_id,
         c.name AS category_name,
         c.description AS category_description,
+        c.is_discretionary AS category_is_discretionary,
         c.created_at AS category_created_at,
         c.updated_at AS category_updated_at
     FROM 
@@ -882,7 +886,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-GRANT EXECUTE ON FUNCTION get_budget_categories(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION get_budget_categories(UUID) TO authenticated;
 
 
 -- ============================================================
@@ -1841,107 +1845,107 @@ INSERT INTO public.category_groups (name, description, is_enabled) VALUES
     ('Other', 'Other catch-all category', FALSE);
 
 -- Create built-in categories
-INSERT INTO public.categories (name, description, group_id) VALUES
+INSERT INTO public.categories (name, description, is_discretionary, group_id) VALUES
     -- Income Categories
-    ('Income', 'Income from various sources', (SELECT id FROM public.category_groups WHERE name = 'Income')),
+    ('Income', 'Income from various sources', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Income')),
 
-    -- Savings & Transfers Categories
-    ('Inbound Transfer', 'Loans and cash advances deposited into a bank account', (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
-    ('Investment Income', 'Inbound transfers to an investment or retirement account', (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
-    ('Account Transfer', 'General inbound transfers from another account', (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
-    ('Other Inbound', 'Other miscellaneous inbound transactions', (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
-    ('Investment Transfer', 'Transfers to an investment or retirement account, including investment apps such as Acorns, Betterment', (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
-    ('Outbound Transfer', 'Outbound transfers to savings accounts', (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
-    ('Withdrawal', 'Withdrawals from a bank account', (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
-    ('Other Outbound', 'Other miscellaneous outbound transactions', (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
+    -- Savings & Transfers Categories (All non-discretionary as they're account management)
+    ('Inbound Transfer', 'Loans and cash advances deposited into a bank account', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
+    ('Investment Income', 'Inbound transfers to an investment or retirement account', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
+    ('Account Transfer', 'General inbound transfers from another account', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
+    ('Other Inbound', 'Other miscellaneous inbound transactions', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
+    ('Investment Transfer', 'Transfers to an investment or retirement account, including investment apps such as Acorns, Betterment', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
+    ('Outbound Transfer', 'Outbound transfers to savings accounts', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
+    ('Withdrawal', 'Withdrawals from a bank account', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
+    ('Other Outbound', 'Other miscellaneous outbound transactions', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Savings & Transfers')),
 
-    -- Debt Payments Categories
-    ('Debt Payments', 'Payments on mortgages', (SELECT id FROM public.category_groups WHERE name = 'Debt Payments')),
+    -- Debt Payments (Non-discretionary)
+    ('Debt Payments', 'Payments on mortgages', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Debt Payments')),
 
-    -- Bank Fees Categories
-    ('Bank Fees', 'Fees incurred for out-of-network ATMs', (SELECT id FROM public.category_groups WHERE name = 'Bank Fees')),
+    -- Bank Fees (Non-discretionary)
+    ('Bank Fees', 'Fees incurred for out-of-network ATMs', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Bank Fees')),
 
-    -- Entertainment Categories
-    ('Gambling', 'Gambling, casinos, and sports betting', (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
-    ('Music & Audio', 'Digital and in-person music purchases, including music streaming services', (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
-    ('Events & Amusement', 'Purchases made at sporting events, music venues, concerts, museums, and amusement parks', (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
-    ('TV & Movies', 'In home movie streaming services and movie theaters', (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
-    ('Video Games', 'Digital and in-person video game purchases', (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
-    ('Other Entertainment', 'Other miscellaneous entertainment purchases, including night life and adult entertainment', (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
+    -- Entertainment Categories (All discretionary)
+    ('Gambling', 'Gambling, casinos, and sports betting', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
+    ('Music & Audio', 'Digital and in-person music purchases, including music streaming services', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
+    ('Events & Amusement', 'Purchases made at sporting events, music venues, concerts, museums, and amusement parks', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
+    ('TV & Movies', 'In home movie streaming services and movie theaters', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
+    ('Video Games', 'Digital and in-person video game purchases', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
+    ('Other Entertainment', 'Other miscellaneous entertainment purchases, including night life and adult entertainment', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Entertainment')),
 
-    -- Food & Drink Categories
-    ('Alcohol', 'Beer, Wine & Liquor Stores', (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
-    ('Coffee', 'Purchases at coffee shops or cafes', (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
-    ('Fast Food', 'Dining expenses for fast food chains', (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
-    ('Groceries', 'Purchases for fresh produce and groceries, including farmers'' markets', (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
-    ('Dining Out', 'Dining expenses for restaurants, bars, gastropubs, and diners', (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
-    ('Vending Machines', 'Purchases made at vending machine operators', (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
-    ('Other Food & Drink', 'Other miscellaneous food and drink, including desserts, juice bars, and delis', (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
+    -- Food & Drink Categories (Mixed - groceries essential, dining out discretionary)
+    ('Alcohol', 'Beer, Wine & Liquor Stores', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
+    ('Coffee', 'Purchases at coffee shops or cafes', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
+    ('Fast Food', 'Dining expenses for fast food chains', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
+    ('Groceries', 'Purchases for fresh produce and groceries, including farmers'' markets', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
+    ('Dining Out', 'Dining expenses for restaurants, bars, gastropubs, and diners', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
+    ('Vending Machines', 'Purchases made at vending machine operators', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
+    ('Other Food & Drink', 'Other miscellaneous food and drink, including desserts, juice bars, and delis', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Food & Drink')),
 
-    -- Retail & Goods Categories
-    ('Shopping', 'Retail stores with wide ranges of consumer goods, typically specializing in clothing and home goods', (SELECT id FROM public.category_groups WHERE name = 'Retail & Goods')),
-    ('Online Marketplaces', 'Multi-purpose e-commerce platforms such as Etsy, Ebay and Amazon', (SELECT id FROM public.category_groups WHERE name = 'Retail & Goods')),
-    ('Superstores', 'Superstores such as Target and Walmart, selling both groceries and general merchandise', (SELECT id FROM public.category_groups WHERE name = 'Retail & Goods')),
+    -- Retail & Goods Categories (Generally discretionary)
+    ('Shopping', 'Retail stores with wide ranges of consumer goods, typically specializing in clothing and home goods', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Retail & Goods')),
+    ('Online Marketplaces', 'Multi-purpose e-commerce platforms such as Etsy, Ebay and Amazon', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Retail & Goods')),
+    ('Superstores', 'Superstores such as Target and Walmart, selling both groceries and general merchandise', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Retail & Goods')),
 
-    -- Home Improvement Categories
-    ('Furniture', 'Furniture, bedding, and home accessories', (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
-    ('Hardware', 'Building materials, hardware stores, paint, and wallpaper', (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
-    ('Repair & Maintenance', 'Plumbing, lighting, gardening, and roofing', (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
-    ('Security', 'Home security system purchases', (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
-    ('Other Home Improvement', 'Other miscellaneous home purchases, including pool installation and pest control', (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
+    -- Home Improvement Categories (Mixed - repairs necessary, upgrades discretionary)
+    ('Furniture', 'Furniture, bedding, and home accessories', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
+    ('Hardware', 'Building materials, hardware stores, paint, and wallpaper', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
+    ('Repair & Maintenance', 'Plumbing, lighting, gardening, and roofing', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
+    ('Security', 'Home security system purchases', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
+    ('Other Home Improvement', 'Other miscellaneous home purchases, including pool installation and pest control', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Home Improvement')),
 
-    -- Medical Categories
-    ('Dental Care', 'Dentists and general dental care', (SELECT id FROM public.category_groups WHERE name = 'Medical')),
-    ('Eye Care', 'Optometrists, contacts, and glasses stores', (SELECT id FROM public.category_groups WHERE name = 'Medical')),
-    ('Nursing Care', 'Nursing care and facilities', (SELECT id FROM public.category_groups WHERE name = 'Medical')),
-    ('Pharmacies & Supplements', 'Pharmacies and nutrition shops', (SELECT id FROM public.category_groups WHERE name = 'Medical')),
-    ('Primary Care', 'Doctors and physicians', (SELECT id FROM public.category_groups WHERE name = 'Medical')),
-    ('Veterinary Services', 'Prevention and care procedures for animals', (SELECT id FROM public.category_groups WHERE name = 'Medical')),
-    ('Other Medical', 'Other miscellaneous medical, including blood work, hospitals, and ambulances', (SELECT id FROM public.category_groups WHERE name = 'Medical')),
+    -- Medical Categories (Generally non-discretionary)
+    ('Dental Care', 'Dentists and general dental care', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Medical')),
+    ('Eye Care', 'Optometrists, contacts, and glasses stores', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Medical')),
+    ('Nursing Care', 'Nursing care and facilities', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Medical')),
+    ('Pharmacies & Supplements', 'Pharmacies and nutrition shops', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Medical')),
+    ('Primary Care', 'Doctors and physicians', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Medical')),
+    ('Veterinary Services', 'Prevention and care procedures for animals', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Medical')),
+    ('Other Medical', 'Other miscellaneous medical, including blood work, hospitals, and ambulances', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Medical')),
 
-    -- Personal Care Categories
-    ('Gyms & Fitness', 'Gyms, fitness centers, and workout classes', (SELECT id FROM public.category_groups WHERE name = 'Personal Care')),
-    ('Hair & Beauty', 'Manicures, haircuts, waxing, spa/massages, and bath and beauty products', (SELECT id FROM public.category_groups WHERE name = 'Personal Care')),
-    ('Laundry & Dry Cleaning', 'Wash and fold, and dry cleaning expenses', (SELECT id FROM public.category_groups WHERE name = 'Personal Care')),
-    ('Other Personal Care', 'Other miscellaneous personal care, including mental health apps and services', (SELECT id FROM public.category_groups WHERE name = 'Personal Care')),
+    -- Personal Care Categories (Mixed)
+    ('Gyms & Fitness', 'Gyms, fitness centers, and workout classes', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Personal Care')),
+    ('Hair & Beauty', 'Manicures, haircuts, waxing, spa/massages, and bath and beauty products', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Personal Care')),
+    ('Laundry & Dry Cleaning', 'Wash and fold, and dry cleaning expenses', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Personal Care')),
+    ('Other Personal Care', 'Other miscellaneous personal care, including mental health apps and services', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Personal Care')),
 
-    -- General Services Categories
-    ('Financial Planning', 'Financial planning, and tax and accounting services', (SELECT id FROM public.category_groups WHERE name = 'General Services')),
-    ('Automotive', 'Oil changes, car washes, repairs, and towing', (SELECT id FROM public.category_groups WHERE name = 'General Services')),
-    ('Childcare', 'Babysitters and daycare', (SELECT id FROM public.category_groups WHERE name = 'General Services')),
-    ('Consulting & Legal', 'Consulting and legal services', (SELECT id FROM public.category_groups WHERE name = 'General Services')),
-    ('Education', 'Elementary, high school, professional schools, and college tuition', (SELECT id FROM public.category_groups WHERE name = 'General Services')),
-    ('Insurance', 'Insurance for auto, home, and healthcare', (SELECT id FROM public.category_groups WHERE name = 'General Services')),
-    ('Postage & Shipping', 'Mail, packaging, and shipping services', (SELECT id FROM public.category_groups WHERE name = 'General Services')),
-    ('Storage', 'Storage services and facilities', (SELECT id FROM public.category_groups WHERE name = 'General Services')),
-    ('Other Services', 'Other miscellaneous services, including advertising and cloud storage', (SELECT id FROM public.category_groups WHERE name = 'General Services')),
+    -- General Services Categories (Generally non-discretionary)
+    ('Financial Planning', 'Financial planning, and tax and accounting services', FALSE, (SELECT id FROM public.category_groups WHERE name = 'General Services')),
+    ('Automotive', 'Oil changes, car washes, repairs, and towing', FALSE, (SELECT id FROM public.category_groups WHERE name = 'General Services')),
+    ('Childcare', 'Babysitters and daycare', FALSE, (SELECT id FROM public.category_groups WHERE name = 'General Services')),
+    ('Consulting & Legal', 'Consulting and legal services', FALSE, (SELECT id FROM public.category_groups WHERE name = 'General Services')),
+    ('Education', 'Elementary, high school, professional schools, and college tuition', FALSE, (SELECT id FROM public.category_groups WHERE name = 'General Services')),
+    ('Insurance', 'Insurance for auto, home, and healthcare', FALSE, (SELECT id FROM public.category_groups WHERE name = 'General Services')),
+    ('Postage & Shipping', 'Mail, packaging, and shipping services', FALSE, (SELECT id FROM public.category_groups WHERE name = 'General Services')),
+    ('Storage', 'Storage services and facilities', FALSE, (SELECT id FROM public.category_groups WHERE name = 'General Services')),
+    ('Other Services', 'Other miscellaneous services, including advertising and cloud storage', FALSE, (SELECT id FROM public.category_groups WHERE name = 'General Services')),
 
-    -- Government & Non-Profit Categories
-    ('Donations', 'Charitable, political, and religious donations', (SELECT id FROM public.category_groups WHERE name = 'Government & Non-Profit')),
-    ('Government Services', 'Government departments and agencies, such as driving licences, and passport renewal', (SELECT id FROM public.category_groups WHERE name = 'Government & Non-Profit')),
-    ('Tax Payment', 'Tax payments, including income and property taxes', (SELECT id FROM public.category_groups WHERE name = 'Government & Non-Profit')),
-    ('Other Government & Non-Profit', 'Other miscellaneous government and non-profit agencies', (SELECT id FROM public.category_groups WHERE name = 'Government & Non-Profit')),
+    -- Government & Non-Profit Categories (Mixed)
+    ('Donations', 'Charitable, political, and religious donations', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Government & Non-Profit')),
+    ('Government Services', 'Government departments and agencies, such as driving licences, and passport renewal', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Government & Non-Profit')),
+    ('Tax Payment', 'Tax payments, including income and property taxes', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Government & Non-Profit')),
+    ('Other Government & Non-Profit', 'Other miscellaneous government and non-profit agencies', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Government & Non-Profit')),
 
-    -- Transport & Travel Categories
-    ('Bikes & Scooters', 'Bike and scooter rentals', (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
-    ('Transportation', 'Purchases at a gas station', (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
-    ('Other Transportation', 'Other miscellaneous transportation expenses', (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
-    ('Flights', 'Airline expenses', (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
-    ('Lodging', 'Hotels, motels, and hosted accommodation such as Airbnb', (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
-    ('Rental Cars', 'Rental cars, charter buses, and trucks', (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
-    ('Other Travel', 'Other miscellaneous travel expenses', (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
+    -- Transport & Travel Categories (Mixed - daily transport necessary, leisure travel discretionary)
+    ('Bikes & Scooters', 'Bike and scooter rentals', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
+    ('Transportation', 'Purchases at a gas station', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
+    ('Other Transportation', 'Other miscellaneous transportation expenses', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
+    ('Flights', 'Airline expenses', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
+    ('Lodging', 'Hotels, motels, and hosted accommodation such as Airbnb', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
+    ('Rental Cars', 'Rental cars, charter buses, and trucks', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
+    ('Other Travel', 'Other miscellaneous travel expenses', TRUE, (SELECT id FROM public.category_groups WHERE name = 'Transport & Travel')),
 
-    -- Rent & Utilities Categories
-    ('Gas & Electricity', 'Gas and electricity bills', (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
-    ('Internet & Cable', 'Internet and cable bills', (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
-    ('Rent', 'Rent payment', (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
-    ('Sewage & Waste', 'Sewage and garbage disposal bills', (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
-    ('Telephone', 'Cell phone bills', (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
-    ('Water', 'Water bills', (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
-    ('Other Utilities', 'Other miscellaneous utility bills', (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
+    -- Rent & Utilities Categories (All non-discretionary)
+    ('Gas & Electricity', 'Gas and electricity bills', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
+    ('Internet & Cable', 'Internet and cable bills', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
+    ('Rent', 'Rent payment', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
+    ('Sewage & Waste', 'Sewage and garbage disposal bills', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
+    ('Telephone', 'Cell phone bills', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
+    ('Water', 'Water bills', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
+    ('Other Utilities', 'Other miscellaneous utility bills', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Rent & Utilities')),
 
     -- Other Categories
-    ('Other', 'Other catch-all category', (SELECT id FROM public.category_groups WHERE name = 'Other'));
+    ('Other', 'Other catch-all category', FALSE, (SELECT id FROM public.category_groups WHERE name = 'Other'));
 
 -- End of populate initial data
 

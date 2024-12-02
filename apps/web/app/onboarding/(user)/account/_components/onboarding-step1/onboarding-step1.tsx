@@ -6,6 +6,7 @@ import { Button } from '@kit/ui/button';
 import { useOnboardingContext } from '@kit/accounts/components';
 import { PlaidConnectionItems } from './plaid-connection-items';
 import { usePlaidLink, PlaidLinkOptions } from 'react-plaid-link';
+import { Loader2 } from "lucide-react";
 
 function OnboardingStep1ConnectPlaidAccounts() {
   const [hasPlaidConnection, setHasPlaidConnection] = useState(false);
@@ -13,6 +14,7 @@ function OnboardingStep1ConnectPlaidAccounts() {
   const [loadingServer, setLoadingServer] = useState(false);
   const { state, accountNextStep, accountPlaidConnItemAddOne } = useOnboardingContext();
   const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
     if (state?.account.plaidConnectionItems) {
@@ -20,6 +22,12 @@ function OnboardingStep1ConnectPlaidAccounts() {
       setHasPlaidConnection(hasConnections);
     }
   }, [state]);
+
+  useEffect(() => {
+    if (isNavigating && (state?.account.contextKey as string)! !== 'plaid') {
+      setIsNavigating(false);
+    }
+  }, [state?.account.contextKey, isNavigating]);
 
   const onSuccess = useCallback(async (public_token: string, metadata: any) => {
     try {
@@ -155,10 +163,20 @@ function OnboardingStep1ConnectPlaidAccounts() {
             <Button 
               variant="outline" 
               className="w-full md:w-auto" 
-              disabled={!hasPlaidConnection || loadingPlaidOAuth}
-              onClick={accountNextStep}
+              disabled={!hasPlaidConnection || loadingPlaidOAuth || isNavigating}
+              onClick={() => {
+                setIsNavigating(true);
+                accountNextStep();
+              }}
             >
-              <Trans i18nKey={'onboarding:connectAccountsNextButtonLabel'} />
+              {isNavigating ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </span>
+              ) : (
+                <Trans i18nKey={'onboarding:connectAccountsNextButtonLabel'} />
+              )}
             </Button>
           </div>
         </CardFooter>

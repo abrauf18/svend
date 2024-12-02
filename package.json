@@ -31,6 +31,7 @@
     "supabase:web:stop": "pnpm --filter web supabase:stop",
     "supabase:web:typegen": "pnpm --filter web supabase:typegen",
     "supabase:web:reset": "pnpm --filter web supabase:reset",
+    "supabase:web:reset:linked": "pnpm --filter web supabase:reset:linked",
     "stripe:listen": "pnpm --filter '@kit/stripe' start",
     "stripe:logout": "pnpm --filter '@kit/stripe' logout",
     "env:generate": "turbo gen env",
