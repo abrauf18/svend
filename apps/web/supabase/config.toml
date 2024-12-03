@@ -77,7 +77,7 @@ content_path = "./supabase/templates/invite-user.html"
 
 [auth.email.template.confirmation]
 subject = "Confirm your email"
-content_path = "./supabase/templates/confirm-email.html"
+content_path = "./supabase/templates/confirm-signup.html"
 
 [auth.email.template.recovery]
 subject = "Reset your password"
