@@ -9,6 +9,18 @@ A demo of this boilerplate project can be found at [https://next-supabase-saas-k
 
 ## Setting up local development environment
 
+### Prerequisites
+
+The rest of this section will take you through installation of AWS CLI and `pnpm`.  However, here is a full list of prerequisites:
+
+- Install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
+- Install [Node.js](https://nodejs.org/en/download/).
+- Install [pnpm](https://pnpm.io/installation).
+- Install [Docker](https://www.docker.com/products/docker-desktop/).
+
+
+### Setup Steps
+
 1. To pull the environment variables for local development, you'll need to authenticate to AWS.  We use the AWS CLI to do this.  
 
     - Install the AWS CLI if you haven't already. You can download it from the [official AWS CLI page](https://aws.amazon.com/cli/).  It's a good idea to install it again anyway just to make sure you have the latest version.  You can also use a package manager for your OS.  For example, on macOS you can install it using Homebrew with `brew install awscli`.
@@ -42,11 +54,17 @@ A demo of this boilerplate project can be found at [https://next-supabase-saas-k
 
     - For more detailed instructions, refer to the [AWS CLI SSO documentation](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html).
 
-5. Now you can run the other script in the `.aws` workspace: `env:web:pull:local`.  Breaking down the script name, this command references the `env` tools, targeting the `web` app, and it will `pull` the `local` environment.  You will need to install the dependencies for the `.aws` directory pnpm workspace first (from the `.aws` directory):
-    ```
-    pnpm i
-    pnpm env:web:pull:local
-    ```
+5. Now you can run the other script in the `.aws` workspace: `env:web:pull:local`.  Breaking down the script name, this command references the `env` tools, targeting the `web` app, and it will `pull` the `local` environment.  You will need to install the dependencies for the `.aws` directory pnpm workspace first (from the `.aws` directory).
+
+    - To check if you have pnpm installed, run `pnpm -v` in your terminal.  If you don't have it installed, you can install it via `npm` by running:
+        ```
+        npm i -g pnpm
+        ```
+
+    - Now you can run the `env:web:pull:local` script:
+        ```
+        pnpm env:web:pull:local
+        ```
     - By default, this will create a `.env.aws.local` file at `/apps/web/.env.aws.local` - relative to the root of the project - which contains the environment variables for local development.
 
 6. Rename the `.env.aws.local` file to `.env.local` - a gitignored file that is used by Next.js to load local environment variables at runtime.
