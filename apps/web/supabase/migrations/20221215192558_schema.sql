@@ -2362,8 +2362,8 @@ begin
         'owner');
 
     -- Insert onboarding row
-    insert into public.onboarding(
-        account_id,
+    insert into public.user_onboarding(
+        user_id,
         state)
     values (
         new.id,

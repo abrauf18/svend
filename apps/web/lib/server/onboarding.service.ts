@@ -29,9 +29,9 @@ class OnboardingService {
    */
   async getAccountState(userId: string): Promise<ServiceResult<AccountState>> {
     const { data: dbOnboardingData, error: fetchOnboardingError } = await this.supabase
-      .from('onboarding')
+      .from('user_onboarding')
       .select('state->account')
-      .eq('account_id', userId)
+      .eq('user_id', userId)
       .single();
 
     if (fetchOnboardingError) {
@@ -64,9 +64,9 @@ class OnboardingService {
 
     // Fetch the current onboarding state
     const { data: dbOnboardingData, error: fetchOnboardingError } = await this.supabase
-      .from('onboarding')
+      .from('user_onboarding')
       .select('state')
-      .eq('account_id', userId)
+      .eq('user_id', userId)
       .single();
 
     if (fetchOnboardingError) {
@@ -153,9 +153,9 @@ class OnboardingService {
 
     // Update the state in the database
     const { error: onboardingUpdateError } = await this.supabase
-      .from('onboarding')
+      .from('user_onboarding')
       .update({ state: dbUpdatedOnboardingState })
-      .eq('account_id', userId);
+      .eq('user_id', userId);
 
     if (onboardingUpdateError) {
       return {

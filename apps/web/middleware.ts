@@ -59,9 +59,9 @@ export async function middleware(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data, error } = await supabase
-        .from('onboarding')
+        .from('user_onboarding')
         .select('state->account')
-        .eq('account_id', user.id)
+        .eq('user_id', user.id)
         .single();
 
       if (error) {
@@ -87,9 +87,9 @@ export async function middleware(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data, error } = await supabase
-        .from('onboarding')
+        .from('user_onboarding')
         .select('state->account')
-        .eq('account_id', user.id)
+        .eq('user_id', user.id)
         .single();
 
       if (error) {

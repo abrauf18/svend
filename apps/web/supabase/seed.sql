@@ -134,13 +134,6 @@ INSERT INTO "auth"."identities" ("provider_id", "user_id", "identity_data", "pro
 --
 -- Data for Name: onboarding; Type: TABLE DATA; Schema: public; Owner: postgres
 --
-UPDATE "public"."onboarding" 
-SET "state" = jsonb_set("state", '{account,contextKey}', '"start"')
-WHERE "account_id" = '31a03e74-1639-45b6-bfa7-77447f1a4762';
-
-UPDATE "public"."onboarding" 
-SET "state" = jsonb_set("state", '{account,contextKey}', '"start"')
-WHERE "account_id" = 'b73eb03e-fb7a-424d-84ff-18e2791ce0b4';
 
 
 --

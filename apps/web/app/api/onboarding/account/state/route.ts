@@ -24,9 +24,9 @@ export async function GET(request: Request) {
 
   // Fetch the current onboarding state
   const { data: dbAccountOnboardingState, error: fetchOnboardingError } = await supabaseAdminClient
-    .from('onboarding')
+    .from('user_onboarding')
     .select('state->account')
-    .eq('account_id', user.id)
+    .eq('user_id', user.id)
     .single();
 
   if (fetchOnboardingError) {

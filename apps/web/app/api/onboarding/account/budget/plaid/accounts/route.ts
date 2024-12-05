@@ -22,9 +22,9 @@ export async function PATCH(request: Request) {
 
     // Fetch the current onboardingstate
     const { data: dbAccountOnboardingData, error: fetchOnboardingError } = await supabaseAdminClient
-        .from('onboarding')
+        .from('user_onboarding')
         .select('state->account')
-        .eq('account_id', user.id)
+        .eq('user_id', user.id)
         .single();
 
     if (fetchOnboardingError) {

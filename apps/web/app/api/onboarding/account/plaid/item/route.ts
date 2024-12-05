@@ -174,9 +174,9 @@ export async function POST(request: Request) {
 
     // Fetch the current onboardingstate
     const { data: dbOnboardingData, error: fetchOnboardingError } = await supabaseAdminClient
-      .from('onboarding')
+      .from('user_onboarding')
       .select('state')
-      .eq('account_id', user.id)
+      .eq('user_id', user.id)
       .single();
 
     if (fetchOnboardingError) {
@@ -188,9 +188,9 @@ export async function POST(request: Request) {
     dbUpdatedOnboardingState.account.contextKey = 'plaid';
     // Update the state in the database
     const { error: onboardingUpdateError } = await supabaseAdminClient
-      .from('onboarding')
+      .from('user_onboarding')
       .update({ state: dbUpdatedOnboardingState })
-      .eq('account_id', user.id);
+      .eq('user_id', user.id);
 
     if (onboardingUpdateError) {
       console.error('Error updating onboarding state:', onboardingUpdateError);
