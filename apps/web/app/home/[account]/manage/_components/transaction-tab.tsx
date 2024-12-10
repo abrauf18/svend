@@ -17,7 +17,7 @@ import {
 import { Trans } from '@kit/ui/trans';
 
 import { TransactionPanel } from '~/home/[account]/manage/_components/transaction-panel';
-import TransactionOverview from '~/home/[account]/manage/_components/transaction-overview';
+import TransactionMonthlyExpenseSummary from '~/home/[account]/manage/_components/transaction-monthly-expense-summary';
 import { TransactionTable } from '~/home/[account]/manage/_components/transaction-tab-table';
 import { BudgetFinAccountTransaction } from '~/lib/model/budget.types';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
@@ -176,7 +176,7 @@ function TransactionTab() {
         </div>
 
         <div className="w-full flex-shrink-0 p-4 lg:w-[300px]">
-          <TransactionOverview selectedDate={selectedDate} />
+          <TransactionMonthlyExpenseSummary selectedDate={selectedDate} />
         </div>
       </div>
       {selectedTransaction && (

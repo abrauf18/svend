@@ -58,7 +58,7 @@ const getEffectiveSpending = (group: BudgetSpendingCategoryGroupTracking): { act
 };
 
 // Add selectedDate to props
-interface TransactionOverviewProps {
+interface TransactionMonthlyExpenseSummaryProps {
     selectedDate: Date;
 }
 
@@ -79,7 +79,7 @@ const formatCurrency = (amount: number): string => {
   }).format(Math.abs(amount));
 };
 
-function TransactionOverview({ selectedDate }: TransactionOverviewProps) {
+function TransactionMonthlyExpenseSummary({ selectedDate }: TransactionMonthlyExpenseSummaryProps) {
     const { workspace } = useBudgetWorkspace();
     const currentMonth = selectedDate.toISOString().slice(0, 7);
     
@@ -190,4 +190,4 @@ function TransactionOverview({ selectedDate }: TransactionOverviewProps) {
     );
 }
 
-export default TransactionOverview;
+export default TransactionMonthlyExpenseSummary;
