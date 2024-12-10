@@ -75,13 +75,11 @@ export function CategoryManagementModal({
       const group = Object.values(workspace.budgetCategories).find(g => g.id === selectedGroupId);
       setValue('groupDescription', group?.description || '');
       
-      // Only reset category values if the group actually changed
-      if (form.getValues('groupId') !== selectedGroupId) {
-        setValue('categoryId', undefined);
-        setValue('categoryDescription', '');
-      }
+      // Always reset category values when group changes
+      setValue('categoryId', '');
+      setValue('categoryDescription', '');
     }
-  }, [selectedGroupId, workspace.budgetCategories, setValue, form]);
+  }, [selectedGroupId, workspace.budgetCategories, setValue]);
 
   // Handle category selection changes
   useEffect(() => {
