@@ -63,7 +63,7 @@ const transactionFormSchema = z.object({
 type TransactionFormValues = z.infer<typeof transactionFormSchema>;
 
 export function TransactionPanel(props: TransactionPanelProps) {
-  const { workspace, updateTransaction } = useBudgetWorkspace();
+  const { workspace, updateTransaction, updateBudgetSpending } = useBudgetWorkspace();
   const supabase = getSupabaseBrowserClient();
 
   // Add this state to track the current storage files
@@ -92,6 +92,15 @@ export function TransactionPanel(props: TransactionPanelProps) {
     setIsSaving(true);
     
     try {
+      // Get the selected category and group information
+      const allCategories = Object.values(workspace?.budgetCategories ?? {}).flatMap(
+        (group) => group.categories
+      );
+      const selectedCategory = allCategories.find((cat) => cat.id === data.categoryId);
+      const selectedGroup = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
+        group.categories.some((cat) => cat.id === data.categoryId)
+      );
+
       // Compare current attachments with initial storage files
       const { toUpload, toKeep, toDelete } = compareAttachments(
         data.attachments,
@@ -123,6 +132,9 @@ export function TransactionPanel(props: TransactionPanelProps) {
         },
         budgetFinAccountId: data.budgetFinAccountId,
         categoryId: data.categoryId,
+        categoryGroupId: selectedGroup?.id ?? props.selectedTransaction.categoryGroupId,
+        categoryGroup: selectedGroup?.name ?? props.selectedTransaction.categoryGroup,
+        category: selectedCategory?.name ?? props.selectedTransaction.category,
         merchantName: data.merchantName,
         notes: data.notes,
         budgetTags: data.tags,
@@ -148,6 +160,12 @@ export function TransactionPanel(props: TransactionPanelProps) {
 
       // update the transaction in the workspace
       updateTransaction(updatedTransaction);
+
+      // update the spending tracking if the category changed
+      const res = await response.json();
+      if (res.spendingTracking) {
+        updateBudgetSpending(res.spendingTracking);
+      }
     } catch (error) {
       console.error('Error during submission:', error);
       throw error;
@@ -183,6 +201,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
         name: matchingCategory.name,
         createdAt: matchingCategory.createdAt,
         updatedAt: matchingCategory.updatedAt,
+        isDiscretionary: matchingCategory.isDiscretionary,
       });
 
       // Update the form value
@@ -515,6 +534,7 @@ const getUniqueFileName = (
                       id: selected.id,
                       createdAt: selected.createdAt,
                       updatedAt: selected.updatedAt,
+                      isDiscretionary: selected.isDiscretionary,
                     });
 
                     // Update the form value

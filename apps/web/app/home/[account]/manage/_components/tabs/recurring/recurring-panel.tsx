@@ -130,6 +130,7 @@ export function RecurringPanel(props: RecurringPanelProps) {
         name: matchingCategory.name,
         createdAt: matchingCategory.createdAt,
         updatedAt: matchingCategory.updatedAt,
+        isDiscretionary: matchingCategory.isDiscretionary,
       });
 
       // Update the form value
@@ -386,6 +387,7 @@ export function RecurringPanel(props: RecurringPanelProps) {
                       id: selected.id,
                       createdAt: selected.createdAt,
                       updatedAt: selected.updatedAt,
+                      isDiscretionary: selected.isDiscretionary,
                     });
 
                     // Update the form value

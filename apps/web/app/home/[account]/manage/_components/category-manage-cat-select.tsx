@@ -5,14 +5,18 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import { CaretSortIcon, LockClosedIcon } from '@radix-ui/react-icons';
 import { cn } from '@kit/ui/utils';
 import { Input } from '@kit/ui/input';
-import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { Category } from '~/lib/model/fin.types';
 import { toast } from 'sonner';
 
 interface CategoryManagementCatSelectProps {
-  onValueChange: (value: string) => void;
+  onValueChange: (value: string | undefined) => void;
+  onCreateCategory?: (category: Category) => Promise<void>;
   disabled?: boolean;
   placeholder?: string;
+  categories: Category[];
+  value?: string;
+  isBuiltIn?: boolean;
+  budgetId?: string;
   groupId?: string;
 }
 
@@ -46,44 +50,39 @@ const truncateText = 'truncate max-w-[300px]';
 
 export function CategoryManagementCatSelect({
   onValueChange,
+  onCreateCategory,
   disabled,
   placeholder = "Select category",
-  groupId
+  categories,
+  value,
+  isBuiltIn,
+  budgetId,
+  groupId,
 }: CategoryManagementCatSelectProps) {
-  const { workspace, addBudgetCategory } = useBudgetWorkspace();
-  const [selectedValue, setSelectedValue] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<typeof workspace.budgetCategories[string] | null>(null);
   const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  // Watch for workspace changes and group changes
-  useEffect(() => {
-    const group = groupId
-      ? Object.values(workspace.budgetCategories).find(g => g.id === groupId)
-      : null;
-    setSelectedGroup(group ?? null);
-  }, [groupId, workspace.budgetCategories]);
-
   // Update filtered categories when search or categories change
   useEffect(() => {
-    const filtered = filterAndSortCategories(selectedGroup?.categories || [], searchQuery);
+    const filtered = filterAndSortCategories(categories, searchQuery);
     setFilteredCategories(filtered);
-  }, [selectedGroup?.categories, searchQuery]);
-
-  const isBuiltIn = selectedGroup?.budgetId == null;
+  }, [categories, searchQuery]);
 
   const handleValueChange = (newValue: string) => {
-    if (newValue) {
-      setSelectedValue(newValue);
-      onValueChange(newValue);
+    if (!newValue) {
+      onValueChange(undefined);
       setSearchQuery('');
+      return;
     }
+    
+    onValueChange(newValue);
+    setSearchQuery('');
   };
-  
+
   const validateName = (name: string) => {
     if (!name.trim()) {
       return { isValid: false, error: 'Name cannot be empty' };
@@ -100,10 +99,8 @@ export function CategoryManagementCatSelect({
     
     // Check for uniqueness across all groups
     const normalizedName = name.toLowerCase().trim();
-    const isNameTaken = Object.values(workspace.budgetCategories).some(group => 
-      group.categories.some(category => 
-        category.name.toLowerCase().trim() === normalizedName
-      )
+    const isNameTaken = categories.some(category => 
+      category.name.toLowerCase().trim() === normalizedName
     );
     if (isNameTaken) {
       return { isValid: false, error: 'A category with this name already exists in your budget' };
@@ -113,19 +110,18 @@ export function CategoryManagementCatSelect({
   };
 
   const createNewCategory = async (
-    groupId: string,
     categoryName: string,
     description: string,
-  ) => {
+  ): Promise<Category> => {
     try {
       const response = await fetch('/api/budget/transactions/create-category', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          groupId,
           categoryName,
           description,
-          budgetId: workspace.budget.id
+          budgetId,
+          groupId
         }),
       });
 
@@ -147,8 +143,6 @@ export function CategoryManagementCatSelect({
   };
 
   const handleCreateNew = async () => {
-    if (!selectedGroup) return;
-
     try {
       const validation = validateName(searchQuery);
       if (!validation.isValid) {
@@ -163,16 +157,15 @@ export function CategoryManagementCatSelect({
       const formattedName = searchQuery.charAt(0).toUpperCase() + searchQuery.slice(1);
 
       setIsCreatingCategory(true);
-      const response = await createNewCategory(selectedGroup.id, formattedName, '');
+      const resCat = await createNewCategory(formattedName, '');
       
-      if (!response?.id) {
+      if (!resCat?.id) {
         throw new Error('Invalid category returned from server');
       }
 
-      addBudgetCategory(selectedGroup.id, response);
+      onCreateCategory?.(resCat);
+      onValueChange(resCat.id);
       setSearchQuery('');
-      setSelectedValue(response.id);
-      onValueChange(response.id);
       setIsOpen(false);
 
       toast.success('Category created successfully');
@@ -180,13 +173,13 @@ export function CategoryManagementCatSelect({
       console.error('Error creating new category:', error);
       const errorMessage = error?.message || '';
       
-      if (errorMessage.toLowerCase().includes('duplicate')) {
+      if (errorMessage.toLowerCase().includes('name already exists')) {
         toast.error('A category with this name already exists in this group. Please choose a different name.', {
           className: "bg-destructive text-destructive-foreground",
           descriptionClassName: "text-destructive-foreground"
         });
       } else {
-        toast.error('Unable to create category. The category name must: (1) Be between 1-50 characters (2) Start with a letter (3) Contain only letters, numbers, spaces, and basic punctuation (4) Be unique across all groups in your budget. Please try again with a valid name.', {
+        toast.error('Unable to create category.', {
           className: "bg-destructive text-destructive-foreground",
           descriptionClassName: "text-destructive-foreground",
           duration: 6000 // Increased duration for longer message
@@ -199,7 +192,7 @@ export function CategoryManagementCatSelect({
 
   return (
     <SelectPrimitive.Root
-      value={selectedValue || undefined}
+      value={value ?? undefined}
       onValueChange={handleValueChange}
       open={isOpen}
       onOpenChange={setIsOpen}
@@ -210,16 +203,12 @@ export function CategoryManagementCatSelect({
         )}
         disabled={disabled}
       >
-        <SelectPrimitive.Value placeholder={placeholder}>
-          {selectedValue && selectedGroup && (
-            <div className="flex items-center">
-              {isBuiltIn && <LockClosedIcon className="mr-2 h-3 w-3 opacity-70" />}
-              <span className={truncateText}>
-                {selectedGroup.categories.find(c => c.id === selectedValue)?.name}
-              </span>
-            </div>
-          )}
-        </SelectPrimitive.Value>
+        <div className="flex items-center">
+          {isBuiltIn && <LockClosedIcon className="mr-2 h-3 w-3 opacity-70" />}
+          <SelectPrimitive.Value placeholder={placeholder}>
+            {value && categories.find(c => c.id === value)?.name || placeholder}
+          </SelectPrimitive.Value>
+        </div>
         <SelectPrimitive.Icon>
           <CaretSortIcon className="h-4 w-4 opacity-50" />
         </SelectPrimitive.Icon>
@@ -264,7 +253,7 @@ export function CategoryManagementCatSelect({
             className="max-h-[300px] overflow-y-auto p-1"
           >
             {!isBuiltIn && searchQuery &&
-              !selectedGroup?.categories.some(category =>
+              !categories.some(category =>
                 category.name.toLowerCase() === searchQuery.toLowerCase()
               ) && (
                 <div
@@ -290,29 +279,24 @@ export function CategoryManagementCatSelect({
                 </div>
               )}
 
-            {selectedGroup && (
-              <div className="mb-2">
-                <div className="px-2 text-sm text-muted-foreground">
-                  {selectedGroup.name}
-                </div>
-                <div className="space-y-1 p-2">
-                  {filteredCategories.map((category) => (
-                    <SelectPrimitive.Item
-                      key={`${category.id}-${category.name}`}
-                      value={category.id}
-                      className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                    >
-                      {isBuiltIn && (
-                        <LockClosedIcon className="mr-2 h-3 w-3 opacity-70" />
-                      )}
-                      <SelectPrimitive.ItemText>
-                        <span className={truncateText}>
-                          {highlightMatch(category.name, searchQuery)}
-                        </span>
-                      </SelectPrimitive.ItemText>
-                    </SelectPrimitive.Item>
-                  ))}
-                </div>
+            {categories && (
+              <div className="space-y-1 p-2">
+                {filteredCategories.map((category) => (
+                  <SelectPrimitive.Item
+                    key={`${category.id}-${category.name}`}
+                    value={category.id}
+                    className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                  >
+                    {isBuiltIn && (
+                      <LockClosedIcon className="mr-2 h-3 w-3 opacity-70" />
+                    )}
+                    <SelectPrimitive.ItemText>
+                      <span className={truncateText}>
+                        {highlightMatch(category.name, searchQuery)}
+                      </span>
+                    </SelectPrimitive.ItemText>
+                  </SelectPrimitive.Item>
+                ))}
               </div>
             )}
           </SelectPrimitive.Viewport>

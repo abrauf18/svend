@@ -5,7 +5,7 @@ import {
   Budget,
   BudgetGoal,
   BudgetGoalMonthlyTracking,
-  BudgetGoalRecommendations,
+  BudgetGoalMultiRecommendations,
   BudgetGoalSpendingRecommendation,
   BudgetGoalSpendingTrackingsByMonth,
   BudgetSpendingCategoryGroupRecommendation,
@@ -799,7 +799,7 @@ class BudgetService {
   async updateRecalculateSpending(
     budgetId: string,
     months: string[]
-  ): Promise<ServiceResult<null>> {
+  ): Promise<ServiceResult<BudgetSpendingTrackingsByMonth>> {
     try {
       // Validate month format and values
       const currentYear = new Date().getFullYear();
@@ -876,14 +876,27 @@ class BudgetService {
 
         // Update tracking with new month data
         if (spendingTrackingsByMonth[month]) {
-          // Round spending tracking values
+          // Round spendingActual values only
           Object.values(spendingTrackingsByMonth[month]).forEach(groupTracking => {
             groupTracking.spendingActual = Math.round(groupTracking.spendingActual * 100) / 100;
-            groupTracking.spendingTarget = Math.round(groupTracking.spendingTarget * 100) / 100;
             groupTracking.categories.forEach(categoryTracking => {
               categoryTracking.spendingActual = Math.round(categoryTracking.spendingActual * 100) / 100;
-              categoryTracking.spendingTarget = Math.round(categoryTracking.spendingTarget * 100) / 100;
             });
+          });
+
+          // Copy spendingTarget values from dbTracking
+          Object.entries(spendingTrackingsByMonth[month]).forEach(([groupName, groupTracking]) => {
+            if (groupTracking) {
+              groupTracking.spendingTarget = dbTracking[month]![groupName]!.spendingTarget;
+              groupTracking.categories.forEach(categoryTracking => {
+                if (categoryTracking) {
+                  const matchingCategory = dbTracking[month]![groupName]!.categories.find(cat => cat.categoryName === categoryTracking.categoryName);
+                  if (matchingCategory) {
+                    categoryTracking.spendingTarget = matchingCategory.spendingTarget;
+                  }
+                }
+              });
+            }
           });
 
           dbTracking[month] = spendingTrackingsByMonth[month];
@@ -900,7 +913,7 @@ class BudgetService {
         return { data: null, error: `Failed to update budget: ${updateError.message}` };
       }
 
-      return { data: null, error: null };
+      return { data: dbTracking, error: null };
     } catch (error: any) {
       return { data: null, error: error.message };
     }
@@ -913,7 +926,7 @@ class BudgetService {
    */
   async updateGoalSpending(
     budgetId: string,
-    goalRecommendations: BudgetGoalRecommendations,
+    goalRecommendations: BudgetGoalMultiRecommendations,
     // The key is the goal id
     goalTrackings: Record<string, BudgetGoalSpendingTrackingsByMonth>
   ): Promise<ServiceResult<null>> {
@@ -969,7 +982,7 @@ class BudgetService {
    * @param budgetId - The ID of the budget to validate
    * @throws Error if prerequisites are not met
    */
-  private async onboardingAnalysisValidateOnboardingPrerequisites(budgetId: string): Promise<void> {
+  private async onboardingAnalysisValidateOnboardingPrerequisites(budgetId: string): Promise<{ goals:BudgetGoal[] }> {
     // Check for linked accounts
     const { error: linkedAccountsError } = await this.hasLinkedFinAccounts(budgetId);
     if (linkedAccountsError) {
@@ -981,6 +994,30 @@ class BudgetService {
     if (budgetReadyError) {
       throw new Error(`SERVER_ERROR:[validateBudgetReady] ${budgetReadyError}`);
     }
+
+    // Get and validate goals if they exist
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);  // Normalize to start of day
+
+    const validBudgetGoals = (await this.getBudgetGoals(budgetId))
+      .map(goal => this.parseBudgetGoal(goal, (goal as any).fin_account_balance))
+      .filter((goal): goal is BudgetGoal => goal !== null);
+
+    // If we have goals, validate their target dates
+    if (validBudgetGoals.length > 0) {
+      const goalsWithPastDates = validBudgetGoals.filter(goal => {
+        const targetDate = new Date(goal.targetDate);
+        targetDate.setHours(0, 0, 0, 0);
+        return targetDate <= currentDate;
+      });
+
+      if (goalsWithPastDates.length > 0) {
+        const goalNames = goalsWithPastDates.map(g => g.id).join(', ');
+        throw new Error(`SERVER_ERROR:[validateBudgetReady] Goals must have future target dates: ${goalNames}`);
+      }
+    }
+
+    return { goals: validBudgetGoals };
   }
 
   /**
@@ -1604,7 +1641,7 @@ class BudgetService {
   ): Promise<ServiceResult<OnboardingRecommendSpendingAndGoalsResult>> {
     try {
       // 1. Validation & Setup
-      await this.onboardingAnalysisValidateOnboardingPrerequisites(budgetId);
+      const { goals: validBudgetGoals } = await this.onboardingAnalysisValidateOnboardingPrerequisites(budgetId);
       const plaidClient = new PlaidApi(plaidConfiguration);
 
       // 2. Transaction Collection
@@ -1634,9 +1671,6 @@ class BudgetService {
       );
 
       // 6. Recommendations Generation
-      const validBudgetGoals = (await this.getBudgetGoals(budgetId))
-        .map(goal => this.parseBudgetGoal(goal, (goal as any).fin_account_balance))
-        .filter((goal): goal is BudgetGoal => goal !== null);
       const categoryGroups = await this.categoryService.getBudgetCategoryGroups(budgetId);
 
       const recommendationsResult = await this.onboardingRecommendSpendingAndGoals(
@@ -2446,7 +2480,7 @@ class BudgetService {
   ): {
     spendingRecommendations: BudgetSpendingRecommendations,
     spendingTrackings: BudgetSpendingTrackingsByMonth,
-    goalSpendingRecommendations: BudgetGoalRecommendations,
+    goalSpendingRecommendations: BudgetGoalMultiRecommendations,
     goalSpendingTrackings: Record<string, BudgetGoalSpendingTrackingsByMonth>
   } {
     // Create strategy-specific recommendations
@@ -2457,7 +2491,7 @@ class BudgetService {
     };
 
     // Initialize goal recommendations for all strategies
-    const goalSpendingRecommendations: BudgetGoalRecommendations = {
+    const goalSpendingRecommendations: BudgetGoalMultiRecommendations = {
       balanced: {},
       conservative: {},
       relaxed: {}
@@ -2526,7 +2560,7 @@ class BudgetService {
 
       // Set recommendations for each strategy
       ['balanced', 'conservative', 'relaxed'].forEach(strategy => {
-        goalSpendingRecommendations[strategy as keyof BudgetGoalRecommendations][goal.id] = {
+        goalSpendingRecommendations[strategy as keyof BudgetGoalMultiRecommendations][goal.id] = {
           goalId: goal.id,
           monthlyAmounts: { ...monthlyAmounts }
         };
@@ -2660,17 +2694,15 @@ class BudgetService {
     Object.values(results.spendingTrackings).forEach(monthTrackings => {
       Object.values(monthTrackings).forEach(groupTracking => {
         groupTracking.spendingActual = Math.round(groupTracking.spendingActual * 100) / 100;
-        groupTracking.spendingTarget = Math.round(groupTracking.spendingTarget * 100) / 100;
         groupTracking.categories.forEach(categoryTracking => {
           categoryTracking.spendingActual = Math.round(categoryTracking.spendingActual * 100) / 100;
-          categoryTracking.spendingTarget = Math.round(categoryTracking.spendingTarget * 100) / 100;
         });
       });
     });
 
     // Round goal recommendations for all strategies
     ['balanced', 'conservative', 'relaxed'].forEach(strategy => {
-      const strategyRecs = results.goalSpendingRecommendations![strategy as keyof BudgetGoalRecommendations];
+      const strategyRecs = results.goalSpendingRecommendations![strategy as keyof BudgetGoalMultiRecommendations];
       Object.values(strategyRecs).forEach(goalRec => {
         Object.entries(goalRec.monthlyAmounts).forEach(([month, amount]) => {
           goalRec.monthlyAmounts[month] = Math.round(amount * 100) / 100;
@@ -2874,10 +2906,10 @@ export interface IBudgetService {
   updateRecalculateSpending: (
     budgetId: string,
     months: string[]
-  ) => Promise<ServiceResult<null>>;
+  ) => Promise<ServiceResult<BudgetSpendingTrackingsByMonth>>;
   updateGoalSpending: (
     budgetId: string,
-    recommendations: BudgetGoalRecommendations,
+    recommendations: BudgetGoalMultiRecommendations,
     goalTrackings: Record<string, BudgetGoalSpendingTrackingsByMonth>
   ) => Promise<ServiceResult<null>>;
 }
@@ -2901,7 +2933,7 @@ export type BudgetAnalysisResult = {
 export type OnboardingRecommendSpendingAndGoalsResult = {
   spendingRecommendations: BudgetSpendingRecommendations | null;
   spendingTrackings: BudgetSpendingTrackingsByMonth | null;
-  goalSpendingRecommendations: BudgetGoalRecommendations | null;
+  goalSpendingRecommendations: BudgetGoalMultiRecommendations | null;
   // The key is the goal id
   goalSpendingTrackings: Record<string, BudgetGoalSpendingTrackingsByMonth> | null;
   error: string | null;

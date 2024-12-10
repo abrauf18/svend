@@ -96,6 +96,7 @@ export const PUT = enhanceRouteHandler(
         createdAt: newCategory.created_at,
         groupId: newCategory.group_id,
         updatedAt: newCategory.updated_at,
+        isDiscretionary: newCategory.is_discretionary,
       } as Category,
     });
   },

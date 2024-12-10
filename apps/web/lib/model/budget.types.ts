@@ -71,7 +71,7 @@ export interface BudgetGoal {
   budgetFinAccountId: string;
   budgetFinAccountBalance?: number;
   targetDate: string;
-  spendingRecommendations: BudgetGoalRecommendations;
+  spendingRecommendations: BudgetGoalSpendingRecommendations;
   spendingTracking: BudgetGoalSpendingTrackingsByMonth;
   debtInterestRate?: number;
   debtPaymentComponent?: 'principal' | 'interest' | 'principal_interest';
@@ -130,11 +130,10 @@ export type BudgetSpendingCategoryTracking = {
   isTaxDeductible: boolean;
 }
 
-// The key is the goal id
-export type BudgetGoalRecommendations = {
-  balanced: Record<string, BudgetGoalSpendingRecommendation>;
-  conservative: Record<string, BudgetGoalSpendingRecommendation>;
-  relaxed: Record<string, BudgetGoalSpendingRecommendation>;
+export type BudgetGoalSpendingRecommendations = {
+  balanced: BudgetGoalSpendingRecommendation;
+  conservative: BudgetGoalSpendingRecommendation;
+  relaxed: BudgetGoalSpendingRecommendation;
 };
 
 export type BudgetGoalSpendingRecommendation = {
@@ -163,3 +162,12 @@ export type BudgetGoalSpendingAllocation = {
   dateActual?: string;
   amountActual?: number;
 }
+
+// BudgetGoalMultiRecommendations is a model for grouped recommendations for multiple goals
+// The key is the goal id
+export type BudgetGoalMultiRecommendations = {
+  balanced: Record<string, BudgetGoalSpendingRecommendation>;
+  conservative: Record<string, BudgetGoalSpendingRecommendation>;
+  relaxed: Record<string, BudgetGoalSpendingRecommendation>;
+};
+

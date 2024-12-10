@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
-import { BudgetGoal, BudgetGoalRecommendations, BudgetGoalMonthlyTracking } from '~/lib/model/budget.types';
+import { BudgetGoal, BudgetGoalMonthlyTracking, BudgetGoalSpendingRecommendations } from '~/lib/model/budget.types';
 
 // POST /api/onboarding/account/budget/goals
 // Create a budget goal
@@ -48,6 +48,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Target Date is a required field' }, { status: 400 });
   } else if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
     return NextResponse.json({ error: 'Invalid date format. Use yyyy-MM-dd format.' }, { status: 400 });
+  }
+
+  // Validate target date is in the future
+  const currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);  // Normalize to start of day
+  
+  const targetDateObj = new Date(targetDate);
+  targetDateObj.setHours(0, 0, 0, 0);  // Normalize to start of day
+  
+  if (targetDateObj <= currentDate) {
+    return NextResponse.json({ error: 'Target date must be in the future' }, { status: 400 });
   }
 
   // Additional checks for 'debt' type goals
@@ -146,7 +157,7 @@ export async function POST(request: Request) {
         allocations: {}
       }
     } as Record<string, BudgetGoalMonthlyTracking>,
-    spendingRecommendations: {} as BudgetGoalRecommendations,
+    spendingRecommendations: {} as BudgetGoalSpendingRecommendations,
     createdAt: data?.[0]?.created_at!
   };
 

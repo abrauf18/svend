@@ -80,17 +80,21 @@ export const PUT = enhanceRouteHandler(
       );
     }
 
+    const res: any = { message: 'Transaction updated successfully' }
+
     // TODO: convert to function to make transaction in case of category change
     if (body.categoryId) {
       const transactionDate = dbTransactionData.fin_account_transactions!.date;
       const formattedDate = new Date(transactionDate).toISOString().slice(0, 7); // formats to YYYY-MM
-      const { error: recalculateSpendingError } = await budgetService.updateRecalculateSpending(params.budgetId, [formattedDate]);
+      const { data: updatedSpendingTracking, error: recalculateSpendingError } = await budgetService.updateRecalculateSpending(params.budgetId, [formattedDate]);
       if (recalculateSpendingError) {
         return NextResponse.json({ error: `Error recalculating spending after transaction category change: ${recalculateSpendingError}` }, { status: 500 });
       }
+
+      res.spendingTracking = updatedSpendingTracking;
     }
 
-    return NextResponse.json({ message: 'Transaction updated successfully' });
+    return NextResponse.json(res);
   },
   {
     schema,

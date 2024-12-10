@@ -90,13 +90,13 @@ function OnboardingStep3CreateBudget() {
       // Calculate total monthly allocations for all goals
       const balancedGoalAllocations = Object.values(state.account.budget?.goals || [])
         .reduce((total, goal) => {
-          const monthlyAmounts = Object.values(goal.spendingRecommendations.balanced[goal.id]?.monthlyAmounts || {});
+          const monthlyAmounts = Object.values(goal.spendingRecommendations.balanced.monthlyAmounts || {});
           return total + (monthlyAmounts.length > 0 ? monthlyAmounts.reduce((sum, amount) => sum + amount, 0) / monthlyAmounts.length : 0);
         }, 0);
 
       const conservativeGoalAllocations = Object.values(state.account.budget?.goals || [])
         .reduce((total, goal) => {
-          const monthlyAmounts = Object.values(goal.spendingRecommendations.conservative[goal.id]?.monthlyAmounts || {});
+          const monthlyAmounts = Object.values(goal.spendingRecommendations.conservative.monthlyAmounts || {});
           return total + (monthlyAmounts.length > 0 ? monthlyAmounts.reduce((sum, amount) => sum + amount, 0) / monthlyAmounts.length : 0);
         }, 0);
 

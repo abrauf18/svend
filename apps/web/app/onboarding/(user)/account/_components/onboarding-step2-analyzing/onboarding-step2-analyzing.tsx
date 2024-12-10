@@ -3,7 +3,7 @@ import { Card, CardHeader, CardContent } from '@kit/ui/card';
 import { Progress } from '@kit/ui/progress';
 import { Trans } from '@kit/ui/trans';
 import { useOnboardingContext } from '@kit/accounts/components';
-import { Budget } from '~/lib/model/budget.types';
+import { Budget, BudgetGoalSpendingRecommendation, BudgetGoalSpendingRecommendations } from '~/lib/model/budget.types';
 import { OnboardingRecommendSpendingAndGoalsResult } from '~/lib/server/budget.service';
 
 export default function OnboardingStep2AnalyzingData() {
@@ -66,6 +66,26 @@ export default function OnboardingStep2AnalyzingData() {
     const { spendingRecommendations, spendingTrackings, goalSpendingRecommendations, goalSpendingTrackings } = analysisResult as OnboardingRecommendSpendingAndGoalsResult;
 
     const handleBudgetUpdate = () => {
+      // Map goal recommendations and trackings to existing goals
+      const updatedGoals = state.account.budget.goals.map(goal => ({
+        ...goal,
+        spendingRecommendations: {
+          balanced: {
+            goalId: goal.id,
+            monthlyAmounts: goalSpendingRecommendations?.balanced[goal.id]?.monthlyAmounts!
+          } as BudgetGoalSpendingRecommendation,
+          conservative: {
+            goalId: goal.id,
+            monthlyAmounts: goalSpendingRecommendations?.conservative[goal.id]?.monthlyAmounts!
+          } as BudgetGoalSpendingRecommendation,
+          relaxed: {
+            goalId: goal.id,
+            monthlyAmounts: goalSpendingRecommendations?.relaxed[goal.id]?.monthlyAmounts!
+          } as BudgetGoalSpendingRecommendation,
+        } as BudgetGoalSpendingRecommendations,
+        spendingTracking: goalSpendingTrackings?.[goal.id]!
+      }));
+
       const newBudget: Budget = {
         ...state.account.budget,
         spendingTracking: spendingTrackings,
@@ -74,16 +94,13 @@ export default function OnboardingStep2AnalyzingData() {
           conservative: spendingRecommendations!.conservative,
           relaxed: spendingRecommendations!.relaxed
         },
-        goalSpendingRecommendations: goalSpendingRecommendations,
-        goalSpendingTrackings: goalSpendingTrackings,
-        goals: state.account.budget.goals,
+        goals: updatedGoals,
         onboardingStep: 'budget_setup',
         linkedFinAccounts: state.account.budget.linkedFinAccounts
       } as Budget;
   
-      console.log('Updating budget with:', newBudget); // Log the new budget
+      console.log('Updating budget with:', newBudget);
       accountBudgetUpdate(newBudget);
-
     };
     handleBudgetUpdate();
   }

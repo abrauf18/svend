@@ -58,7 +58,7 @@ export function TransactionTable(props: TransactionTableProps) {
   // Keep track of base transactions separately
   const [baseTransactions, setBaseTransactions] = useState<BudgetFinAccountTransaction[]>([]);
   
-  // Update base transactions when workspace or month changes
+  // Update base transactions when workspace or month changes OR when transactions are modified
   useEffect(() => {
     if (!workspace?.budgetTransactions) return;
 

@@ -32,10 +32,14 @@ export function CategoryManagementModal({
   open,
   onOpenChange,
 }: CategoryManagementModalProps) {
-  const { workspace, updateCategoryGroupDescription, updateCategoryDescription } = useBudgetWorkspace();
+  const { workspace, updateCategoryGroupDescription, updateCategoryDescription, addBudgetCategory } = useBudgetWorkspace();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isCreatingCategoryId, setIsCreatingCategoryId] = useState('');
 
   const form = useForm<FormValues>({
+    resetOptions: {
+      keepValues: true, // Prevents values from being reset
+    },
     resolver: zodResolver(formSchema),
     defaultValues: {
       groupId: '',
@@ -45,35 +49,66 @@ export function CategoryManagementModal({
     },
   });
 
+  // Add this effect to reset form when modal is closed
+  useEffect(() => {
+    if (!open) {
+      form.reset({
+        groupId: '',
+        groupDescription: '',
+        categoryId: '',
+        categoryDescription: '',
+      });
+    }
+  }, [open, form]);
+
   const { handleSubmit, watch, setValue, register } = form;
   const selectedGroupId = watch('groupId');
   const selectedCategoryId = watch('categoryId');
 
   // Add check for built-in group
   const selectedGroup = Object.values(workspace.budgetCategories).find(g => g.id === selectedGroupId);
-  const isBuiltIn = selectedGroup?.budgetId == null;
+  const isBuiltIn = !!selectedGroupId && selectedGroup?.budgetId == null;
 
-  // Reset category selection when group changes
-  useEffect(() => {
-    setValue('categoryId', '');
-    setValue('categoryDescription', '');
-  }, [selectedGroupId, setValue]);
-
-  // Update descriptions when selections change
+  // Handle group selection changes
   useEffect(() => {
     if (selectedGroupId) {
       const group = Object.values(workspace.budgetCategories).find(g => g.id === selectedGroupId);
       setValue('groupDescription', group?.description || '');
+      
+      // Only reset category values if the group actually changed
+      if (form.getValues('groupId') !== selectedGroupId) {
+        setValue('categoryId', undefined);
+        setValue('categoryDescription', '');
+      }
     }
+  }, [selectedGroupId, workspace.budgetCategories, setValue, form]);
+
+  // Handle category selection changes
+  useEffect(() => {
     if (selectedCategoryId && selectedGroupId) {
       const group = Object.values(workspace.budgetCategories).find(g => g.id === selectedGroupId);
       const category = group?.categories.find(c => c.id === selectedCategoryId);
       setValue('categoryDescription', category?.description || '');
     }
-  }, [selectedGroupId, selectedCategoryId, workspace.budgetCategories, setValue]);
+  }, [selectedCategoryId, selectedGroupId, workspace.budgetCategories, setValue]);
+
+  // Handle category creation
+  useEffect(() => {
+    if (isCreatingCategoryId) {
+      console.log('isCreatingCategory... selected id:', isCreatingCategoryId);
+      const group = Object.values(workspace.budgetCategories).find(g => g.id === selectedGroupId);
+      const category = group?.categories.find(c => c.id === isCreatingCategoryId);
+      setValue('categoryId', category?.id || '');
+      setValue('categoryDescription', category?.description || '');
+    }
+  }, [workspace.budgetCategories]);
 
   const onSubmit = async (data: FormValues) => {
     setIsUpdating(true);
+
+    console.log('onSubmit data:', data);
+    form.reset(data);
+
     try {
       const payload = {
         groupId: data.groupId,
@@ -120,11 +155,9 @@ export function CategoryManagementModal({
     }
   };
 
-  const handleUpdate = async () => {
-    const values = form.getValues();
-    await onSubmit(values);
-    // Don't call onOpenChange here - let the onSubmit function handle it if needed
-  };
+  const sortedCategories = selectedGroup?.categories.slice().sort((a, b) => 
+    a.name.localeCompare(b.name)
+  ) || [];
 
   return (
     <Dialog 
@@ -141,7 +174,10 @@ export function CategoryManagementModal({
           <DialogTitle>Manage Categories</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form 
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-6"
+        >
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Group <span className="text-destructive">*</span></Label>
@@ -169,7 +205,15 @@ export function CategoryManagementModal({
                   setValue('categoryId', value);
                   setValue('categoryDescription', '');
                 }}
+                onCreateCategory={async (category) => {
+                  setIsCreatingCategoryId(category.id);
+                  addBudgetCategory(selectedGroupId, category);
+                }}
+                value={selectedCategoryId}
                 disabled={!selectedGroupId}
+                categories={sortedCategories}
+                isBuiltIn={isBuiltIn}
+                budgetId={selectedGroup?.budgetId}
                 groupId={selectedGroupId}
               />
             </div>
@@ -197,7 +241,7 @@ export function CategoryManagementModal({
             </Button>
             <Button
               type="button"
-              onClick={() => void handleUpdate()}
+              onClick={() => void onSubmit(form.getValues())}
               disabled={isUpdating || !selectedGroupId || isBuiltIn}
             >
               {isUpdating ? (

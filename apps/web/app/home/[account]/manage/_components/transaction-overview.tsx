@@ -28,29 +28,33 @@ const calculateMonthlyPace = (selectedDate: Date): number => {
   return 100;
 };
 
-const getProgressBarColors = (actual: number, target: number, monthlyPace: number) => {
-  if (actual === 0) {
-    if (target > 0) return "bg-gradient-to-r from-green-100 to-green-500 [&>div]:bg-primary";
-    if (target < 0) return "bg-gradient-to-r from-red-100 to-red-500 [&>div]:bg-primary";
-  }
-
+const getProgressBarColors = (actual: number, target: number, monthlyPace: number, isIncome: boolean) => {
   const progressPercentage = calculateProgressPercentage(actual, target);
-  if (progressPercentage > monthlyPace + 10) return "[&>div]:bg-red-500";
-  if (progressPercentage < monthlyPace - 10) return "[&>div]:bg-green-500";
+  
+  if (isIncome) {
+    // For income: over pace is good (green), under pace is bad (red)
+    if (progressPercentage > monthlyPace + 10) return "[&>div]:bg-green-500";
+    if (progressPercentage < monthlyPace - 10) return "[&>div]:bg-red-500";
+  } else {
+    // For expenses: over pace is bad (red), under pace is good (green)
+    if (progressPercentage > monthlyPace + 10) return "[&>div]:bg-red-500";
+    if (progressPercentage < monthlyPace - 10) return "[&>div]:bg-green-500";
+  }
   return "[&>div]:bg-primary";
 };
 
 const getEffectiveSpending = (group: BudgetSpendingCategoryGroupTracking): { actual: number; target: number } => {
-  if (group.targetSource === 'category') {
-    return {
-      actual: group.categories.reduce((sum, cat) => sum + cat.spendingActual, 0),
-      target: group.categories.reduce((sum, cat) => sum + cat.spendingTarget, 0)
-    };
-  }
-  return {
-    actual: group.spendingActual,
-    target: group.spendingTarget
-  };
+  const result = group.targetSource === 'category' 
+    ? {
+        actual: group.categories.reduce((sum, cat) => sum + cat.spendingActual, 0),
+        target: group.categories.reduce((sum, cat) => sum + cat.spendingTarget, 0)
+      }
+    : {
+        actual: group.spendingActual,
+        target: group.spendingTarget
+      };
+
+  return result;
 };
 
 // Add selectedDate to props
@@ -68,20 +72,31 @@ const getProgressDisplay = (actual: number, target: number): React.ReactNode => 
   return `${percentage}%`;
 };
 
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+  }).format(Math.abs(amount));
+};
+
 function TransactionOverview({ selectedDate }: TransactionOverviewProps) {
     const { workspace } = useBudgetWorkspace();
     const currentMonth = selectedDate.toISOString().slice(0, 7);
     
     const monthlyTracking = workspace.budget.spendingTracking[currentMonth] || {};
     
-    // Get all non-income groups and sort by actual spending
+    // Get all non-income groups and sort by actual spending, then by target spending
     const expenseGroups = Object.values(monthlyTracking)
         .filter(group => group.groupName !== 'Income')
         .map(group => ({
             ...group,
             effectiveSpending: getEffectiveSpending(group)
         }))
-        .sort((a, b) => Math.abs(b.effectiveSpending.actual) - Math.abs(a.effectiveSpending.actual));
+        .sort((a, b) => {
+            const actualDiff = Math.abs(b.effectiveSpending.actual) - Math.abs(a.effectiveSpending.actual);
+            // If actual spending is equal, sort by target spending
+            return actualDiff !== 0 ? actualDiff : Math.abs(b.effectiveSpending.target) - Math.abs(a.effectiveSpending.target);
+        });
 
     // Take top 5 expense groups
     const topExpenseGroups = expenseGroups.slice(0, 5);
@@ -91,13 +106,6 @@ function TransactionOverview({ selectedDate }: TransactionOverviewProps) {
         sum + Math.abs(group.effectiveSpending.actual), 0);
     const totalTarget = expenseGroups.reduce((sum, group) => 
         sum + Math.abs(group.effectiveSpending.target), 0);
-
-    const formatCurrency = (amount: number): string => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(Math.abs(amount));
-    };
 
     return (
         <div className="bg-white p-4 rounded-lg shadow-lg">
@@ -133,7 +141,8 @@ function TransactionOverview({ selectedDate }: TransactionOverviewProps) {
                                         getProgressBarColors(
                                             group.effectiveSpending.actual,
                                             group.effectiveSpending.target,
-                                            calculateMonthlyPace(selectedDate)
+                                            calculateMonthlyPace(selectedDate),
+                                            group.groupName === 'Income'
                                         )
                                     )}
                                 />
@@ -165,7 +174,8 @@ function TransactionOverview({ selectedDate }: TransactionOverviewProps) {
                                     getProgressBarColors(
                                         totalActual,
                                         totalTarget,
-                                        calculateMonthlyPace(selectedDate)
+                                        calculateMonthlyPace(selectedDate),
+                                        workspace.budget.spendingTracking[currentMonth]?.Income?.groupName === 'Income'
                                     )
                                 )}
                             />

@@ -21,7 +21,8 @@ const schema = z.object({
     })),
   })),
 });
-
+// PUT /api/budgets/[budgetId]/spending-tracking
+// Update spending tracking for a budget
 export const PUT = enhanceRouteHandler(
   async ({ body, params }) => {
     if (!params.budgetId) {
@@ -148,15 +149,13 @@ export const PUT = enhanceRouteHandler(
       } as BudgetSpendingTrackingsByMonth;
 
       // Update the budget with the new spending tracking
-      const { data: updatedBudget, error: updateError } = await supabaseAdmin
+      const { error: updateError } = await supabaseAdmin
         .from('budgets')
         .update({ 
           spending_tracking: updatedSpendingTracking,
           updated_at: new Date().toISOString()
         })
-        .eq('id', params.budgetId)
-        .select('spending_tracking')
-        .single();
+        .eq('id', params.budgetId);
 
       if (updateError) {
         console.error('Error updating budget:', updateError);
@@ -169,7 +168,7 @@ export const PUT = enhanceRouteHandler(
       return NextResponse.json({
         message: 'Budget spending updated successfully',
         success: true,
-        spendingTracking: updatedBudget.spending_tracking
+        spendingTracking: updatedSpendingTracking
       });
     } catch (error) {
       console.error('Error updating budget spending:', error);

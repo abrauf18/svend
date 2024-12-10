@@ -48,10 +48,14 @@ const FormSchema = z.object({
       (val) => {
         if (!val) return true;
         const today = new Date();
-        const todayStr = today.toISOString().split('T')[0]!; // Gets YYYY-MM-DD in local timezone
-        return val >= todayStr;
+        today.setHours(0, 0, 0, 0);  // Normalize to start of day
+        
+        const targetDate = new Date(val);
+        targetDate.setHours(0, 0, 0, 0);  // Normalize to start of day
+        
+        return targetDate > today;  // Must be strictly greater than today
       },
-      'Target date cannot be in the past.',
+      'Target date must be in the future.',
     ),
   description: z.string().optional(),
 });
