@@ -130,7 +130,8 @@
     "./multi-step-form": "./src/makerkit/multi-step-form.tsx",
     "./app-breadcrumbs": "./src/makerkit/app-breadcrumbs.tsx",
     "./empty-state": "./src/makerkit/empty-state.tsx",
-    "./marketing": "./src/makerkit/marketing/index.tsx"
+    "./marketing": "./src/makerkit/marketing/index.tsx",
+    "./resizable-textarea": "./src/svend/resizable-textarea.tsx"
   },
   "typesVersions": {
     "*": {

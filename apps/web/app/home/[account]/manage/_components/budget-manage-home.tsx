@@ -3,10 +3,10 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kit/ui/tabs"
-import TransactionTab from "~/home/[account]/manage/_components/transaction-tab";
-import RecurringTab from "~/home/[account]/manage/_components/tabs/recurring/recurring-tab";
-import GoalsTab from "~/home/[account]/manage/_components/goals-tab";
-import BudgetTab from './budget-tab';
+import TransactionTab from "~/home/[account]/manage/_components/tabs/transactions/transaction-tab";
+import RecurringTab from "~/home/[account]/manage/_components/tabs/transactions-recurring/transactions-recurring-tab";
+import GoalsTab from "~/home/[account]/manage/_components/tabs/goals/goals-tab";
+import BudgetTab from './tabs/budget/budget-tab';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@kit/ui/alert-dialog"
 
 function BudgetManageHome() {

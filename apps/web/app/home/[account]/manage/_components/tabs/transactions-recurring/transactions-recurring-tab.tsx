@@ -16,16 +16,15 @@ import {
 } from '@kit/ui/select';
 import { Trans } from '@kit/ui/trans';
 
-import { TransactionPanel } from '~/home/[account]/manage/_components/transaction-panel';
-import TransactionMonthlyExpenseSummary from '~/home/[account]/manage/_components/transaction-monthly-expense-summary';
-import { TransactionTable } from '~/home/[account]/manage/_components/transaction-tab-table';
-import { BudgetFinAccountTransaction } from '~/lib/model/budget.types';
+import { BudgetFinAccountRecurringTransaction } from '~/lib/model/budget.types';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
+import { RecurringPanel } from './transactions-recurring-panel';
+import { RecurringTable } from './transactions-recurring-tab-table';
 
-function TransactionTab() {
+function RecurringTab() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<
-    BudgetFinAccountTransaction | undefined
+    BudgetFinAccountRecurringTransaction | undefined
   >(undefined);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -33,16 +32,37 @@ function TransactionTab() {
 
   // Find earliest transaction date
   const earliestDate = React.useMemo(() => {
-    if (!workspace?.budgetTransactions?.length) return null;
+    if (!workspace?.budgetRecurringTransactions?.length) return null;
     
-    return workspace.budgetTransactions.reduce((earliest, current) => {
-      const [year, month] = current.transaction.date.split('-').map(Number);
-      const currentDate = new Date(year!, month! - 1); // month is 0-based in JS Date
+    return workspace.budgetRecurringTransactions.reduce((earliest, recurring) => {
+      // Get associated transactions
+      const associatedTransactions = workspace.budgetTransactions?.filter(
+        t => recurring.transaction.finAccountTransactionIds?.includes(t.transaction.id)
+      ) ?? [];
+
+      let transactionDate: Date | null = null;
       
-      if (!earliest) return currentDate;
-      return currentDate < earliest ? currentDate : earliest;
+      if (associatedTransactions.length > 0) {
+        // Find earliest associated transaction date
+        transactionDate = associatedTransactions.reduce((earliest, current) => {
+          const [year, month, day] = current.transaction.date.split('-').map(Number);
+          const currentDate = new Date(year!, month! - 1, day!);
+          
+          if (!earliest) return currentDate;
+          return currentDate < earliest ? currentDate : earliest;
+        }, null as Date | null);
+      }
+
+      // If no associated transactions, use createdAt
+      if (!transactionDate && recurring.transaction.createdAt) {
+        const [year, month, day] = recurring.transaction.createdAt.split('-').map(Number);
+        transactionDate = new Date(year!, month! - 1, day!);
+      }
+
+      if (!earliest) return transactionDate;
+      return transactionDate && transactionDate < earliest ? transactionDate : earliest;
     }, null as Date | null);
-  }, [workspace?.budgetTransactions]);
+  }, [workspace?.budgetRecurringTransactions, workspace?.budgetTransactions]);
 
   // Check if current selected date is the earliest month
   const isEarliestMonth = React.useMemo(() => {
@@ -166,7 +186,7 @@ function TransactionTab() {
             </div>
 
             <div className="overflow-auto">
-              <TransactionTable
+              <RecurringTable
                 onSelectTransaction={setSelectedTransaction}
                 onOpenChange={setIsPanelOpen}
                 selectedMonth={selectedDate}
@@ -174,13 +194,9 @@ function TransactionTab() {
             </div>
           </div>
         </div>
-
-        <div className="w-full flex-shrink-0 p-4 lg:w-[300px]">
-          <TransactionMonthlyExpenseSummary selectedDate={selectedDate} />
-        </div>
       </div>
       {selectedTransaction && (
-        <TransactionPanel
+        <RecurringPanel
           open={isPanelOpen}
           onOpenChange={handlePanelOpen}
           selectedTransaction={selectedTransaction}
@@ -200,4 +216,4 @@ function TransactionTab() {
   );
 }
 
-export default TransactionTab;
+export default RecurringTab;

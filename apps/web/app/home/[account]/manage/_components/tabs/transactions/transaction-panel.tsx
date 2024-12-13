@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, ChangeEvent } from 'react';
+import React, { useEffect, useState, ChangeEvent } from 'react';
 import { format } from 'date-fns';
 import { Calendar, Upload, X } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
@@ -8,19 +8,19 @@ import { Button } from '@kit/ui/button';
 import { Calendar as CalendarComponent } from '@kit/ui/calendar';
 import { GlobalLoader } from '@kit/ui/global-loader';
 import { Input } from '@kit/ui/input';
-import { Textarea } from '@kit/ui/textarea';
 import { Label } from '@kit/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@kit/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@kit/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@kit/ui/sheet';
 import { Category, CategoryGroup } from '~/lib/model/fin.types';
 import { BudgetFinAccountTransaction, BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
-import { TransactionTagSelect } from './transaction-tag-select';
+import { TransactionTagSelect } from '../_shared/transaction-tag-select';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { TransactionCategorySelect } from './transaction-category-select';
+import { TransactionCategorySelect } from '../_shared/transaction-category-select';
+import { ResizableTextarea } from '@kit/ui/resizable-textarea';
 
 interface DisabledFields {
   date?: boolean;
@@ -86,7 +86,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
     }
   });
 
-  const { handleSubmit, watch, setValue, register, formState: { errors } } = form;
+  const { handleSubmit, watch, setValue, register, formState: { errors }, control } = form;
 
   const onSubmit = async (data: TransactionFormValues) => {
     setIsSaving(true);
@@ -459,7 +459,15 @@ const getUniqueFileName = (
             </SheetTitle>
           </div>
         </SheetHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1">
+        <form 
+          onSubmit={handleSubmit(onSubmit)} 
+          className="flex flex-col flex-1"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+              e.preventDefault();
+            }
+          }}
+        >
           <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4 max-h-[calc(100dvh-10rem)]">
             {/* Basic Transaction Details */}
             <div className="space-y-2">
@@ -563,10 +571,10 @@ const getUniqueFileName = (
 
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>
-              <Textarea
+              <ResizableTextarea
                 id="notes"
-                placeholder="Enter notes"
                 {...register('notes')}
+                placeholder="Enter notes"
                 disabled={props.disabledFields?.notes ?? props.isReadOnly}
               />
             </div>
@@ -576,6 +584,7 @@ const getUniqueFileName = (
               <Label htmlFor="tags">Tags</Label>
               <TransactionTagSelect
                 transactionId={props.selectedTransaction.transaction.id}
+                type="transactions"
                 onTagsChange={(newTags: BudgetFinAccountTransactionTag[]) => {
                   setValue('tags', newTags, {
                     shouldValidate: true,
@@ -708,12 +717,12 @@ const getUniqueFileName = (
           </div>
 
           <div className="sticky bottom-0 flex shrink-0 border-t bg-background p-4">
-            <div className="flex w-full flex-col sm:flex-row sm:justify-end gap-4">
+            <div className="flex w-full flex-row justify-end gap-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => props.onOpenChange(false)}
-                className="w-full sm:w-auto"
+                className="flex-1 sm:flex-initial"
               >
                 {props.isReadOnly ? 'Close' : 'Cancel'}
               </Button>
@@ -721,7 +730,7 @@ const getUniqueFileName = (
                 type="submit"
                 variant="default"
                 disabled={isSaving}
-                className="w-full sm:w-auto"
+                className="flex-1 sm:flex-initial"
               >
                 Save
               </Button>

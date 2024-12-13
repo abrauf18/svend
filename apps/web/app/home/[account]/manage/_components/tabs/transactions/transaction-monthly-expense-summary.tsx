@@ -28,18 +28,12 @@ const calculateMonthlyPace = (selectedDate: Date): number => {
   return 100;
 };
 
-const getProgressBarColors = (actual: number, target: number, monthlyPace: number, isIncome: boolean) => {
+const getProgressBarColors = (actual: number, target: number, monthlyPace: number) => {
   const progressPercentage = calculateProgressPercentage(actual, target);
   
-  if (isIncome) {
-    // For income: over pace is good (green), under pace is bad (red)
-    if (progressPercentage > monthlyPace + 10) return "[&>div]:bg-green-500";
-    if (progressPercentage < monthlyPace - 10) return "[&>div]:bg-red-500";
-  } else {
-    // For expenses: over pace is bad (red), under pace is good (green)
-    if (progressPercentage > monthlyPace + 10) return "[&>div]:bg-red-500";
-    if (progressPercentage < monthlyPace - 10) return "[&>div]:bg-green-500";
-  }
+  // For expenses: over pace is bad (red), under pace is good (green)
+  if (progressPercentage > monthlyPace + 10) return "[&>div]:bg-red-500";
+  if (progressPercentage < monthlyPace - 10) return "[&>div]:bg-green-500";
   return "[&>div]:bg-primary";
 };
 
@@ -141,8 +135,7 @@ function TransactionMonthlyExpenseSummary({ selectedDate }: TransactionMonthlyEx
                                         getProgressBarColors(
                                             group.effectiveSpending.actual,
                                             group.effectiveSpending.target,
-                                            calculateMonthlyPace(selectedDate),
-                                            group.groupName === 'Income'
+                                            calculateMonthlyPace(selectedDate)
                                         )
                                     )}
                                 />
@@ -174,8 +167,7 @@ function TransactionMonthlyExpenseSummary({ selectedDate }: TransactionMonthlyEx
                                     getProgressBarColors(
                                         totalActual,
                                         totalTarget,
-                                        calculateMonthlyPace(selectedDate),
-                                        workspace.budget.spendingTracking[currentMonth]?.Income?.groupName === 'Income'
+                                        calculateMonthlyPace(selectedDate)
                                     )
                                 )}
                             />

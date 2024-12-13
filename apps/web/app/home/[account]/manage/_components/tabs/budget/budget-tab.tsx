@@ -6,7 +6,7 @@ import DatePicker from 'react-datepicker';
 import { Button } from '@kit/ui/button';
 import { z } from 'zod';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
-import { BudgetFormSchema, BudgetManageTable } from './budget-manage-table';
+import { BudgetFormSchema, BudgetManageTable } from './budget-tab-table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@kit/ui/alert-dialog";
-import { CategoryManagementModal } from './category-manage-modal';
+import { CategoryManagementModal } from './budget-tab-cat-mgmt/budget-tab-cat-mgmt-modal';
 import { toast } from 'sonner';
 
 interface BudgetTabProps {

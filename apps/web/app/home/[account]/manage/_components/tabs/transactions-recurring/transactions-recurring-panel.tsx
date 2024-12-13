@@ -9,14 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@kit/ui/sheet';
 import { Category, CategoryGroup } from '~/lib/model/fin.types';
 import { BudgetFinAccountRecurringTransaction, BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
-import { TransactionTagSelect } from '../../transaction-tag-select';
+import { TransactionTagSelect } from '../_shared/transaction-tag-select';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { TransactionCategorySelect } from '../../transaction-category-select';
+import { TransactionCategorySelect } from '../_shared/transaction-category-select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@kit/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@kit/ui/table';
+import { ResizableTextarea } from '@kit/ui/resizable-textarea';
 
 interface DisabledFields {
   date?: boolean;
@@ -294,7 +295,15 @@ export function RecurringPanel(props: RecurringPanelProps) {
             </SheetTitle>
           </div>
         </SheetHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1">
+        <form 
+          onSubmit={handleSubmit(onSubmit)} 
+          className="flex flex-col flex-1"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+              e.preventDefault();
+            }
+          }}
+        >
           <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4 max-h-[calc(100dvh-10rem)]">
             {/* Transaction Dates */}
             <div className="space-y-4">
@@ -404,7 +413,7 @@ export function RecurringPanel(props: RecurringPanelProps) {
 
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>
-              <Textarea
+              <ResizableTextarea
                 id="notes"
                 placeholder="Enter notes"
                 {...register('notes')}
@@ -417,6 +426,7 @@ export function RecurringPanel(props: RecurringPanelProps) {
               <Label htmlFor="tags">Tags</Label>
               <TransactionTagSelect
                 transactionId={props.selectedTransaction.transaction.id}
+                type="recurring"
                 onTagsChange={(newTags: BudgetFinAccountTransactionTag[]) => {
                   setValue('tags', newTags, {
                     shouldValidate: true,
@@ -468,12 +478,12 @@ export function RecurringPanel(props: RecurringPanelProps) {
           </div>
 
           <div className="sticky bottom-0 flex shrink-0 border-t bg-background p-4">
-            <div className="flex w-full flex-col sm:flex-row sm:justify-end gap-4">
+            <div className="flex w-full flex-row justify-end gap-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => props.onOpenChange(false)}
-                className="w-full sm:w-auto"
+                className="flex-1 sm:flex-initial"
               >
                 {props.isReadOnly ? 'Close' : 'Cancel'}
               </Button>
@@ -481,7 +491,7 @@ export function RecurringPanel(props: RecurringPanelProps) {
                 type="submit"
                 variant="default"
                 disabled={isSaving}
-                className="w-full sm:w-auto"
+                className="flex-1 sm:flex-initial"
               >
                 Save
               </Button>
