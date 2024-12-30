@@ -1740,7 +1740,7 @@ export type Database = {
           p_plaid_account_id: string
           p_account_id: string
           p_name: string
-          p_type: string
+          p_type: Database["public"]["Enums"]["fin_account_type_enum"]
           p_balance_available?: number
           p_balance_current?: number
           p_balance_limit?: number

@@ -1720,7 +1720,7 @@ CREATE OR REPLACE FUNCTION add_budget_plaid_account(
     p_plaid_account_id TEXT,
     p_account_id UUID,
     p_name TEXT,
-    p_type TEXT,
+    p_type fin_account_type_enum,
     p_balance_available NUMERIC = NULL,
     p_balance_current NUMERIC = NULL,
     p_balance_limit NUMERIC = NULL,
