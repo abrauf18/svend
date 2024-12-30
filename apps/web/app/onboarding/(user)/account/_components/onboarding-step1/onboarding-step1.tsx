@@ -1,116 +1,173 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Card, CardHeader, CardContent, CardFooter } from '@kit/ui/card';
-import { Progress } from '@kit/ui/progress';
-import { Trans } from '@kit/ui/trans';
-import { Button } from '@kit/ui/button';
 import { useOnboardingContext } from '@kit/accounts/components';
-import { PlaidConnectionItems } from './plaid-connection-items';
-import { usePlaidLink, PlaidLinkOptions } from 'react-plaid-link';
-import { Loader2 } from "lucide-react";
+import { Button } from '@kit/ui/button';
+import { Card, CardContent, CardFooter, CardHeader } from '@kit/ui/card';
+import { Progress } from '@kit/ui/progress';
+import { Tabs, TabsList, TabsTrigger } from '@kit/ui/tabs';
+import { Trans } from '@kit/ui/trans';
+import { Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { PlaidTab } from './tabs/plaid/plaid-tab';
+import { ManualTab } from './tabs/manual/manual-tab';
+import { Checkbox } from '@kit/ui/checkbox';
+import { AccountOnboardingStepContextKey } from '~/lib/model/onboarding.types';
+import { FinAccount } from '~/lib/model/fin.types';
+import { AccountOnboardingState } from '~/lib/model/onboarding.types';
 
 function OnboardingStep1ConnectPlaidAccounts() {
-  const [hasPlaidConnection, setHasPlaidConnection] = useState(false);
   const [loadingPlaidOAuth, setLoadingPlaidOAuth] = useState(false);
   const [loadingServer, setLoadingServer] = useState(false);
-  const { state, accountNextStep, accountPlaidConnItemAddOne } = useOnboardingContext();
-  const [linkToken, setLinkToken] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'plaid' | 'manual' | undefined>(undefined);
+  const [isPlaidValid, setIsPlaidValid] = useState(false);
+  const [isManualValid, setIsManualValid] = useState(false);
+  const [isFormValid, setIsFormValid] = useState(false);
+  const {
+    accountNextStep,
+    accountSetStepContext,
+    accountBudgetSetLinkedFinAccounts,
+    state
+  } = useOnboardingContext();
 
   useEffect(() => {
-    if (state?.account.plaidConnectionItems) {
-      const hasConnections = state.account.plaidConnectionItems.length > 0;
-      setHasPlaidConnection(hasConnections);
+    const hasManualValidLinkedTransaction = state?.account.manualInstitutions?.some(
+      (institution) =>
+        institution.accounts?.some(
+          (account) =>
+            account.budgetFinAccountId && account.transactions?.length > 0
+        )
+    );
+    setIsManualValid(!!hasManualValidLinkedTransaction);
+
+    const hasPlaidLinkedAccount = state?.account.plaidConnectionItems?.some(item =>
+      item.itemAccounts.some(account => !!account.budgetFinAccountId)
+    );
+    setIsPlaidValid(hasPlaidLinkedAccount ?? false);
+
+    // Either tab being valid makes the form valid
+    setIsFormValid(isPlaidValid || isManualValid);
+
+    if (selectedTab === undefined) {
+      if (['start', 'plaid'].includes(state.account.contextKey as string)) {
+        setSelectedTab('plaid');
+      } else {
+        setSelectedTab('manual');
+      }
     }
-  }, [state]);
+  }, [state?.account.plaidConnectionItems, state?.account.manualInstitutions]);
 
   useEffect(() => {
-    if (isNavigating && (state?.account.contextKey as string)! !== 'plaid') {
-      setIsNavigating(false);
-    }
-  }, [state?.account.contextKey, isNavigating]);
+    setIsFormValid(isPlaidValid || isManualValid);
+  }, [isPlaidValid, isManualValid]);
 
-  const onSuccess = useCallback(async (public_token: string, metadata: any) => {
+  useEffect(() => {
+    // Don't update context until state is fully loaded
+    if (!state?.account || state.account.contextKey === undefined) {
+      return;
+    }
+
+    // Only update if we need to change the context
+    const currentContextKey = state.account.contextKey;
+    let newContextKey = currentContextKey;
+
+    if (isPlaidValid && !isManualValid && currentContextKey !== 'plaid') {
+      newContextKey = 'plaid';
+    } else if (!isPlaidValid && isManualValid && currentContextKey !== 'manual') {
+      newContextKey = 'manual';
+    } else if (isPlaidValid && isManualValid && currentContextKey !== selectedTab) {
+      newContextKey = selectedTab!;
+    } else if (!isPlaidValid && !isManualValid && currentContextKey !== 'start') {
+      newContextKey = 'start';
+    }
+
+    // Only make the API call if we actually need to change the context
+    if (newContextKey !== currentContextKey) {
+      void updateContextKey(newContextKey, [currentContextKey, newContextKey]);
+    }
+  }, [isPlaidValid, isManualValid, selectedTab, state?.account]);
+
+  useEffect(() => {
+    if (!state.account) return;
+    const allLinkedAccounts = createLinkedFinAccounts(state.account);
+    accountBudgetSetLinkedFinAccounts(allLinkedAccounts as FinAccount[]);
+  }, [state.account.plaidConnectionItems, state.account.manualInstitutions]);
+
+  async function updateContextKey(contextKey: string, validContextKeys: string[]) {
     try {
-      const response = await fetch('/api/onboarding/account/plaid/item', {
-        method: 'POST',
+      const response = await fetch('/api/onboarding/account/state', {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          budgetId: state?.account.budget?.id,
-          plaidPublicToken: public_token,
+          contextKey: contextKey,
+          validContextKeys: validContextKeys
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Failed to complete Plaid onboarding:', errorData);
-        throw new Error(`Failed to complete Plaid onboarding: ${response.status} ${response.statusText}`);
+        const error = await response.json();
+        console.error('Error updating context:', error);
+        return;
       }
 
-      const result = await response.json();
-      console.log('Plaid onboarding successful:', result);
-
-      await accountPlaidConnItemAddOne(result.plaidConnectionItem);
-      setLoadingPlaidOAuth(false);
+      // Only update context after successful DB update
+      accountSetStepContext(contextKey as AccountOnboardingStepContextKey);
     } catch (error) {
-      console.error('Error during Plaid onboarding:', error);
-      setLoadingPlaidOAuth(false);
+      console.error('Error updating context:', error);
     }
-  }, [state, accountPlaidConnItemAddOne]);
+  }
 
-  const onExit = useCallback(() => {
-    setLoadingPlaidOAuth(false);
+  const createLinkedFinAccounts = useCallback((state: AccountOnboardingState) => {
+    // Get Plaid accounts
+    const linkedFinAccounts = state?.plaidConnectionItems?.flatMap(item =>
+      item.itemAccounts
+        .filter(account => account.budgetFinAccountId)
+        .map(account => ({
+          id: account.svendAccountId,
+          source: 'plaid' as const,
+          institutionName: item.institutionName,
+          budgetFinAccountId: account.budgetFinAccountId,
+          name: account.accountName,
+          mask: account.mask,
+          officialName: account.officialName,
+          balance: account.balanceCurrent
+        }))
+    ) ?? [];
+
+    // Get manual accounts
+    const manualAccounts = state?.manualInstitutions?.flatMap(inst =>
+      inst.accounts
+        .filter(account => account.budgetFinAccountId)
+        .map(account => ({
+          id: account.id,
+          source: 'svend' as const,
+          institutionName: inst.name,
+          budgetFinAccountId: account.budgetFinAccountId,
+          name: account.name,
+          mask: account.mask || '',
+          officialName: account.name,
+          balance: account.balanceCurrent
+        }))
+    ) ?? [];
+
+    // Combine and sort
+    return [...linkedFinAccounts, ...manualAccounts]
+      .filter(account => account.budgetFinAccountId)
+      .sort((a, b) => {
+        if (a.source !== b.source) {
+          return a.source === 'plaid' ? -1 : 1;
+        }
+        if (a.institutionName !== b.institutionName) {
+          return a.institutionName.localeCompare(b.institutionName);
+        }
+        return a.name.localeCompare(b.name);
+      });
   }, []);
 
-  const config: PlaidLinkOptions = {
-    token: linkToken!,
-    onSuccess: onSuccess,
-    onExit: onExit
-  };
-
-  const { open, ready } = usePlaidLink(config);
-
-  useEffect(() => {
-    if (ready) {
-      open();
-    }
-  }, [open, ready]);
-
-  const createLinkToken = async () => {
-    setLoadingPlaidOAuth(true);
-
-    if (!state?.account.budget?.id) {
-      console.error('Budget ID not found');
-      return;
-    }
-    try {
-      const response = await fetch('/api/plaid/create-link-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ budgetId: state?.account.budget?.id, redirectType: 'account' }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Failed to create Plaid link token:', errorData);
-        throw new Error(`Failed to create Plaid link token: ${response.status} ${response.statusText}`);
-      }
-
-      const { link_token } = await response.json();
-      setLinkToken(link_token);
-    } catch (error) {
-      console.error('Error creating link token:', error);
-      setLoadingPlaidOAuth(false);
-    }
-  };
-
   return (
-    <div className="mx-auto w-full max-w-6xl h-[calc(100vh-6rem)]">
-      <Card className="w-full h-full flex flex-col">
-        <CardHeader className="space-y-4 flex-shrink-0">
+    <div className="mx-auto h-[calc(100vh-6rem)] w-full max-w-6xl">
+      <Card className="flex h-full w-full flex-col">
+        <CardHeader className="flex-shrink-0 space-y-4">
           <div className="flex items-center space-x-2">
             <svg
               className="h-8 w-8 text-primary"
@@ -140,44 +197,90 @@ function OnboardingStep1ConnectPlaidAccounts() {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4 flex-1 overflow-y-auto flex flex-col">
-          <div className="flex-grow">
-            <p className="text-sm text-muted-foreground max-w-md">
+        <CardContent
+          id="onboarding-step-1-parent"
+          className="flex flex-1 flex-col space-y-4 overflow-hidden"
+        >
+          <div className={`flex items-center gap-4 my-2`}>
+            <Tabs
+              value={selectedTab}
+              onValueChange={(value) =>
+                setSelectedTab(value as 'plaid' | 'manual')
+              }
+              className={`flex flex-col items-start border rounded-lg overflow-hidden ${loadingServer || loadingPlaidOAuth ? 'pointer-events-none' : ''}`}
+            >
+              <TabsList className="h-[58px] w-full bg-muted px-1">
+                <TabsTrigger
+                  value="plaid"
+                  className="h-[48px] w-[120px] rounded-md data-[state=active]:bg-green-300 data-[state=active]:text-primary-foreground"
+                >
+                  Plaid
+                </TabsTrigger>
+                <TabsTrigger
+                  value="manual"
+                  className="h-[48px] w-[120px] rounded-md data-[state=active]:bg-green-300 data-[state=active]:text-primary-foreground"
+                >
+                  Manual
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <p className="max-w-md text-sm text-foreground">
               <Trans i18nKey={'onboarding:connectAccountsInstructionText'} />
             </p>
-
-            <PlaidConnectionItems 
-              loadingPlaidOAuth={loadingPlaidOAuth}
-              loadingServer={loadingServer}
-              setLoadingPlaidOAuth={setLoadingPlaidOAuth}
-              setLoadingServer={setLoadingServer}
-            />
+          </div>
+          <div className="flex-grow space-y-4">
+            <div className={selectedTab === 'plaid' ? 'block' : 'hidden'}>
+              <PlaidTab
+                loadingServer={loadingServer}
+                setLoadingServer={setLoadingServer}
+                loadingPlaidOAuth={loadingPlaidOAuth}
+                setLoadingPlaidOAuth={setLoadingPlaidOAuth}
+              />
+            </div>
+            <div className={selectedTab === 'manual' ? 'block' : 'hidden'}>
+              <ManualTab />
+            </div>
           </div>
         </CardContent>
 
         <CardFooter className="flex-shrink-0 border-t pt-4">
-          <div className="flex space-x-4">
-            <Button onClick={() => createLinkToken()} disabled={loadingPlaidOAuth}>
-              <Trans i18nKey={'onboarding:connectAccountsButtonLabel'} />
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-full md:w-auto" 
-              disabled={!hasPlaidConnection || loadingPlaidOAuth || isNavigating}
-              onClick={() => {
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              className={`${(loadingServer || loadingPlaidOAuth) ? 'pointer-events-none' : ''}`}
+              disabled={!isFormValid || isNavigating || loadingPlaidOAuth}
+              onClick={async () => {
                 setIsNavigating(true);
+
+                try {
+                  await updateContextKey('profile_goals', [state.account.contextKey as string, 'profile_goals']);
+                } catch (error) {
+                  console.error('Error updating context:', error);
+                  setIsNavigating(false);
+                  return;
+                }
+
                 accountNextStep();
               }}
             >
               {isNavigating ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
+                  <Trans i18nKey={'onboarding:connectAccountsNextButtonSavingLabel'} />
                 </span>
               ) : (
                 <Trans i18nKey={'onboarding:connectAccountsNextButtonLabel'} />
               )}
             </Button>
+
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-muted-foreground">Plaid</span>
+              <Checkbox checked={isPlaidValid} disabled />
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-muted-foreground">Manual</span>
+              <Checkbox checked={isManualValid} disabled />
+            </div>
           </div>
         </CardFooter>
       </Card>

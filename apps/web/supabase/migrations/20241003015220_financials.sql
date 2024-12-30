@@ -37,6 +37,14 @@ create type fin_profile_state_enum as enum ('florida', 'california');
 create type budget_goal_debt_payment_component_enum as enum ('principal', 'interest', 'principal_interest');
 create type budget_goal_type_enum as enum ('debt', 'savings', 'investment');
 
+-- Create new fin account type enum (before the table definitions)
+create type fin_account_type_enum as enum (
+    'depository',
+    'credit',
+    'loan',
+    'investment',
+    'other'
+);
 
 -- Function "public.has_budget_permission"
 -- Create a function to check if a user has a permission
@@ -181,7 +189,7 @@ before insert or update on public.plaid_connection_items
 for each row execute function validate_institution_logo_storage_name();
 
 -- Revoke all permissions
-revoke all on public.plaid_connection_items from public, service_role;
+revoke all on public.plaid_connection_items from public, authenticated;
 
 -- Grant necessary permissions
 grant select on public.plaid_connection_items to authenticated;
@@ -213,7 +221,7 @@ create table if not exists public.plaid_accounts (
   plaid_persistent_account_id text unique,
   name text not null,
   official_name text,
-  type text not null,
+  type fin_account_type_enum not null,
   subtype text,
   balance_available numeric, -- NULL for loans
   balance_current numeric,
@@ -236,6 +244,40 @@ alter table plaid_accounts enable row level security;
 
 -- End of plaid_accounts table
 
+-- ============================================================
+-- manual_fin_institutions table
+-- ============================================================
+
+CREATE TABLE if NOT EXISTS public.manual_fin_institutions (
+    id uuid primary key default uuid_generate_v4(),
+    name text not null,
+    owner_account_id uuid references public.accounts(id) not null,
+    symbol varchar(5) not null,
+    created_at timestamp with time zone not null default current_timestamp,
+    updated_at timestamp with time zone not null default current_timestamp,
+    UNIQUE (owner_account_id, name),
+    UNIQUE (owner_account_id, symbol)
+);
+
+-- Revoke all permissions
+revoke all on public.manual_fin_institutions from public, authenticated;
+
+-- Grant necessary permissions
+grant select on public.manual_fin_institutions to authenticated;
+
+-- Enable row level security
+alter table manual_fin_institutions enable row level security;
+
+-- Create policies
+create policy read_manual_fin_institutions
+  on public.manual_fin_institutions
+  for select
+  to authenticated
+  using (
+      owner_account_id = auth.uid()
+  );
+
+-- End of manual_fin_institutions table
 
 -- ============================================================
 -- manual_fin_accounts table
@@ -246,17 +288,19 @@ create table if not exists public.manual_fin_accounts (
   id uuid primary key default uuid_generate_v4(),
   owner_account_id uuid references public.accounts(id) not null,
   constraint chk_account_is_personal check (not kit.check_team_account_by_id(owner_account_id)),
+  institution_id uuid references public.manual_fin_institutions(id) not null,
   name text not null,
   official_name text,
-  type text not null,
+  type fin_account_type_enum not null,
   subtype text,
   balance_available numeric, -- NULL for loans
-  balance_current numeric,
+  balance_current numeric default 0,
   iso_currency_code text default 'USD',
   balance_limit numeric,
   mask text,
   created_at timestamp with time zone default current_timestamp,
-  updated_at timestamp with time zone default current_timestamp
+  updated_at timestamp with time zone default current_timestamp,
+  UNIQUE (institution_id, name)
 );
 
 -- Revoke all permissions
@@ -428,6 +472,8 @@ GRANT EXECUTE ON FUNCTION get_budget_by_team_account_slug(TEXT) TO authenticated
 CREATE OR REPLACE FUNCTION get_budget_transactions_by_team_account_slug(p_team_account_slug TEXT)
 RETURNS TABLE (
     id UUID,
+    user_tx_id varchar(100),
+    plaid_tx_id varchar(100),
     date DATE,
     amount NUMERIC,
     iso_currency_code TEXT,
@@ -468,6 +514,8 @@ GRANT EXECUTE ON FUNCTION get_budget_transactions_by_team_account_slug(TEXT) TO 
 CREATE OR REPLACE FUNCTION get_budget_transactions_within_range_by_budget_id(p_budget_id UUID, p_start_date TEXT, p_end_date TEXT)
 RETURNS TABLE (
     id UUID,
+    user_tx_id varchar(100),
+    plaid_tx_id varchar(100),
     date DATE,
     amount NUMERIC,
     iso_currency_code TEXT,
@@ -486,6 +534,8 @@ BEGIN
     RETURN QUERY
     SELECT 
         fat.id,
+        fat.user_tx_id,
+        fat.plaid_tx_id,
         fat.date,
         fat.amount,
         fat.iso_currency_code::TEXT,
@@ -545,6 +595,8 @@ BEGIN
     GROUP BY
         b.id,
         fat.id,
+        fat.user_tx_id,
+        fat.plaid_tx_id,
         fat.date,
         fat.amount,
         fat.iso_currency_code,
@@ -958,6 +1010,21 @@ create policy read_manual_fin_accounts
         ) -- budget member can read
     );
 
+    create policy delete_manual_fin_accounts
+    on public.manual_fin_accounts
+    for delete
+    to authenticated
+    using (
+        owner_account_id = auth.uid() -- account owner can delete
+        or exists (
+            select 1
+            from public.budget_fin_accounts bfa
+            join public.budgets b on bfa.budget_id = b.id
+            where bfa.manual_account_id = manual_fin_accounts.id
+            and public.is_team_member(b.team_account_id, auth.uid())
+        ) -- budget member can delete
+    );
+
 -- End of budget_fin_accounts table
 
 
@@ -973,6 +1040,7 @@ create table if not exists public.fin_account_transactions (
   iso_currency_code text default 'USD',
   plaid_account_id uuid references public.plaid_accounts(id) on delete cascade, -- will be null if account was manually added
   manual_account_id uuid references public.manual_fin_accounts(id) on delete cascade, -- will be null if account is from Plaid
+  svend_category_id UUID NOT NULL REFERENCES public.categories(id),
   plaid_category_detailed text,
   plaid_category_confidence text,
   merchant_name text,
@@ -990,7 +1058,8 @@ create table if not exists public.fin_account_transactions (
   -- pending boolean default false,
   -- pending_transaction_id uuid,
   -- personal_finance_category jsonb,
-  -- transaction_id text not null,
+  user_tx_id varchar(100) not null,
+  plaid_tx_id varchar(100),
   -- transaction_code text,
   -- transaction_type text,
   plaid_raw_data jsonb,
@@ -998,8 +1067,36 @@ create table if not exists public.fin_account_transactions (
   updated_at timestamp with time zone default current_timestamp
 );
 
+-- Add a unique constraint function for transaction IDs per user
+CREATE OR REPLACE FUNCTION check_unique_transaction_id_per_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 
+    FROM public.fin_account_transactions fat
+    JOIN public.manual_fin_accounts mfa ON fat.manual_account_id = mfa.id
+    WHERE fat.user_tx_id = NEW.user_tx_id
+    AND mfa.owner_account_id = (
+      SELECT owner_account_id 
+      FROM public.manual_fin_accounts 
+      WHERE id = NEW.manual_account_id
+    )
+    AND fat.id != NEW.id  -- Exclude the current row for updates
+  ) THEN
+    RAISE EXCEPTION 'Transaction ID must be unique per user across all accounts';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to enforce the unique constraint
+CREATE TRIGGER enforce_unique_transaction_id_per_user
+  BEFORE INSERT OR UPDATE ON public.fin_account_transactions
+  FOR EACH ROW
+  EXECUTE FUNCTION check_unique_transaction_id_per_user();
+
 -- Revoke all permissions
-revoke all on public.fin_account_transactions from public, service_role;
+revoke all on public.fin_account_transactions from public, authenticated;
 
 -- Enable row level security
 alter table fin_account_transactions enable row level security;
@@ -1043,8 +1140,6 @@ create policy read_owned_fin_account_transactions
 
 -- Grant necessary permissions
 grant select on public.fin_account_transactions to authenticated;
-grant select, insert, update, delete on public.fin_account_transactions to service_role;
-
 
 
 -- ============================================================
@@ -1052,6 +1147,8 @@ grant select, insert, update, delete on public.fin_account_transactions to servi
 -- ============================================================
 -- First, create a composite type for the input parameters
 CREATE TYPE budget_transaction_input AS (
+    user_tx_id varchar(100),
+    plaid_tx_id varchar(100),
     budget_fin_account_id UUID,
     amount NUMERIC,
     date DATE,
@@ -1105,7 +1202,10 @@ BEGIN
             iso_currency_code,
             plaid_category_detailed,
             plaid_category_confidence,
-            plaid_raw_data
+            plaid_raw_data,
+            svend_category_id,
+            user_tx_id,
+            plaid_tx_id
         ) VALUES (
             v_plaid_account_id,
             v_manual_account_id,
@@ -1116,24 +1216,29 @@ BEGIN
             COALESCE(v_transaction.iso_currency_code, 'USD'),
             v_transaction.plaid_category_detailed,
             v_transaction.plaid_category_confidence,
-            v_transaction.raw_data
+            v_transaction.raw_data,
+            v_transaction.svend_category_id,
+            v_transaction.user_tx_id,
+            v_transaction.plaid_tx_id
         )
         RETURNING id INTO v_fin_transaction_id;
 
         -- Insert into budget_fin_account_transactions
-        INSERT INTO budget_fin_account_transactions (
-            budget_id,
-            fin_account_transaction_id,
-            svend_category_id,
-            merchant_name,
-            payee
-        ) VALUES (
-            p_budget_id,
-            v_fin_transaction_id,
-            v_transaction.svend_category_id,
-            v_transaction.merchant_name,
-            v_transaction.payee
-        );
+        IF v_fin_transaction_id IS NOT NULL THEN
+            INSERT INTO budget_fin_account_transactions (
+                budget_id,
+                fin_account_transaction_id,
+                svend_category_id,
+                merchant_name,
+                payee
+            ) VALUES (
+                p_budget_id,
+                v_fin_transaction_id,
+                v_transaction.svend_category_id,
+                v_transaction.merchant_name,
+                v_transaction.payee
+            );
+        END IF;
 
         -- Return each transaction ID
         RETURN NEXT v_fin_transaction_id;
@@ -1154,6 +1259,7 @@ create table if not exists public.fin_account_recurring_transactions (
   plaid_account_id uuid references public.plaid_accounts(id) on delete cascade,
   manual_account_id uuid references public.manual_fin_accounts(id) on delete cascade,
   fin_account_transaction_ids uuid[] default '{}',
+  svend_category_id UUID NOT NULL REFERENCES public.categories(id),
   plaid_category_detailed text,
   plaid_category_confidence text,
   plaid_raw_data jsonb,
@@ -1162,7 +1268,7 @@ create table if not exists public.fin_account_recurring_transactions (
 );
 
 -- Revoke all permissions
-revoke all on public.fin_account_recurring_transactions from public, service_role;
+revoke all on public.fin_account_recurring_transactions from public, authenticated;
 
 -- Enable row level security
 alter table fin_account_recurring_transactions enable row level security;
@@ -1315,6 +1421,7 @@ BEGIN
             plaid_account_id,
             manual_account_id,
             fin_account_transaction_ids,
+            svend_category_id,
             plaid_category_detailed,
             plaid_category_confidence,
             plaid_raw_data
@@ -1322,6 +1429,7 @@ BEGIN
             v_plaid_account_id,
             v_manual_account_id,
             v_transaction.fin_account_transaction_ids,
+            v_transaction.svend_category_id,
             v_transaction.plaid_category_detailed,
             v_transaction.plaid_category_confidence,
             v_transaction.raw_data
@@ -1566,7 +1674,7 @@ grant execute on function get_budget_tags_by_team_account_slug(TEXT) to authenti
 CREATE TABLE if not exists public.budget_fin_account_transactions (
     budget_id UUID NOT NULL REFERENCES public.budgets(id),
     fin_account_transaction_id UUID NOT NULL REFERENCES public.fin_account_transactions(id),
-    svend_category_id UUID NOT NULL REFERENCES public.categories(id) ON DELETE SET NULL,
+    svend_category_id UUID NOT NULL REFERENCES public.categories(id),
     merchant_name TEXT,
     payee TEXT,
     notes TEXT,
@@ -1737,7 +1845,6 @@ create policy read_budget_goals
     );
 
 -- End of budget_goals table
-
 
 -- ============================
 -- Storage buckets and policies

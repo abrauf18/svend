@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 
 import { useOnboardingContext } from '@kit/accounts/components';
 import { Button } from '@kit/ui/button';
@@ -22,8 +22,32 @@ function OnboardingStep2ProfileGoals() {
   const [isSkipping, setIsSkipping] = useState(false);
 
   const submitFormRef = useRef<(() => Promise<boolean>) | null>(null);
-
   const { state, accountNextStep } = useOnboardingContext();
+
+  async function updateContextKey(contextKey: string) {
+    try {
+      const response = await fetch('/api/onboarding/account/state', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          contextKey,
+          validContextKeys: ['profile_goals', 'analyze_spending', 'analyze_spending_in_progress', 'budget_setup', 'end']
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Error updating context:', error);
+        return;
+      }
+      
+      accountNextStep();
+    } catch (error) {
+      console.error('Error updating context:', error);
+    }
+  }
 
   const handleFormSubmit = async () => {
     if (submitFormRef.current) {
@@ -31,7 +55,6 @@ function OnboardingStep2ProfileGoals() {
       try {
         const success = await submitFormRef.current();
         if (success) {
-          // Find the CardContent element and scroll it to top
           const cardContent = document.querySelector('.card-content');
           if (cardContent) {
             cardContent.scrollTop = 0;
@@ -40,33 +63,30 @@ function OnboardingStep2ProfileGoals() {
           if (currentSubStep < 6) {
             setCurrentSubStep((prev) => prev + 1);
           } else {
-            accountNextStep();
+            await updateContextKey('analyze_spending');
           }
-        } else {
-          console.log('Form submission failed');
         }
       } catch (error) {
         console.error('Error submitting form:', error);
       } finally {
         setIsSubmitting(false);
       }
-    } else {
-      console.log('Form is not valid');
     }
   };
 
   const handleSkipStep = async () => {
     if (currentSubStep === 6) {
       setIsSkipping(true);
-    }
-
-    if (currentSubStep < 6) {
-      setCurrentSubStep((prev) => prev + 1);
+      try {
+        await updateContextKey('analyze_spending');
+      } catch (error) {
+        console.error('Error skipping step:', error);
+      } finally {
+        setIsSkipping(false);
+      }
     } else {
-      accountNextStep();
+      setCurrentSubStep((prev) => prev + 1);
     }
-
-    setIsSkipping(false);
   };
 
   // Renders the appropriate step component
@@ -99,7 +119,7 @@ function OnboardingStep2ProfileGoals() {
       case 4:
         return (
           <GoalsSavings
-            initialData={state.account.budget.goals?.find(goal => goal.type === 'savings')}
+            initialData={state.account.budget?.goals?.find(goal => goal?.type === 'savings')}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -107,7 +127,7 @@ function OnboardingStep2ProfileGoals() {
       case 5:
         return (
           <GoalsDebt
-            initialData={state.account.budget.goals?.find(goal => goal.type === 'debt')}
+            initialData={state.account.budget?.goals?.find(goal => goal?.type === 'debt')}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />
@@ -115,7 +135,7 @@ function OnboardingStep2ProfileGoals() {
       case 6:
         return (
           <GoalsInvestment
-            initialData={state.account.budget.goals?.find(goal => goal.type === 'investment')}
+            initialData={state.account.budget?.goals?.find(goal => goal?.type === 'investment')}
             onValidationChange={setIsFormValid}
             triggerSubmit={(submitFunc) => (submitFormRef.current = submitFunc)}
           />

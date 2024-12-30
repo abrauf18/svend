@@ -1,18 +1,26 @@
-import { NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
-import { createOnboardingService } from '~/lib/server/onboarding.service';
-import { Budget, BudgetSpendingRecommendations, BudgetSpendingTrackingsByMonth, BudgetGoal } from '~/lib/model/budget.types';
-import { Configuration } from 'plaid';
-import { PlaidEnvironments } from 'plaid';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { NextResponse } from 'next/server';
+import { Configuration, PlaidEnvironments } from 'plaid';
+import {
+  Budget,
+  BudgetGoal,
+  BudgetSpendingRecommendations,
+  BudgetSpendingTrackingsByMonth,
+} from '~/lib/model/budget.types';
 import { createBudgetService } from '~/lib/server/budget.service';
 import { createCategoryService } from '~/lib/server/category.service';
+import { createOnboardingService } from '~/lib/server/onboarding.service';
+import manualInstitutionsStateGetter from './_helpers/manual-institutions-state-getter';
+import { FinAccount } from '~/lib/model/fin.types';
 
 // GET /api/onboarding/account/state
 // Returns the current onboarding state for the account
 export async function GET(request: Request) {
   const supabaseClient = getSupabaseServerClient();
-  const { data: { user } } = await supabaseClient.auth.getUser();
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -23,33 +31,43 @@ export async function GET(request: Request) {
   const supabaseAdminClient = getSupabaseServerAdminClient();
 
   // Fetch the current onboarding state
-  const { data: dbAccountOnboardingState, error: fetchOnboardingError } = await supabaseAdminClient
-    .from('user_onboarding')
-    .select('state->account')
-    .eq('user_id', user.id)
-    .single();
+  const { data: dbAccountOnboardingState, error: fetchOnboardingError } =
+    await supabaseAdminClient
+      .from('user_onboarding')
+      .select('state->account')
+      .eq('user_id', user.id)
+      .single();
 
   if (fetchOnboardingError) {
     console.error('Error fetching onboarding state:', fetchOnboardingError);
-    return NextResponse.json({ error: 'Failed to fetch onboarding state' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch onboarding state' },
+      { status: 500 },
+    );
   }
 
   const budgetId = (dbAccountOnboardingState.account as any)?.budgetId;
 
   // Fetch budget goals associated with the onboarding budget
-  const { data: budgetGoals, error: budgetGoalsError } = await supabaseAdminClient
-    .from('budget_goals')
-    .select('*')
-    .eq('budget_id', budgetId);
+  const { data: budgetGoals, error: budgetGoalsError } =
+    await supabaseAdminClient
+      .from('budget_goals')
+      .select('*')
+      .eq('budget_id', budgetId);
 
   if (budgetGoalsError) {
     console.error('Error fetching budget goals:', budgetGoalsError);
-    return NextResponse.json({ error: 'Failed to fetch budget goals' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch budget goals' },
+      { status: 500 },
+    );
   }
 
   // Map the budget goals to match the AccountOnboardingBudgetGoal schema
   const budgetService = createBudgetService(supabaseAdminClient);
-  const formattedBudgetGoals: BudgetGoal[] = budgetGoals.map(goal => budgetService.parseBudgetGoal(goal)!);
+  const formattedBudgetGoals: BudgetGoal[] = budgetGoals
+    .map((goal) => budgetService.parseBudgetGoal(goal))
+    .filter((goal): goal is BudgetGoal => goal !== null);
 
   // Fetch budget associated with the onboarding
   const { data: db_budget, error: budgetError } = await supabaseAdminClient
@@ -60,124 +78,75 @@ export async function GET(request: Request) {
 
   if (budgetError) {
     console.error('Error fetching budget:', budgetError);
-    return NextResponse.json({ error: 'Failed to fetch budget' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch budget' },
+      { status: 500 },
+    );
   }
-
-  // Map the budget to match the Budget schema
-  const formattedBudget: Budget = {
-    id: budgetId,
-    budgetType: db_budget.budget_type,
-    spendingTracking: (db_budget.spending_tracking ?? {}) as BudgetSpendingTrackingsByMonth,
-    spendingRecommendations: (db_budget.spending_recommendations ?? {}) as BudgetSpendingRecommendations,
-    goals: formattedBudgetGoals,
-    onboardingStep: db_budget.current_onboarding_step,
-    linkedFinAccounts: [],
-  };
-
-  // Fetch the financial profile for the user
-  const { data: acctFinProfile, error: profileError } = await supabaseAdminClient
-    .from('acct_fin_profile')
-    .select('*')
-    .eq('account_id', user.id)
-    .single();
-
-  if (profileError) {
-    console.error('Error fetching financial profile:', profileError);
-    return NextResponse.json({ error: 'Failed to fetch financial profile' }, { status: 500 });
-  }
-
-  // Map the financial profile to match the ProfileData interface
-  const profileData: any = {
-    fullName: acctFinProfile.full_name,
-    age: acctFinProfile.age ? acctFinProfile.age.toString() : null,
-    maritalStatus: acctFinProfile.marital_status,
-    dependents: acctFinProfile.dependents !== null ? acctFinProfile.dependents.toString() : null,
-    incomeLevel: acctFinProfile.income_level,
-    savings: acctFinProfile.savings,
-    currentDebt: acctFinProfile.current_debt,
-    primaryFinancialGoals: acctFinProfile.primary_financial_goals,
-    goalTimeline: acctFinProfile.goal_timeline,
-    monthlyContribution: acctFinProfile.monthly_contribution,
-    state: acctFinProfile.state,
-  };
 
   // First, let's fetch the Plaid accounts associated with the budget
-  const { data: budgetFinAccounts, error: budgetFinAccountsError } = await supabaseAdminClient
-    .from('budget_fin_accounts')
-    .select('id, plaid_account_id, manual_account_id')
-    .eq('budget_id', budgetId);
+  const { data: budgetFinAccounts, error: budgetFinAccountsError } =
+    await supabaseAdminClient
+      .from('budget_fin_accounts')
+      .select('id, plaid_account_id, manual_account_id')
+      .eq('budget_id', budgetId);
 
   if (budgetFinAccountsError) {
-    console.error('Error fetching budget financial accounts:', budgetFinAccountsError);
-    return NextResponse.json({ error: 'Failed to fetch budget financial accounts' }, { status: 500 });
+    console.error(
+      'Error fetching budget financial accounts:',
+      budgetFinAccountsError,
+    );
+    return NextResponse.json(
+      { error: 'Failed to fetch budget financial accounts' },
+      { status: 500 },
+    );
   }
 
-  // Create a list of all plaid_accounts id's which includes all accounts for all items where any of that item's accounts are included in budgetFinAccounts
-  const plaidAccountIds = new Set(budgetFinAccounts.map(account => account.plaid_account_id));
+  const { manualInstitutions, error } = await manualInstitutionsStateGetter({
+    supabaseAdminClient,
+    budgetFinAccounts,
+    user,
+    budgetId,
+  });
 
-  // Fetch all items that have any of the plaid accounts in budgetFinAccounts
-  const { data: relatedItems, error: relatedItemsError } = await supabaseAdminClient
-    .from('plaid_accounts')
-    .select('plaid_connection_items(id)')
-    .in('id', Array.from(plaidAccountIds));
+  if (error) return NextResponse.json({ error: error }, { status: 500 });
 
-  if (relatedItemsError) {
-    console.error('Error fetching related items:', relatedItemsError);
-    return NextResponse.json({ error: 'Failed to fetch related items' }, { status: 500 });
-  }
-
-  // Fetch all plaid accounts for the related items
-  const relatedItemIds = relatedItems
-    .filter(item => item.plaid_connection_items?.id)
-    .map(item => item.plaid_connection_items?.id as string);
-
-  const { data: allPlaidAccounts, error: allPlaidAccountsError } = await supabaseAdminClient
-    .from('plaid_accounts')
-    .select('id')
-    .in('plaid_conn_item_id', relatedItemIds);
-
-  if (allPlaidAccountsError) {
-    console.error('Error fetching all related Plaid accounts:', allPlaidAccountsError);
-    return NextResponse.json({ error: 'Failed to fetch all related Plaid accounts' }, { status: 500 });
-  }
-
-  const allPlaidAccountIds = allPlaidAccounts.map(account => account.id);
-
-  // Now, let's fetch the Plaid accounts and their associated items
-  const { data: plaidAccounts, error: plaidAccountsError } = await supabaseAdminClient
-    .from('plaid_accounts')
-    .select(`
-      id,
-      plaid_account_id,
-      plaid_persistent_account_id,
-      name,
-      mask,
-      official_name,
-      type,
-      subtype,
-      balance_available,
-      balance_current,
-      iso_currency_code,
-      balance_limit,
-      created_at,
-      updated_at,
-      plaid_connection_items (
+  // Fetch all Plaid items for the user directly
+  const { data: userPlaidItems, error: userPlaidItemsError } = 
+    await supabaseAdminClient
+      .from('plaid_connection_items')
+      .select(`
         id,
         plaid_item_id,
         institution_name,
-        institution_logo_storage_name
-      )
-    `)
-    .in('id', allPlaidAccountIds);
+        institution_logo_storage_name,
+        plaid_accounts (*)
+      `)
+      .eq('owner_account_id', user.id);
 
-  if (plaidAccountsError) {
-    console.error('Error fetching Plaid accounts:', plaidAccountsError);
-    return NextResponse.json({ error: 'Failed to fetch Plaid accounts' }, { status: 500 });
+  if (userPlaidItemsError) {
+    console.error('Error fetching user Plaid items:', userPlaidItemsError);
+    return NextResponse.json(
+      { error: 'Failed to fetch user Plaid items' },
+      { status: 500 },
+    );
   }
-  
+
+  const plaidAccounts = userPlaidItems?.flatMap(item => 
+    item.plaid_accounts.map(account => ({
+      ...account,
+      plaid_connection_items: {
+        id: item.id,
+        plaid_item_id: item.plaid_item_id,
+        institution_name: item.institution_name,
+        institution_logo_storage_name: item.institution_logo_storage_name
+      }
+    }))
+  ) || [];
+
   // Group accounts by their parent item
   const itemsMap = new Map();
-  plaidAccounts.forEach(plaidAccount => {
+  plaidAccounts.forEach((plaidAccount) => {
     const item = plaidAccount.plaid_connection_items as any;
     if (!itemsMap.has(item.id)) {
       itemsMap.set(item.id, {
@@ -186,7 +155,7 @@ export async function GET(request: Request) {
         institutionName: item.institution_name,
         institutionLogoStorageName: item.institution_logo_storage_name,
         institutionLogoSignedUrl: '',
-        itemAccounts: []
+        itemAccounts: [],
       });
     }
     itemsMap.get(item.id).itemAccounts.push({
@@ -203,7 +172,10 @@ export async function GET(request: Request) {
       isoCurrencyCode: plaidAccount.iso_currency_code,
       balanceLimit: plaidAccount.balance_limit,
       mask: plaidAccount.mask || '',
-      budgetFinAccountId: budgetFinAccounts.find((account) => account.plaid_account_id === plaidAccount.id)?.id || null,
+      budgetFinAccountId:
+        budgetFinAccounts.find(
+          (account) => account.plaid_account_id === plaidAccount.id,
+        )?.id || null,
       createdAt: plaidAccount.created_at,
       updatedAt: plaidAccount.updated_at,
     });
@@ -217,16 +189,25 @@ export async function GET(request: Request) {
   try {
     for (const item of plaidConnectionItems) {
       if (item.institutionLogoStorageName) {
-        const { data, error: signedUrlError } = await supabaseAdminClient
-          .storage
-          .from(process.env.SUPABASE_STORAGE_BUCKET_PLAID_ITEM_INSTITUTION_LOGOS as string)
-          .createSignedUrl(item.institutionLogoStorageName, 3600);
+        const { data, error: signedUrlError } =
+          await supabaseAdminClient.storage
+            .from(
+              process.env
+                .SUPABASE_STORAGE_BUCKET_PLAID_ITEM_INSTITUTION_LOGOS as string,
+            )
+            .createSignedUrl(item.institutionLogoStorageName, 3600);
 
         if (signedUrlError) {
-          console.warn('Error creating signed URL for institution logo:', signedUrlError);
+          console.warn(
+            'Error creating signed URL for institution logo:',
+            signedUrlError,
+          );
         } else {
           item.institutionLogoSignedUrl = data?.signedUrl || '';
-          console.log('Institution logo signed URL:', item.institutionLogoSignedUrl);
+          console.log(
+            'Institution logo signed URL:',
+            item.institutionLogoSignedUrl,
+          );
         }
       }
     }
@@ -235,7 +216,114 @@ export async function GET(request: Request) {
   }
 
   const categoryService = createCategoryService(supabaseAdminClient);
-  const svendCategoryGroups = await categoryService.getSvendDefaultCategoryGroups();
+  const svendCategoryGroups =
+    await categoryService.getSvendDefaultCategoryGroups();
+
+  const linkedFinAccounts = budgetFinAccounts
+    .map(budgetFinAccount => {
+      // For Plaid accounts
+      if (budgetFinAccount.plaid_account_id) {
+        const plaidAccount = plaidAccounts.find(acc => acc.id === budgetFinAccount.plaid_account_id);
+        if (!plaidAccount) return null;
+
+        return {
+          id: budgetFinAccount.plaid_account_id,
+          source: 'plaid',
+          institutionName: plaidAccount.plaid_connection_items.institution_name,
+          budgetFinAccountId: budgetFinAccount.id,
+          name: plaidAccount.name,
+          mask: plaidAccount.mask || '',
+          officialName: plaidAccount.official_name || '',
+          balance: plaidAccount.balance_current,
+        };
+      }
+      
+      // For manual accounts
+      if (budgetFinAccount.manual_account_id) {
+        const manualAccount = manualInstitutions?.flatMap(inst => inst.accounts)
+          .find(acc => acc.id === budgetFinAccount.manual_account_id);
+        if (!manualAccount) return null;
+
+        const institution = manualInstitutions?.find(
+          inst => inst.accounts.some(acc => acc.id === manualAccount.id)
+        );
+
+        return {
+          id: budgetFinAccount.manual_account_id,
+          source: 'svend',
+          budgetFinAccountId: budgetFinAccount.id,
+          name: manualAccount.name,
+          mask: manualAccount.mask || '',
+          officialName: manualAccount.name,
+          balance: manualAccount.balanceCurrent,
+          institutionName: institution?.name || 'Unknown Institution',
+        };
+      }
+
+      return null;
+    })
+    .filter(account => account !== null)
+    .sort((a, b) => {
+      // First sort by source (plaid before svend)
+      if (a.source !== b.source) {
+        return a.source === 'plaid' ? -1 : 1;
+      }
+      
+      // Then sort by institution name
+      if (a.institutionName !== b.institutionName) {
+        return a.institutionName.localeCompare(b.institutionName);
+      }
+      
+      // Finally sort by account name
+      return a.name.localeCompare(b.name);
+    }) as FinAccount[];
+
+  // Map the budget to match the Budget schema
+  const formattedBudget: Budget = {
+    id: budgetId,
+    budgetType: db_budget.budget_type,
+    spendingTracking: (db_budget.spending_tracking ??
+      {}) as BudgetSpendingTrackingsByMonth,
+    spendingRecommendations: (db_budget.spending_recommendations ??
+      {}) as BudgetSpendingRecommendations,
+    goals: formattedBudgetGoals,
+    onboardingStep: db_budget.current_onboarding_step,
+    linkedFinAccounts,
+  };
+
+  // Fetch the financial profile for the user
+  const { data: acctFinProfile, error: profileError } =
+    await supabaseAdminClient
+      .from('acct_fin_profile')
+      .select('*')
+      .eq('account_id', user.id)
+      .single();
+
+  if (profileError) {
+    console.error('Error fetching financial profile:', profileError);
+    return NextResponse.json(
+      { error: 'Failed to fetch financial profile' },
+      { status: 500 },
+    );
+  }
+
+  // Map the financial profile to match the ProfileData interface
+  const profileData: any = {
+    fullName: acctFinProfile.full_name,
+    age: acctFinProfile.age ? acctFinProfile.age.toString() : null,
+    maritalStatus: acctFinProfile.marital_status,
+    dependents:
+      acctFinProfile.dependents !== null
+        ? acctFinProfile.dependents.toString()
+        : null,
+    incomeLevel: acctFinProfile.income_level,
+    savings: acctFinProfile.savings,
+    currentDebt: acctFinProfile.current_debt,
+    primaryFinancialGoals: acctFinProfile.primary_financial_goals,
+    goalTimeline: acctFinProfile.goal_timeline,
+    monthlyContribution: acctFinProfile.monthly_contribution,
+    state: acctFinProfile.state,
+  };
 
   return NextResponse.json({
     success: true,
@@ -244,10 +332,11 @@ export async function GET(request: Request) {
       budget: formattedBudget,
       contextKey: (dbAccountOnboardingState.account as any)?.contextKey,
       userId: user.id,
-      plaidConnectionItems: plaidConnectionItems,
-      profileData: profileData,
-      svendCategoryGroups
-    }
+      plaidConnectionItems,
+      profileData,
+      svendCategoryGroups,
+      manualInstitutions,
+    },
   });
 }
 
@@ -257,19 +346,23 @@ export async function PUT(request: Request) {
   const supabase = getSupabaseServerClient();
 
   // Check if user is authenticated
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const body = await request.json();
-  const { contextKey } = body;
+  const { contextKey, validContextKeys } = body;
 
-  // TODO: remove 'analyze_spending' from validContextKeys because once goals are persisted, the transition will happen there
-  const validContextKeys = ['profile_goals', 'analyze_spending'];
+  // TODO: validate contextKey transition
 
   if (!contextKey || !validContextKeys.includes(contextKey)) {
-    return NextResponse.json({ error: 'Invalid or missing contextKey' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Invalid or missing contextKey' },
+      { status: 400 },
+    );
   }
 
   const supabaseAdmin = getSupabaseServerAdminClient();
@@ -284,20 +377,33 @@ export async function PUT(request: Request) {
     },
   });
 
-  const onboardingService = createOnboardingService(supabaseAdmin, plaidConfiguration);
+  const onboardingService = createOnboardingService(
+    supabaseAdmin,
+    plaidConfiguration,
+  );
 
   try {
-    const { error: updateErrorMessage } = await onboardingService.updateContextKey({
-      userId: user.id,
-      contextKey,
-      validContextKeys
-    });
+    const { error: updateErrorMessage } =
+      await onboardingService.updateContextKey({
+        userId: user.id,
+        contextKey,
+        validContextKeys,
+      });
     if (updateErrorMessage) {
-      return NextResponse.json({ error: updateErrorMessage, contextKey: contextKey }, { status: 409 });
+      return NextResponse.json(
+        { error: updateErrorMessage, contextKey: contextKey },
+        { status: 409 },
+      );
     }
   } catch (error: any) {
-    return NextResponse.json({ error: 'Failed to update context key:' + error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to update context key:' + error.message },
+      { status: 500 },
+    );
   }
 
-  return NextResponse.json({ success: true, message: 'Context key updated successfully' });
+  return NextResponse.json({
+    success: true,
+    message: 'Context key updated successfully',
+  });
 }

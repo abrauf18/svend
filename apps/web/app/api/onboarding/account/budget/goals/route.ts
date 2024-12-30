@@ -1,165 +1,155 @@
-import { NextResponse } from 'next/server';
-
+import { enhanceRouteHandler } from '@kit/next/routes';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
-
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { BudgetGoal, BudgetGoalMonthlyTracking, BudgetGoalSpendingRecommendations } from '~/lib/model/budget.types';
+
+const schema = z.object({
+  budgetId: z.string().uuid('Invalid budget ID format'),
+  type: z.string().min(1, 'Type is required'),
+  name: z.string().min(1, 'Name is required'),
+  amount: z.number({
+    required_error: 'Amount is required',
+    invalid_type_error: 'Amount must be a number'
+  }),
+  budgetFinAccountId: z.string().uuid('Invalid account ID format'),
+  balance: z.number({
+    required_error: 'Balance is required',
+    invalid_type_error: 'Balance must be a number'
+  }),
+  targetDate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use yyyy-MM-dd format.')
+    .refine(
+      (val) => {
+        if (!val) return true;
+        
+        // Get today's date and strip time components
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0]!;
+        
+        // Compare the date strings directly
+        return val > todayStr;  // This will compare YYYY-MM-DD strings
+      },
+      'Target date must be in the future.',
+    ),
+  description: z.string().optional(),
+  debtType: z.string().optional(),
+  debtPaymentComponent: z.string().optional(),
+  debtInterestRate: z.number().optional()
+}).refine((data) => {
+  if (data.type === 'debt') {
+    return data.debtType && data.debtPaymentComponent && data.debtInterestRate;
+  }
+  return true;
+}, {
+  message: "Debt type goals require debtType, debtPaymentComponent, and debtInterestRate"
+});
 
 // POST /api/onboarding/account/budget/goals
 // Create a budget goal
-export async function POST(request: Request) {
-  const supabase = getSupabaseServerClient();
+export const POST = enhanceRouteHandler(
+  async ({ body }) => {
+    const supabase = getSupabaseServerClient();
+    const supabaseAdmin = getSupabaseServerAdminClient();
 
-  // Check if user is authenticated
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const body = await request.json();
-
-  const supabaseAdminClient = getSupabaseServerAdminClient();
-
-  const { budgetId, type, name, amount, budgetFinAccountId, balance, targetDate, description, debtType, debtPaymentComponent, debtInterestRate } = body;
-
-  // Check for required fields
-  if (!budgetId) {
-    return NextResponse.json({ error: 'Budget ID is a required field' }, { status: 400 });
-  }
-  if (!type) {
-    return NextResponse.json({ error: 'Type is a required field' }, { status: 400 });
-  }
-  if (!name) {
-    return NextResponse.json({ error: 'Name is a required field' }, { status: 400 });
-  }
-  if (!amount) {
-    return NextResponse.json({ error: 'Amount is a required field' }, { status: 400 });
-  }
-  if (!budgetFinAccountId) {
-    return NextResponse.json({ error: 'Budget Financial Account ID is a required field' }, { status: 400 });
-  }
-  if (!balance) {
-    return NextResponse.json({ error: 'Balance is a required field' }, { status: 400 });
-  }
-  if (!targetDate) {
-    return NextResponse.json({ error: 'Target Date is a required field' }, { status: 400 });
-  } else if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
-    return NextResponse.json({ error: 'Invalid date format. Use yyyy-MM-dd format.' }, { status: 400 });
-  }
-
-  // Validate target date is in the future
-  const currentDate = new Date();
-  currentDate.setHours(0, 0, 0, 0);  // Normalize to start of day
-  
-  const targetDateObj = new Date(targetDate);
-  targetDateObj.setHours(0, 0, 0, 0);  // Normalize to start of day
-  
-  if (targetDateObj <= currentDate) {
-    return NextResponse.json({ error: 'Target date must be in the future' }, { status: 400 });
-  }
-
-  // Additional checks for 'debt' type goals
-  if (type === 'debt') {
-    if (!debtType) {
-      return NextResponse.json({ error: 'Debt Type is a required field for debt goals' }, { status: 400 });
+    // Authenticate user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!debtPaymentComponent) {
-      return NextResponse.json({ error: 'Debt Payment Component is a required field for debt goals' }, { status: 400 });
+
+    // Check if budget exists and get any matching goal
+    const { data: result, error: fetchError } = await supabaseAdmin
+      .from('budgets')
+      .select(`
+        id,
+        goals:budget_goals (
+          id
+        )
+      `)
+      .eq('id', body.budgetId)
+      .eq('goals.type', body.type)
+      .single();
+
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: 'Error checking budget and goals' }, { status: 500 });
     }
-    if (!debtInterestRate) {
-      return NextResponse.json({ error: 'Debt Interest Rate is a required field for debt goals' }, { status: 400 });
-    }
-  }
 
-  // Check if budget exists and get any matching goal in a single query
-  const { data: result, error: fetchError } = await supabaseAdminClient
-    .from('budgets')
-    .select(`
-      id,
-      goals:budget_goals (
-        id
-      )
-    `)
-    .eq('id', budgetId)
-    .eq('goals.type', type)
-    .single();
+    const existingGoal = result?.goals?.[0];
+    const currentMonth = new Date().toISOString().substring(0, 7);
 
-  if (fetchError) {
-    if (fetchError.code === 'PGRST116') { // PGRST116 is the code for no rows found
-      return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-    }
-    return NextResponse.json({ error: 'Error checking budget and goals' }, { status: 500 });
-  }
-
-  const existingGoal = result?.goals?.[0];
-
-  let data, error;
-
-  // Upsert the goal and return the full object
-  ({ data, error } = await supabaseAdminClient
-    .from('budget_goals')
-    .upsert({
-      id: existingGoal?.id, // Will be undefined for new goals
-      budget_id: budgetId,
-      type,
-      name,
-      amount,
-      fin_account_id: budgetFinAccountId,
-      description,
-      target_date: targetDate,
-      debt_type: debtType,
-      debt_payment_component: debtPaymentComponent,
-      debt_interest_rate: debtInterestRate,
+    // Prepare the data for upsert
+    const goalData = {
+      id: existingGoal?.id,
+      budget_id: body.budgetId,
+      type: body.type,
+      name: body.name,
+      amount: Number(body.amount),
+      fin_account_id: body.budgetFinAccountId,
+      description: body.description,
+      target_date: body.targetDate,
+      debt_type: body.debtType,
+      debt_payment_component: body.debtPaymentComponent,
+      debt_interest_rate: body.debtInterestRate,
       spending_tracking: {
-        [new Date().toISOString().substring(0, 7)]: {
-          month: new Date().toISOString().substring(0, 7),
-          startingBalance: balance,
-          endingBalance: balance,
+        [currentMonth]: {
+          month: currentMonth,
+          startingBalance: body.balance,
+          endingBalance: body.balance,
           allocations: {}
         }
       },
       spending_recommendations: {}
-    })
-    .select('*'));
+    };
 
-  if (error) {
-    console.error(error);
-    const isForeignKeyViolation = error.message.includes('violates foreign key constraint "budget_goals_fin_account_id_fkey"');
-    
-    if (isForeignKeyViolation) {
-      return NextResponse.json({ error: 'invalid budget financial account id' }, { status: 409 });
+    // Upsert the goal
+    const { data, error: upsertError } = await supabaseAdmin
+      .from('budget_goals')
+      .upsert(goalData as any)
+      .select('*')
+      .single();
+
+    if (upsertError) {
+      console.error('Error creating budget goal:', upsertError);
+      if (upsertError.message.includes('violates foreign key constraint "budget_goals_fin_account_id_fkey"')) {
+        return NextResponse.json({ error: 'Invalid budget financial account ID' }, { status: 409 });
+      }
+      return NextResponse.json({ error: 'Error creating budget goal' }, { status: 500 });
     }
 
-    return NextResponse.json({ error: 'unknown error' }, { status: 500 });
-  }
+    if (!data) {
+      return NextResponse.json({ error: 'Failed to create budget goal' }, { status: 500 });
+    }
 
-  // Ensure the response matches the AccountOnboardingBudgetGoal type
-  const budgetGoal: BudgetGoal = {
-    id: data?.[0]?.id!,
-    budgetId: data?.[0]?.budget_id!,
-    type: data?.[0]?.type!,
-    name: data?.[0]?.name!,
-    amount: data?.[0]?.amount!,
-    budgetFinAccountId: data?.[0]?.fin_account_id!,
-    description: data?.[0]?.description!,
-    targetDate: data?.[0]?.target_date!,
-    debtType: data?.[0]?.debt_type!,
-    debtPaymentComponent: data?.[0]?.debt_payment_component!,
-    debtInterestRate: data?.[0]?.debt_interest_rate!,
-    spendingTracking: {
-      [new Date().toISOString().substring(0, 7)]: {
-        month: new Date().toISOString().substring(0, 7),
-        startingBalance: balance,
-        endingBalance: balance,
-        allocations: {}
-      }
-    } as Record<string, BudgetGoalMonthlyTracking>,
-    spendingRecommendations: {} as BudgetGoalSpendingRecommendations,
-    createdAt: data?.[0]?.created_at!
-  };
+    const budgetGoal: BudgetGoal = {
+      id: data.id,
+      budgetId: data.budget_id,
+      type: data.type,
+      name: data.name,
+      amount: data.amount,
+      budgetFinAccountId: data.fin_account_id,
+      description: data.description ?? undefined,
+      targetDate: data.target_date,
+      debtType: data.debt_type ?? undefined,
+      debtPaymentComponent: data.debt_payment_component ?? undefined,
+      debtInterestRate: data.debt_interest_rate ?? undefined,
+      spendingTracking: {
+        [currentMonth]: {
+          month: currentMonth,
+          startingBalance: body.balance,
+          endingBalance: body.balance,
+          allocations: {}
+        }
+      } as Record<string, BudgetGoalMonthlyTracking>,
+      spendingRecommendations: {} as BudgetGoalSpendingRecommendations,
+      createdAt: data.created_at
+    };
 
-  return NextResponse.json({ budgetGoal });
-}
+    return NextResponse.json({ budgetGoal });
+  },
+  { schema }
+);

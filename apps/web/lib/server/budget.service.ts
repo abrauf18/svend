@@ -1,6 +1,6 @@
 import { FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from '../model/fin.types';
 import { BudgetFinAccountRecurringTransaction } from '../model/budget.types';
-import { Database, Json } from '../database.types';
+import { Database } from '../database.types';
 import {
   Budget,
   BudgetGoal,
@@ -17,7 +17,7 @@ import {
 } from '../model/budget.types';
 import { createCategoryService, ICategoryService } from './category.service';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Configuration, PlaidApi, TransactionsSyncRequest, RecurringTransactions, TransactionStream, Transaction } from 'plaid';
+import { Configuration, PlaidApi, TransactionsSyncRequest, TransactionStream, Transaction } from 'plaid';
 /**
  * @name BudgetService
  * @description Service for budget-related operations
@@ -43,6 +43,8 @@ class BudgetService {
       // Transform transactions into the expected input format
       const transactionInputs = transactions.map(budgetTransaction => ({
         budget_fin_account_id: budgetTransaction.budgetFinAccountId!,
+        user_tx_id: budgetTransaction.transaction.userTxId,
+        plaid_tx_id: budgetTransaction.transaction.plaidTxId ?? null,
         amount: budgetTransaction.transaction.amount,
         date: budgetTransaction.transaction.date,
         svend_category_id: budgetTransaction.categoryId!,
@@ -119,10 +121,10 @@ class BudgetService {
       // Verify we got back the expected number of IDs
       if (transactionIds.length !== transactions.length) {
         console.warn(
-          'Mismatch in returned recurring transaction IDs:', 
-          { 
-            expectedCount: transactions.length, 
-            returnedCount: transactionIds.length 
+          'Mismatch in returned recurring transaction IDs:',
+          {
+            expectedCount: transactions.length,
+            returnedCount: transactionIds.length
           }
         );
       }
@@ -147,33 +149,74 @@ class BudgetService {
    * @name saveTransactions
    * @description Saves transactions to the database, useful when adding a transaction to a fin account not associated with any budget
    */
-  async saveTransactions(transactions: BudgetFinAccountTransaction[]) {
+  async saveTransactions(transactions: FinAccountTransaction[]): Promise<ServiceResult<FinAccountTransaction[]>> {
+    try {
+      // Transform transactions into the expected input format
+      const transactionsToInsert = transactions.map(tx => ({
+        plaid_account_id: tx.plaidAccountId,
+        user_tx_id: tx.userTxId,
+        plaid_tx_id: tx.plaidTxId,
+        amount: tx.amount,
+        date: tx.date,
+        svend_category_id: tx.svendCategoryId as string,
+        merchant_name: tx.merchantName || '',
+        payee: tx.payee || '',
+        iso_currency_code: tx.isoCurrencyCode || 'USD',
+        plaid_category_detailed: tx.plaidDetailedCategory ?? null,
+        plaid_category_confidence: tx.plaidCategoryConfidence ?? null,
+        plaid_raw_data: tx.plaidRawData as any
+      }));
+
+      // Insert transactions and return the IDs
+      const { data: transactionIds, error } = await this.supabase
+        .from('fin_account_transactions')
+        .insert(transactionsToInsert)
+        .select('id');
+
+      if (error) {
+        console.error('Error inserting transactions:', error);
+        return { data: null, error: `Failed to persist transactions: ${error.message}` };
+      }
+
+      // Update the original transactions with the new IDs
+      const savedTransactions = transactions.map((transaction, index) => ({
+        ...transaction,
+        id: transactionIds[index]!.id
+      }));
+
+      return { data: savedTransactions, error: null };
+    } catch (error: any) {
+      console.error('Error in persistTransactions:', error);
+      return { data: null, error: `Failed to persist transactions: ${error.message}` };
+    }
+  }
+
+  /**
+   * @name saveRecurringTransactions
+   * @description Saves recurring transactions to the database, useful when adding a recurring transaction to a fin account not associated with any budget
+   */
+  async saveRecurringTransactions(transactions: FinAccountRecurringTransaction[]): Promise<ServiceResult<BudgetFinAccountRecurringTransaction[]>> {
     const BATCH_SIZE = 100;
 
     try {
       for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
         const batch = transactions.slice(i, i + BATCH_SIZE);
-        const transactionsToInsert = batch.map((budgetTransaction) => ({
-          plaid_account_id: budgetTransaction.transaction.plaidAccountId,
-          amount: budgetTransaction.transaction.amount,
-          iso_currency_code: budgetTransaction.transaction.isoCurrencyCode,
-          plaid_category_detailed: budgetTransaction.transaction.plaidDetailedCategory,
-          plaid_category_confidence: budgetTransaction.transaction.plaidCategoryConfidence,
-          svend_category_id: budgetTransaction.categoryId as string,
-          date: budgetTransaction.transaction.date,
-          merchant_name: budgetTransaction.transaction.merchantName,
-          payee: budgetTransaction.payee,
-          notes: budgetTransaction.notes,
-          plaid_raw_data: budgetTransaction.transaction.plaidRawData as any
+        const transactionsToInsert = batch.map((tx) => ({
+          fin_account_transaction_ids: tx.finAccountTransactionIds,
+          svend_category_id: tx.svendCategoryId as string,
+          plaid_account_id: tx.plaidAccountId,
+          plaid_category_detailed: tx.plaidDetailedCategory,
+          plaid_category_confidence: tx.plaidCategoryConfidence,
+          plaid_raw_data: tx.plaidRawData as any
         }));
 
         const { error } = await this.supabase
-          .from('fin_account_transactions')
+          .from('fin_account_recurring_transactions')
           .insert(transactionsToInsert);
 
         if (error) {
           console.error(`Error inserting batch ${i / BATCH_SIZE + 1}:`, error);
-          return `Failed to persist transactions batch ${i / BATCH_SIZE + 1}: ${error.message}`;
+          return { data: null, error: `Failed to persist transactions batch ${i / BATCH_SIZE + 1}: ${error.message}` };
         }
 
         // Add a small delay between batches to prevent overwhelming the database
@@ -182,10 +225,10 @@ class BudgetService {
         }
       }
 
-      return null; // success
+      return { data: null, error: null }; // success
     } catch (error: any) {
       console.error('Error in persistTransactions:', error);
-      return `Failed to persist transactions: ${error.message}`;
+      return { data: null, error: `Failed to persist transactions: ${error.message}` };
     }
   }
 
@@ -344,7 +387,7 @@ class BudgetService {
         .eq('plaid_accounts.budget_fin_accounts.budget_id', budgetId);
 
       if (error) {
-        return { data: null, error: error.message };
+        return { data: null, error: '[getPlaidConnectionItemSummaries]:' + error.message };
       }
 
       const itemSummaries = items.map(item => ({
@@ -354,6 +397,34 @@ class BudgetService {
       }));
 
       return { data: itemSummaries, error: null };
+    } catch (error: any) {
+      return { data: null, error: error.message };
+    }
+  }
+
+  /**
+   * @name getManualInstitutionIds
+   * @description Gets manual institution IDs for a budget
+   */
+  async getManualInstitutionIds(budgetId: string): Promise<ServiceResult<string[]>> {
+    try {
+      const { data: items, error } = await this.supabase
+        .from('manual_fin_accounts')
+        .select(`
+          institution_id,
+          budget_fin_accounts (
+            budget_id
+          )
+        `)
+        .eq('budget_fin_accounts.budget_id', budgetId);
+
+      if (error) {
+        return { data: null, error: '[getManualInstitutionIds]:' + error.message };
+      }
+
+      const institutionIds = items.map(item => item.institution_id);
+
+      return { data: institutionIds, error: null };
     } catch (error: any) {
       return { data: null, error: error.message };
     }
@@ -483,6 +554,7 @@ class BudgetService {
           linkedFinAccounts = (rawGetBudgetResults.linked_accounts as any[]).map(account => ({
             id: account.id,
             source: account.source,
+            institutionName: account.institutionName,
             budgetFinAccountId: account.budgetFinAccountId,
             name: account.name,
             mask: account.mask || '',
@@ -531,42 +603,71 @@ class BudgetService {
   parseBudgetGoal(raw: Database['public']['Tables']['budget_goals']['Row'], budgetFinAccountBalance?: number): BudgetGoal | null {
     try {
       // Validate required fields exist
-      if (!raw.id || !raw.name || !raw.type || !raw.amount || !raw.budget_id ||
-        !raw.target_date || !raw.fin_account_id || !raw.spending_tracking || !raw.spending_recommendations) {
+      if (raw.id == null ||
+        raw.name == null ||
+        raw.type == null ||
+        raw.amount == null ||
+        raw.budget_id == null ||
+        raw.target_date == null ||
+        raw.fin_account_id == null ||
+        raw.spending_tracking == null ||
+        raw.spending_recommendations == null) {
+        console.warn('parseBudgetGoal: Missing required fields:', {
+          id: raw.id,
+          name: raw.name,
+          type: raw.type,
+          amount: raw.amount,
+          budget_id: raw.budget_id,
+          target_date: raw.target_date,
+          fin_account_id: raw.fin_account_id,
+          spending_tracking: raw.spending_tracking,
+          spending_recommendations: raw.spending_recommendations
+        });
         return null;
       }
 
       // Validate goal type
       const validTypes: Database['public']['Enums']['budget_goal_type_enum'][] = ['debt', 'savings', 'investment'];
       if (!validTypes.includes(raw.type)) {
+        console.warn('parseBudgetGoal: Invalid goal type:', raw.type);
         return null;
       }
 
       // Validate debt-specific fields when type is debt
       if (raw.type === 'debt') {
-        if (raw.debt_interest_rate === null ||
-          !raw.debt_payment_component ||
-          !raw.debt_type) {
-          console.error('Missing required debt fields for debt goal');
+        if (raw.debt_interest_rate == null ||
+          raw.debt_payment_component == null ||
+          raw.debt_type == null) {
+          console.warn('parseBudgetGoal: Missing required debt fields:', {
+            debt_interest_rate: raw.debt_interest_rate,
+            debt_payment_component: raw.debt_payment_component,
+            debt_type: raw.debt_type
+          });
           return null;
         }
       } else {
-        if (raw.debt_interest_rate !== null ||
-          raw.debt_payment_component !== null ||
-          raw.debt_type !== null) {
-          console.error('Unexpected debt fields for non-debt goal');
+        if (raw.debt_interest_rate != null ||
+          raw.debt_payment_component != null ||
+          raw.debt_type != null) {
+          console.warn('parseBudgetGoal: Unexpected debt fields for non-debt goal:', {
+            debt_interest_rate: raw.debt_interest_rate,
+            debt_payment_component: raw.debt_payment_component,
+            debt_type: raw.debt_type
+          });
           return null;
         }
       }
 
       // Validate amount is a positive number
       if (raw.amount < 0) {
+        console.warn('parseBudgetGoal: Invalid negative amount:', raw.amount);
         return null;
       }
 
       // Validate dates
       const targetDate = new Date(raw.target_date);
       if (isNaN(targetDate.getTime())) {
+        console.warn('parseBudgetGoal: Invalid target date:', raw.target_date);
         return null;
       }
 
@@ -633,6 +734,8 @@ class BudgetService {
           const validTransaction: BudgetFinAccountTransaction = {
             transaction: {
               id: budgetTransaction.id,
+              userTxId: budgetTransaction.user_tx_id,
+              plaidTxId: budgetTransaction.plaid_tx_id,
               date: budgetTransaction.date,
               amount: budgetTransaction.amount,
               merchantName: budgetTransaction.merchant_name,
@@ -982,7 +1085,7 @@ class BudgetService {
    * @param budgetId - The ID of the budget to validate
    * @throws Error if prerequisites are not met
    */
-  private async onboardingAnalysisValidateOnboardingPrerequisites(budgetId: string): Promise<{ goals:BudgetGoal[] }> {
+  private async onboardingAnalysisValidateOnboardingPrerequisites(budgetId: string): Promise<{ goals: BudgetGoal[] }> {
     // Check for linked accounts
     const { error: linkedAccountsError } = await this.hasLinkedFinAccounts(budgetId);
     if (linkedAccountsError) {
@@ -996,8 +1099,7 @@ class BudgetService {
     }
 
     // Get and validate goals if they exist
-    const currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0);  // Normalize to start of day
+    const today = new Date().toISOString().split('T')[0]!;
 
     const validBudgetGoals = (await this.getBudgetGoals(budgetId))
       .map(goal => this.parseBudgetGoal(goal, (goal as any).fin_account_balance))
@@ -1006,9 +1108,8 @@ class BudgetService {
     // If we have goals, validate their target dates
     if (validBudgetGoals.length > 0) {
       const goalsWithPastDates = validBudgetGoals.filter(goal => {
-        const targetDate = new Date(goal.targetDate);
-        targetDate.setHours(0, 0, 0, 0);
-        return targetDate <= currentDate;
+        if (!goal.targetDate) return false;
+        return goal.targetDate <= today;  // Simple string comparison
       });
 
       if (goalsWithPastDates.length > 0) {
@@ -1026,17 +1127,21 @@ class BudgetService {
    * @param budgetId - The ID of the budget to collect transactions for
    * @param plaidItems - Array of Plaid connection items to process
    * @param plaidClient - Initialized Plaid API client
+   * @param manualInstitutionIds - Array of manual institution IDs to process
    * @returns Collection of transactions and cursor data
    */
   private async onboardingAnalysisCollectTransactions(
     budgetId: string,
     plaidItems: PlaidConnectionItemSummary[],
-    plaidClient: PlaidApi
+    plaidClient: PlaidApi,
+    manualInstitutionIds: string[]
   ): Promise<OnboardingAnalysisTransactionCollection> {
     const result: OnboardingAnalysisTransactionCollection = {
       allTransactions: [],
       newTransactions: [],
+      newUnlinkedTransactions: [],
       newRecurringTransactions: [],
+      newUnlinkedRecurringTransactions: [],
       itemCursors: {}
     };
 
@@ -1050,7 +1155,81 @@ class BudgetService {
       );
     }
 
+    // Process each manual
+    for (const institutionId of manualInstitutionIds) {
+      await this.onboardingAnalysisCollectManualInstitutionTransactions(
+        institutionId,
+        budgetId,
+        result
+      );
+    }
+
+    // Process both new transactions and new unlinked transactions
+    for (const tx of [...result.newTransactions, ...result.newUnlinkedTransactions]) {
+      const transaction = 'transaction' in tx ? tx.transaction : tx;
+
+      if (!transaction.userTxId && transaction.plaidTxId) {
+        let isUnique = false;
+        while (!isUnique) {
+          const potentialIds = Array.from({ length: 10 }, () =>
+            this.generateUserTxIdFromPlaidTx(transaction)
+          );
+
+          const { data: existingTxs } = await this.supabase
+            .from('fin_account_transactions')
+            .select('user_tx_id')
+            .in('user_tx_id', potentialIds);
+
+          const existingIds = new Set(existingTxs?.map(tx => tx.user_tx_id));
+          const uniqueId = potentialIds.find(id => !existingIds.has(id));
+
+          if (uniqueId) {
+            transaction.userTxId = uniqueId;
+            isUnique = true;
+          }
+        }
+      }
+    }
+
     return result;
+  }
+
+  // Helper method to generate user_tx_id
+  private generateUserTxIdFromPlaidTx(transaction: FinAccountTransaction): string {
+    const date = new Date(transaction.date);
+    const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+    const plaidTxIdSuffix = transaction.plaidTxId?.slice(-6) || '000000'; // Last 6 of plaid_tx_id
+    const randomCounter = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // Random 6-digit number
+
+    return `P${formattedDate}${randomCounter}${plaidTxIdSuffix}`;
+  }
+
+  /**
+   * Helper function to implement retry logic with delay
+   * @param operation Function to retry
+   * @param maxRetries Maximum number of retry attempts
+   * @param delayMs Delay between retries in milliseconds
+   */
+  private async retryOperation<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 2,
+    delayMs: number = 3000
+  ): Promise<T> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        lastError = error;
+        if (attempt < maxRetries) {
+          console.log(`Attempt ${attempt + 1} failed, retrying in ${delayMs}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+    }
+
+    throw lastError;
   }
 
   /**
@@ -1069,7 +1248,7 @@ class BudgetService {
   ): Promise<void> {
     try {
       // 1. Fetch existing transactions
-      const existingTransactions = await this.onboardingAnalysisFetchExistingTransactions(item.svendItemId, budgetId);
+      const existingTransactions = await this.onboardingAnalysisFetchPlaidItemTransactions(item.svendItemId, budgetId);
 
       // 2. Get Plaid account mappings
       const plaidAccounts = this.onboardingAnalysisGetPlaidAccountMappings(existingTransactions);
@@ -1077,15 +1256,44 @@ class BudgetService {
       // 3. Process existing transactions
       this.onboardingAnalysisProcessExistingTransactions(existingTransactions, result);
 
-      // 4. Sync new transactions from Plaid
-      await this.onboardingAnalysisSyncNewTransactions(item, plaidClient, plaidAccounts, result);
+      // 4. Sync new transactions from Plaid with retry
+      await this.retryOperation(async () => {
+        await this.onboardingAnalysisSyncNewTransactions(item, plaidClient, plaidAccounts, result);
+      });
 
-      // 5. Sync new recurring transactions from Plaid
-      await this.onboardingAnalysisSyncNewRecurringTransactions(item, plaidClient, plaidAccounts, result);
+      // 5. Sync new recurring transactions from Plaid with retry
+      await this.retryOperation(async () => {
+        await this.onboardingAnalysisSyncNewRecurringTransactions(item, plaidClient, plaidAccounts, result);
+      });
 
     } catch (error: any) {
       throw new Error(
         `Failed to process Plaid item ${item.svendItemId}: ${error.message}`
+      );
+    }
+  }
+  /**
+   * 2.1 Collects transactions for a single manual institution
+   * Part of the transaction collection process
+   * @param institutionId - The institution to process
+   * @param budgetId - The ID of the budget
+   * @param result - Collection to store transaction results
+   */
+  private async onboardingAnalysisCollectManualInstitutionTransactions(
+    institutionId: string,
+    budgetId: string,
+    result: OnboardingAnalysisTransactionCollection
+  ): Promise<void> {
+    try {
+      // 1. Fetch existing transactions
+      const existingTransactions = await this.onboardingAnalysisFetchManualInstitutionTransactions(institutionId, budgetId);
+
+      // 2. Process existing transactions
+      this.onboardingAnalysisProcessExistingTransactions(existingTransactions, result);
+
+    } catch (error: any) {
+      throw new Error(
+        `Failed to process manual institution ${institutionId}: ${error.message}`
       );
     }
   }
@@ -1097,19 +1305,45 @@ class BudgetService {
    * @param budgetId - The ID of the budget
    * @returns Array of existing transactions from the database
    */
-  private async onboardingAnalysisFetchExistingTransactions(itemId: string, budgetId: string) {
+  private async onboardingAnalysisFetchPlaidItemTransactions(itemId: string, budgetId: string) {
     const { data: transactions, error } = await this.supabase
       .from('plaid_accounts')
       .select(`
         id,
         plaid_account_id,
         fin_account_transactions (*),
-        budget_fin_accounts!left (id)
+        budget_fin_accounts (id)
       `)
       .eq('plaid_conn_item_id', itemId)
       .eq('budget_fin_accounts.budget_id', budgetId);
 
     if (error) {
+      throw new Error(`Failed to fetch existing transactions: ${error.message}`);
+    }
+
+    return transactions;
+  }
+
+  /**
+   * 2.2 Fetches existing transactions from the database
+   * Part of the transaction collection process
+   * @param institutionId - The ID of the manual institution
+   * @param budgetId - The ID of the budget
+   * @returns Array of existing transactions from the database
+   */
+  private async onboardingAnalysisFetchManualInstitutionTransactions(institutionId: string, budgetId: string) {
+    const { data: transactions, error } = await this.supabase
+      .from('manual_fin_accounts')
+      .select(`
+        id,
+        fin_account_transactions (*),
+        budget_fin_accounts (id)
+      `)
+      .eq('institution_id', institutionId)
+      .eq('budget_fin_accounts.budget_id', budgetId);
+
+    if (error) {
+      console.error('Error fetching manual transactions:', error);
       throw new Error(`Failed to fetch existing transactions: ${error.message}`);
     }
 
@@ -1148,18 +1382,19 @@ class BudgetService {
       .filter(Boolean);
 
     for (const transaction of transactions) {
-      if (transaction.plaid_category_detailed) {
-        result.allTransactions.push({
-          transaction: {
-            id: transaction.id,
-            date: transaction.date,
-            amount: transaction.amount,
-            plaidDetailedCategory: transaction.plaid_category_detailed,
-            plaidRawData: transaction.plaid_raw_data
-          } as FinAccountTransaction,
-          budgetFinAccountId: transaction.budgetFinAccountId,
-        } as BudgetFinAccountTransaction);
-      }
+      result.allTransactions.push({
+        transaction: {
+          id: transaction.id,
+          userTxId: transaction.user_tx_id,
+          plaidTxId: transaction.plaid_tx_id,
+          date: transaction.date,
+          amount: transaction.amount,
+          svendCategoryId: transaction.svend_category_id,
+          plaidDetailedCategory: transaction.plaid_category_detailed,
+          plaidRawData: transaction.plaid_raw_data
+        } as FinAccountTransaction,
+        budgetFinAccountId: transaction.budgetFinAccountId,
+      } as BudgetFinAccountTransaction);
     }
   }
 
@@ -1183,6 +1418,7 @@ class BudgetService {
       } as TransactionsSyncRequest);
 
       for (const transaction of response.data.added) {
+        console.log('Raw Plaid transaction ID:', transaction.transaction_id);
         const plaidCategory = transaction.personal_finance_category?.detailed;
         if (plaidCategory) {
           const newTransaction = this.onboardingAnalysisCreateTransactionFromPlaid(
@@ -1191,8 +1427,13 @@ class BudgetService {
             plaidAccounts
           );
 
-          result.newTransactions.push(newTransaction);
-          result.allTransactions.push(newTransaction);
+          // filter out transactions associated with account that's not linked to the budget
+          if (newTransaction.budgetFinAccountId) {
+            result.newTransactions.push(newTransaction);
+            result.allTransactions.push(newTransaction);
+          } else {
+            result.newUnlinkedTransactions.push(newTransaction.transaction);
+          }
         }
       }
 
@@ -1219,6 +1460,7 @@ class BudgetService {
     return {
       transaction: {
         id: '',
+        plaidTxId: transaction.transaction_id,
         date: transaction.date,
         amount: transaction.amount,
         plaidDetailedCategory: plaidCategory,
@@ -1232,7 +1474,7 @@ class BudgetService {
       budgetFinAccountId: matchingAccount?.budget_fin_account_id,
     } as BudgetFinAccountTransaction;
   }
-  
+
   /**
    * 2.6 Syncs new recurring transactions from Plaid
    * Final step of the transaction collection process
@@ -1252,14 +1494,22 @@ class BudgetService {
 
       // Process inflow and outflow streams separately
       for (const stream of [...response.data.inflow_streams, ...response.data.outflow_streams]) {
-        // Create recurring transaction using helper function
+        console.log('Raw Plaid recurring transaction stream:', {
+          accountId: stream.account_id,
+          transactionIds: stream.transaction_ids
+        });
+
         const newRecurringTransaction = this.onboardingAnalysisCreateRecurringTransactionFromPlaid(
           stream,
           plaidAccounts
         );
 
         if (newRecurringTransaction) {
-          result.newRecurringTransactions.push(newRecurringTransaction);
+          if (newRecurringTransaction.budgetFinAccountId) {
+            result.newRecurringTransactions.push(newRecurringTransaction);
+          } else {
+            result.newUnlinkedRecurringTransactions.push(newRecurringTransaction.transaction);
+          }
         }
       }
     } catch (error: any) {
@@ -1299,10 +1549,7 @@ class BudgetService {
       return null;
     }
   }
-
-  /**
-   * 3. Maps Plaid categories to Svend categories and processes transactions
-   */
+  
   /**
    * 3. Maps Plaid categories to Svend categories and processes transactions
    */
@@ -1312,94 +1559,277 @@ class BudgetService {
     try {
       const categoryService = createCategoryService(this.supabase);
 
-      const uniquePlaidCategories = [...new Set(transactionData.allTransactions
-        .map(t => t.transaction.plaidDetailedCategory)
-        .filter((cat): cat is string => !!cat)
-      )];
+      // Get both Plaid category mappings and all Svend categories
+      const uniquePlaidCategories = [...new Set([
+        ...transactionData.allTransactions.map(t => t.transaction.plaidDetailedCategory),
+        ...transactionData.newUnlinkedTransactions.map(t => t.plaidDetailedCategory),
+        ...transactionData.newUnlinkedRecurringTransactions.map(t => t.plaidDetailedCategory)
+      ].filter((cat): cat is string => !!cat))];
 
-      const svendCategories = await categoryService.mapPlaidCategoriesToSvendCategories(
-        uniquePlaidCategories
-      );
-      if (!svendCategories) {
-        throw new Error('Category mapping returned null or undefined');
+      // Get both mappings and all categories
+      const [plaidMappings, svendCategories] = await Promise.all([
+        categoryService.mapPlaidCategoriesToSvendCategories(uniquePlaidCategories),
+        categoryService.getSvendDefaultCategoryGroups()
+      ]);
+
+      if (!plaidMappings || !svendCategories) {
+        throw new Error('Category mapping or categories fetch returned null or undefined');
       }
 
-      const updatedTransactions = transactionData.allTransactions.map(budgetTransaction => {
-        const plaidCategory = budgetTransaction.transaction.plaidDetailedCategory;
-        if (!plaidCategory) {
-          console.warn('Transaction missing Plaid category:', budgetTransaction);
-          return budgetTransaction;
-        }
+      // Helper function to find category by Svend ID
+      const findCategoryBySvendId = (svendCategoryId: string) => {
+        return Object.values(svendCategories).reduce((found, group) => {
+          if (found) return found;
+          const category = group.categories.find(cat => cat.id === svendCategoryId);
+          if (category) {
+            return {
+              category,
+              groupName: group.name,
+              groupId: group.id
+            };
+          }
+          return null;
+        }, null as { category: any; groupName: string; groupId: string; } | null);
+      };
 
-        // Get the mapped category using the full Plaid category key
-        const mappedCategory = svendCategories[plaidCategory];
-        if (!mappedCategory) {
-          console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
-          return budgetTransaction;
-        }
+      // Helper function to find category by Plaid category name
+      const findCategoryByPlaidCategory = (plaidCategory: string) => {
+        // plaidMappings is a direct map of plaidCategory -> svendCategory
+        const mappedCategory = plaidMappings[plaidCategory];
+        if (!mappedCategory) return null;
+
+        // Find the group containing this category
+        const group = Object.values(svendCategories).find(group => 
+          group.categories.some(cat => cat.id === mappedCategory.id)
+        );
+        
+        if (!group) return null;
 
         return {
-          ...budgetTransaction,
-          categoryId: mappedCategory.id,
-          category: mappedCategory.name,
-        } as BudgetFinAccountTransaction;
-      });
+          category: mappedCategory,
+          groupName: group.name,
+          groupId: group.id
+        };
+      };
 
-      // Sort transactions by date
-      updatedTransactions.sort((a, b) =>
-        new Date(a.transaction.date).getTime() - new Date(b.transaction.date).getTime()
+      // Helper function to map categories for budget transactions
+      const mapBudgetTransactionCategories = (
+        transactions: BudgetFinAccountTransaction[]
+      ): BudgetFinAccountTransaction[] => {
+        return transactions.map(transaction => {
+          // Check for either manual account or svendCategoryId
+          if (transaction.transaction.manualAccountId || transaction.transaction.svendCategoryId) {
+            const svendCategoryId = transaction.transaction.svendCategoryId;
+            if (!svendCategoryId) {
+              console.warn('Manual transaction missing svendCategoryId:', transaction);
+              return transaction;
+            }
+
+            const mappedCategory = findCategoryBySvendId(svendCategoryId);
+            if (!mappedCategory) {
+              console.warn(`No category found for ID: ${svendCategoryId}`);
+              return transaction;
+            }
+
+            return {
+              ...transaction,
+              categoryId: mappedCategory.category.id,
+              category: mappedCategory.category.name,
+              categoryGroup: mappedCategory.groupName,
+              categoryGroupId: mappedCategory.groupId
+            };
+          }
+
+          // For Plaid transactions
+          const plaidCategory = transaction.transaction.plaidDetailedCategory;
+          if (!plaidCategory) {
+            console.warn('Plaid transaction missing category:', transaction);
+            return transaction;
+          }
+
+          const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
+          if (!mappedCategory) {
+            console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
+            return transaction;
+          }
+
+          return {
+            ...transaction,
+            categoryId: mappedCategory.category.id,
+            category: mappedCategory.category.name,
+            categoryGroup: mappedCategory.groupName,
+            categoryGroupId: mappedCategory.groupId
+          };
+        });
+      };
+
+      // Helper function to map categories for unlinked transactions
+      const mapUnlinkedTransactionCategories = (
+        transactions: FinAccountTransaction[]
+      ): FinAccountTransaction[] => {
+        return transactions.map(transaction => {
+          if (transaction.manualAccountId || transaction.svendCategoryId) {
+            if (!transaction.svendCategoryId) {
+              console.warn('Unlinked manual transaction missing svendCategoryId:', transaction);
+              return transaction;
+            }
+
+            const mappedCategory = findCategoryBySvendId(transaction.svendCategoryId);
+            if (!mappedCategory) {
+              console.warn(`No category found for ID: ${transaction.svendCategoryId}`);
+              return transaction;
+            }
+
+            return {
+              ...transaction,
+              svendCategoryId: mappedCategory.category.id,
+              categoryGroup: mappedCategory.groupName,
+              categoryGroupId: mappedCategory.groupId
+            };
+          }
+
+          const plaidCategory = transaction.plaidDetailedCategory;
+          if (!plaidCategory) {
+            console.warn('Unlinked Plaid transaction missing category:', transaction);
+            return transaction;
+          }
+
+          const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
+          if (!mappedCategory) {
+            console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
+            return transaction;
+          }
+
+          return {
+            ...transaction,
+            svendCategoryId: mappedCategory.category.id,
+            categoryGroup: mappedCategory.groupName,
+            categoryGroupId: mappedCategory.groupId
+          };
+        });
+      };
+
+      // Add these two functions for recurring transactions:
+      const mapBudgetRecurringTransactionCategories = (
+        transactions: BudgetFinAccountRecurringTransaction[]
+      ): BudgetFinAccountRecurringTransaction[] => {
+        return transactions.map(transaction => {
+          if (transaction.transaction.manualAccountId || transaction.transaction.svendCategoryId) {
+            const svendCategoryId = transaction.transaction.svendCategoryId;
+            if (!svendCategoryId) {
+              console.warn('Manual recurring transaction missing svendCategoryId:', transaction);
+              return transaction;
+            }
+
+            const mappedCategory = findCategoryBySvendId(svendCategoryId);
+            if (!mappedCategory) {
+              console.warn(`No category found for ID: ${svendCategoryId}`);
+              return transaction;
+            }
+
+            return {
+              ...transaction,
+              categoryId: mappedCategory.category.id,
+              category: mappedCategory.category.name,
+              categoryGroup: mappedCategory.groupName,
+              categoryGroupId: mappedCategory.groupId
+            };
+          }
+
+          const plaidCategory = transaction.transaction.plaidDetailedCategory;
+          if (!plaidCategory) {
+            console.warn('Plaid recurring transaction missing category:', transaction);
+            return transaction;
+          }
+
+          const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
+          if (!mappedCategory) {
+            console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
+            return transaction;
+          }
+
+          return {
+            ...transaction,
+            categoryId: mappedCategory.category.id,
+            category: mappedCategory.category.name,
+            categoryGroup: mappedCategory.groupName,
+            categoryGroupId: mappedCategory.groupId
+          };
+        });
+      };
+
+      const mapUnlinkedRecurringTransactionCategories = (
+        transactions: FinAccountRecurringTransaction[]
+      ): FinAccountRecurringTransaction[] => {
+        return transactions.map(transaction => {
+          if (transaction.manualAccountId || transaction.svendCategoryId) {
+            if (!transaction.svendCategoryId) {
+              console.warn('Unlinked manual recurring transaction missing svendCategoryId:', transaction);
+              return transaction;
+            }
+
+            const mappedCategory = findCategoryBySvendId(transaction.svendCategoryId);
+            if (!mappedCategory) {
+              console.warn(`No category found for ID: ${transaction.svendCategoryId}`);
+              return transaction;
+            }
+
+            return {
+              ...transaction,
+              svendCategoryId: mappedCategory.category.id,
+              categoryGroup: mappedCategory.groupName,
+              categoryGroupId: mappedCategory.groupId
+            };
+          }
+
+          const plaidCategory = transaction.plaidDetailedCategory;
+          if (!plaidCategory) {
+            console.warn('Unlinked Plaid recurring transaction missing category:', transaction);
+            return transaction;
+          }
+
+          const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
+          if (!mappedCategory) {
+            console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
+            return transaction;
+          }
+
+          return {
+            ...transaction,
+            svendCategoryId: mappedCategory.category.id,
+            categoryGroup: mappedCategory.groupName,
+            categoryGroupId: mappedCategory.groupId
+          };
+        });
+      };
+
+      // Helper function to sort transactions by date
+      const sortTransactionsByDate = <T extends { transaction: { date: string } }>(
+        transactions: T[]
+      ): T[] => {
+        return [...transactions].sort((a, b) =>
+          new Date(a.transaction.date).getTime() - new Date(b.transaction.date).getTime()
+        );
+      };
+
+      // Map and sort all transaction types
+      transactionData.allTransactions = sortTransactionsByDate(
+        mapBudgetTransactionCategories(transactionData.allTransactions)
       );
-      
-      const updatedNewTransactions = transactionData.newTransactions.map(budgetTransaction => {
-        const plaidCategory = budgetTransaction.transaction.plaidDetailedCategory;
-        if (!plaidCategory) {
-          console.warn('Transaction missing Plaid category:', budgetTransaction);
-          return budgetTransaction;
-        }
-        
-        // Get the mapped category using the full Plaid category key
-        const mappedCategory = svendCategories[plaidCategory];
-        if (!mappedCategory) {
-          console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
-          return budgetTransaction;
-        }
-        
-        return {
-          ...budgetTransaction,
-          categoryId: mappedCategory.id,
-          category: mappedCategory.name,
-        } as BudgetFinAccountTransaction;
-      });
 
-      // Sort transactions by date
-      updatedNewTransactions.sort((a, b) =>
-        new Date(a.transaction.date).getTime() - new Date(b.transaction.date).getTime()
+      transactionData.newTransactions = sortTransactionsByDate(
+        mapBudgetTransactionCategories(transactionData.newTransactions)
       );
-      
-      const updatedNewRecurringTransactions = transactionData.newRecurringTransactions.map(budgetRecurringTransaction => {
-        const plaidCategory = budgetRecurringTransaction.transaction.plaidDetailedCategory;
-        if (!plaidCategory) {
-          console.warn('Transaction missing Plaid category:', budgetRecurringTransaction);
-          return budgetRecurringTransaction;
-        }
-        
-        // Get the mapped category using the full Plaid category key
-        const mappedCategory = svendCategories[plaidCategory];
-        if (!mappedCategory) {
-          console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
-          return budgetRecurringTransaction;
-        }
-        
-        return {
-          ...budgetRecurringTransaction,
-          categoryId: mappedCategory.id,
-          category: mappedCategory.name,
-        } as BudgetFinAccountRecurringTransaction;
-      });
 
-      transactionData.allTransactions = updatedTransactions;
-      transactionData.newTransactions = updatedNewTransactions;
-      transactionData.newRecurringTransactions = updatedNewRecurringTransactions;
+      transactionData.newUnlinkedTransactions =
+        mapUnlinkedTransactionCategories(transactionData.newUnlinkedTransactions);
+
+      // Update the mapping calls:
+      transactionData.newRecurringTransactions =
+        mapBudgetRecurringTransactionCategories(transactionData.newRecurringTransactions);
+
+      transactionData.newUnlinkedRecurringTransactions =
+        mapUnlinkedRecurringTransactionCategories(transactionData.newUnlinkedRecurringTransactions);
 
       return { transactionData };
     } catch (error: any) {
@@ -1417,26 +1847,24 @@ class BudgetService {
     transactions: BudgetFinAccountTransaction[]
   ): Promise<OnboardingAnalysisSpendingData> {
     try {
-      // Initialize monthlyCategorySpending
       const monthlyCategorySpending: Record<string, number> = {};
 
-      // Aggregate transactions by category
       transactions.forEach(budgetTransaction => {
-        const plaidCategory = budgetTransaction.transaction.plaidDetailedCategory!;
         if (!budgetTransaction.category) {
           console.warn('Transaction missing mapped category:', {
             date: budgetTransaction.transaction.date,
             amount: budgetTransaction.transaction.amount,
-            plaidCategory: budgetTransaction.transaction.plaidDetailedCategory,
-            svendCategory: budgetTransaction.category
+            category: budgetTransaction.category,
+            categoryGroup: budgetTransaction.categoryGroup
           });
           return;
         }
 
-        // For income categories, store as negative to represent inflow
-        const isIncome = plaidCategory.toLowerCase().includes('income');
+        // Use the mapped category name instead of plaidCategory
+        const categoryName = budgetTransaction.category;
+        const isIncome = budgetTransaction.categoryGroup?.toLowerCase() === 'income';
         const amount = isIncome ? -Math.abs(budgetTransaction.transaction.amount) : Math.abs(budgetTransaction.transaction.amount);
-        monthlyCategorySpending[plaidCategory] = (monthlyCategorySpending[plaidCategory] || 0) + amount;
+        monthlyCategorySpending[categoryName] = (monthlyCategorySpending[categoryName] || 0) + amount;
       });
 
       // Initialize Income category if it doesn't exist
@@ -1512,73 +1940,111 @@ class BudgetService {
   private async onboardingAnalysisSaveTransactions(
     transactionData: OnboardingAnalysisTransactionCollection,
     budgetId: string
-): Promise<{ error?: string }> {
+  ): Promise<{ error?: string }> {
     try {
-        // First, save all regular transactions
-        console.log(`budget service > onboarding analysis > persisting ${transactionData.newTransactions.length} new transactions..`);
-        const { data: savedTransactions, error } = await this.saveBudgetTransactions(transactionData.newTransactions, budgetId);
-        if (error) throw new Error(error);
-        if (!savedTransactions) throw new Error('No transactions were saved');
+      // First, save all regular transactions (both budget and unlinked)
+      console.log(`budget service > onboarding analysis > persisting ${transactionData.newTransactions.length} budget transactions and ${transactionData.newUnlinkedTransactions.length} unlinked transactions..`);
 
-        // Create a mapping of Plaid transaction IDs to our database IDs from ALL transactions
-        const plaidToDbIdMap = new Map<string, string>();
-        
-        transactionData.allTransactions.forEach(tx => {
-            const plaidId = tx.transaction.plaidRawData?.transaction_id;
-            const dbId = tx.transaction.id;
-            if (plaidId && dbId) {
-                plaidToDbIdMap.set(plaidId, dbId);
+      // Save budget transactions
+      const { data: savedBudgetTransactions, error } = await this.saveBudgetTransactions(transactionData.newTransactions, budgetId);
+      if (error) throw new Error(error);
+      if (!savedBudgetTransactions) throw new Error('No budget transactions were saved');
+
+      // Save unlinked transactions
+      const { data: savedTransactions, error: unlinkedError } = await this.saveTransactions(transactionData.newUnlinkedTransactions);
+      if (unlinkedError) throw new Error(unlinkedError);
+
+      // Get all Plaid transaction IDs from recurring transactions
+      const allPlaidTxIds = [
+        ...transactionData.newRecurringTransactions.flatMap(rt => rt.transaction.plaidRawData?.transaction_ids || []),
+        ...transactionData.newUnlinkedRecurringTransactions.flatMap(rt => rt.plaidRawData?.transaction_ids || [])
+      ];
+
+      // Query database for ID mappings
+      const { data: dbTransactions, error: queryError } = await this.supabase
+        .from('fin_account_transactions')
+        .select('id, plaid_tx_id')
+        .in('plaid_tx_id', allPlaidTxIds);
+
+      if (queryError) throw new Error(queryError.message);
+
+      // Create mapping from query results and log it
+      const plaidToDbIdMap = new Map(
+        dbTransactions?.map(tx => [tx.plaid_tx_id, tx.id]) || []
+      );
+
+      console.log('Database ID mappings:', {
+        plaidIds: allPlaidTxIds,
+        dbMappings: Object.fromEntries(plaidToDbIdMap),
+        dbTransactions
+      });
+
+      // Update recurring transactions with the correct fin_account_transaction_ids
+      transactionData.newRecurringTransactions = transactionData.newRecurringTransactions.map(rt => {
+        const plaidTransactionIds = rt.transaction.plaidRawData?.transaction_ids || [];
+        const finAccountTransactionIds = plaidTransactionIds
+          .map(plaidId => plaidToDbIdMap.get(plaidId))
+          .filter((id): id is string => !!id);
+
+        if (finAccountTransactionIds.length !== plaidTransactionIds.length) {
+          console.warn(
+            'Not all Plaid transactions mapped for recurring transaction:',
+            {
+              plaidTransactionIds,
+              mappedIds: finAccountTransactionIds,
+              unmappedIds: plaidTransactionIds.filter(id => !plaidToDbIdMap.has(id)),
+              dbMappings: Object.fromEntries(plaidToDbIdMap)
             }
-        });
+          );
+        }
 
-        savedTransactions.forEach(savedTx => {
-            const plaidId = savedTx.transaction.plaidRawData?.transaction_id;
-            if (plaidId && savedTx.transaction.id) {
-                plaidToDbIdMap.set(plaidId, savedTx.transaction.id);
+        return {
+          ...rt,
+          transaction: {
+            ...rt.transaction,
+            finAccountTransactionIds
+          }
+        };
+      });
+
+      // Update unlinked recurring transactions with the correct fin_account_transaction_ids
+      transactionData.newUnlinkedRecurringTransactions = transactionData.newUnlinkedRecurringTransactions.map(rt => {
+        const plaidTransactionIds = rt.plaidRawData?.transaction_ids || [];
+        const finAccountTransactionIds = plaidTransactionIds
+          .map(plaidId => plaidToDbIdMap.get(plaidId))
+          .filter((id): id is string => !!id);
+
+        if (finAccountTransactionIds.length !== plaidTransactionIds.length) {
+          console.warn(
+            'Not all Plaid transactions mapped for unlinked recurring transaction:',
+            {
+              plaidTransactionIds,
+              mappedIds: finAccountTransactionIds,
+              unmappedIds: plaidTransactionIds.filter(id => !plaidToDbIdMap.has(id)),
+              dbMappings: Object.fromEntries(plaidToDbIdMap)
             }
-        });
+          );
+        }
 
-        // Update recurring transactions with the correct fin_account_transaction_ids
-        transactionData.newRecurringTransactions = transactionData.newRecurringTransactions.map(rt => {
-            const plaidTransactionIds = rt.transaction.plaidRawData?.transaction_ids || [];
+        return {
+          ...rt,
+          finAccountTransactionIds
+        };
+      });
 
-            const finAccountTransactionIds = plaidTransactionIds
-                .map(plaidId => {
-                    const dbId = plaidToDbIdMap.get(plaidId);
-                    return dbId;
-                })
-                .filter((id): id is string => !!id);
+      // Now save recurring transactions with the mapped IDs
+      console.log(`budget service > onboarding analysis > persisting ${transactionData.newRecurringTransactions.length} budget recurring transactions and ${transactionData.newUnlinkedRecurringTransactions.length} unlinked recurring transactions..`);
 
-            if (finAccountTransactionIds.length !== plaidTransactionIds.length) {
-                console.warn(
-                    'Not all Plaid transactions mapped for recurring transaction:', 
-                    {
-                        plaidTransactionIds,
-                        mappedIds: finAccountTransactionIds,
-                        unmappedIds: plaidTransactionIds.filter(id => !plaidToDbIdMap.has(id)),
-                        allMappings: Object.fromEntries(plaidToDbIdMap)
-                    }
-                );
-            }
+      const { error: recurringError } = await this.saveBudgetRecurringTransactions(transactionData.newRecurringTransactions, budgetId);
+      if (recurringError) throw new Error(recurringError);
 
-            return {
-                ...rt,
-                transaction: {
-                    ...rt.transaction,
-                    finAccountTransactionIds
-                }
-            };
-        });
+      const { error: unlinkedRecurringError } = await this.saveRecurringTransactions(transactionData.newUnlinkedRecurringTransactions);
+      if (unlinkedRecurringError) throw new Error(unlinkedRecurringError);
 
-        // Now save recurring transactions with the mapped IDs
-        console.log(`budget service > onboarding analysis > persisting ${transactionData.newRecurringTransactions.length} new recurring transactions..`);
-        const { error: recurringError } = await this.saveBudgetRecurringTransactions(transactionData.newRecurringTransactions, budgetId);
-        if (recurringError) throw new Error(recurringError);
-
-        return { error: undefined };
+      return { error: undefined };
     } catch (error: any) {
-        console.error('Full error details:', error);
-        return { error: `SERVER_ERROR:[onboardingAnalysis.saveTransactions] ${error.message}` };
+      console.error('Full error details:', error);
+      return { error: `SERVER_ERROR:[onboardingAnalysis.saveTransactions] ${error.message}` };
     }
   }
 
@@ -1637,7 +2103,8 @@ class BudgetService {
   async onboardingAnalysis(
     budgetId: string,
     plaidConnectionItems: PlaidConnectionItemSummary[],
-    plaidConfiguration: Configuration
+    plaidConfiguration: Configuration,
+    manualInstitutionIds: string[]
   ): Promise<ServiceResult<OnboardingRecommendSpendingAndGoalsResult>> {
     try {
       // 1. Validation & Setup
@@ -1648,8 +2115,16 @@ class BudgetService {
       const transactionData = await this.onboardingAnalysisCollectTransactions(
         budgetId,
         plaidConnectionItems,
-        plaidClient
+        plaidClient,
+        manualInstitutionIds
       );
+
+      console.log('Transaction Data Analysis:', {
+        totalTransactions: transactionData.allTransactions.length,
+        sampleTransaction: transactionData.allTransactions[0],
+        newTransactions: transactionData.newTransactions.length,
+        newUnlinkedTransactions: transactionData.newUnlinkedTransactions.length,
+      });
 
       // 3. Category Processing
       const { error: categoryError } =
@@ -1774,7 +2249,7 @@ class BudgetService {
         sum + group.categories
           .filter(cat => discretionaryCategories.includes(cat.categoryName))
           .reduce((catSum, cat) => catSum + cat.recommendation, 0)
-      , 0);
+        , 0);
     const availableAfterSpending = totalIncome - totalNonDiscretionarySpending - adjustedDiscretionarySpending;
 
     // If no money available for goals, clear all allocations
@@ -1876,7 +2351,7 @@ class BudgetService {
         sum + group.categories
           .filter(cat => discretionaryCategories.includes(cat.categoryName))
           .reduce((catSum, cat) => catSum + cat.recommendation, 0)
-      , 0);
+        , 0);
 
     // Calculate deficit if any
     const deficit = Math.max(0, totalDesiredSpending - totalIncome);
@@ -1923,7 +2398,7 @@ class BudgetService {
         sum + group.categories
           .filter(cat => discretionaryCategories.includes(cat.categoryName))
           .reduce((catSum, cat) => catSum + cat.recommendation, 0)
-      , 0);
+        , 0);
     const availableAfterSpending = totalIncome - totalNonDiscretionarySpending - adjustedDiscretionarySpending;
 
     // If no money available for goals, clear all allocations
@@ -2041,7 +2516,7 @@ class BudgetService {
         sum + group.categories
           .filter(cat => discretionaryCategories.includes(cat.categoryName))
           .reduce((catSum, cat) => catSum + cat.recommendation, 0)
-      , 0);
+        , 0);
 
     if (surplus >= 0) {
       // We can increase spending - try to increase by up to 20%
@@ -2086,7 +2561,7 @@ class BudgetService {
         sum + group.categories
           .filter(cat => discretionaryCategories.includes(cat.categoryName))
           .reduce((catSum, cat) => catSum + cat.recommendation, 0)
-      , 0);
+        , 0);
     const availableAfterSpending = totalIncome - totalNonDiscretionarySpending - adjustedDiscretionarySpending;
 
     // If no money available for goals, clear all allocations
@@ -2166,7 +2641,7 @@ class BudgetService {
           const year = startYear! + Math.floor(totalMonths / 12);
           const month = (totalMonths % 12) + 1;
           const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
-          
+
           newMonthlyAmounts[monthKey] = monthlyAllocations[i]!;
         }
 
@@ -2284,13 +2759,18 @@ class BudgetService {
         };
       });
 
-      // Add "Other" group initialization
+      // Add "Other" group initialization with "Other" category
       spendingTrackingsByMonth[monthKey]!['Other'] = {
         groupName: 'Other',
         targetSource: 'group',
         spendingActual: 0,
         spendingTarget: 0,
-        categories: [],
+        categories: [{
+          categoryName: 'Other',
+          spendingActual: 0,
+          spendingTarget: 0,
+          isTaxDeductible: false
+        }],
         isTaxDeductible: false
       };
 
@@ -2321,12 +2801,14 @@ class BudgetService {
       .forEach(([monthKey, monthTransactions]) => {
         // Process each transaction for this month
         monthTransactions.forEach(budgetTransaction => {
-          if (!budgetTransaction.category) {
-            console.warn('Transaction missing category:', budgetTransaction);
-            return;
+          let groupName = 'Other';
+          let categoryName = 'Other';
+
+          if (budgetTransaction.category && categoryToGroupMap[budgetTransaction.category]) {
+            groupName = categoryToGroupMap[budgetTransaction.category]!;
+            categoryName = budgetTransaction.category!;
           }
 
-          const groupName = categoryToGroupMap[budgetTransaction.category] || 'Other';
           const isIncomeGroup = groupName.toLowerCase() === 'income';
           const amount = isIncomeGroup ? -Math.abs(budgetTransaction.transaction.amount) : budgetTransaction.transaction.amount;
 
@@ -2350,10 +2832,10 @@ class BudgetService {
           group.spendingTarget += amount;
 
           // Find or create category tracking
-          let categoryTracking = group.categories.find(cat => cat.categoryName === budgetTransaction.category);
+          let categoryTracking = group.categories.find(cat => cat.categoryName === categoryName);
           if (!categoryTracking) {
             categoryTracking = {
-              categoryName: budgetTransaction.category,
+              categoryName: categoryName,
               spendingActual: amount,
               spendingTarget: amount,
               isTaxDeductible: false
@@ -2505,7 +2987,7 @@ class BudgetService {
 
       // Get day of month from target date (will be used for all allocations)
       const targetDayOfMonth = targetDate.getDate();
-      
+
       // Get adjusted target day for current month
       const currentMonthLastDay = new Date(
         today.getFullYear(),
@@ -2528,7 +3010,7 @@ class BudgetService {
       const startMonth = currentDate.getMonth();
       const endYear = targetDate.getFullYear();
       const endMonth = targetDate.getMonth();
-      
+
       // Calculate total months including both start and end months
       const monthsUntilTarget = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
 
@@ -2828,15 +3310,15 @@ class BudgetService {
   private calculateMonthlyAllocationsWithRemainder(totalAmount: number, numMonths: number): number[] {
     // Calculate base monthly amount (rounded down to 2 decimal places)
     const baseMonthlyAmount = Math.ceil((totalAmount / numMonths) * 100) / 100;
-    
+
     // Calculate total with base amounts
     const totalWithBaseAmounts = baseMonthlyAmount * (numMonths - 1);
-    
+
     // Calculate remainder for the last payment
     const remainder = Math.round((totalAmount - totalWithBaseAmounts) * 100) / 100;
 
     // Create array of monthly amounts
-    return Array.from({ length: numMonths }, (_, i) => 
+    return Array.from({ length: numMonths }, (_, i) =>
       i === numMonths - 1 ? remainder : baseMonthlyAmount
     );
   }
@@ -2845,7 +3327,9 @@ class BudgetService {
 interface OnboardingAnalysisTransactionCollection {
   allTransactions: BudgetFinAccountTransaction[];
   newTransactions: BudgetFinAccountTransaction[];
+  newUnlinkedTransactions: FinAccountTransaction[];
   newRecurringTransactions: BudgetFinAccountRecurringTransaction[];
+  newUnlinkedRecurringTransactions: FinAccountRecurringTransaction[];
   itemCursors: Record<string, string>;
 }
 
@@ -2875,6 +3359,7 @@ export interface IBudgetService {
   saveBudgetRecurringTransactions: (transactions: BudgetFinAccountRecurringTransaction[], budgetId: string) => Promise<ServiceResult<BudgetFinAccountRecurringTransaction[]>>;
   saveBudgetGoalWithTracking: (goal: BudgetGoal, trackingStartingBalance: number) => Promise<ServiceResult<BudgetGoal>>;
   getPlaidConnectionItemSummaries: (budgetId: string) => Promise<ServiceResult<PlaidConnectionItemSummary[]>>;
+  getManualInstitutionIds: (budgetId: string) => Promise<ServiceResult<string[]>>;
   getBudgetGoals: (budgetId: string) => Promise<Database['public']['Tables']['budget_goals']['Row'][]>;
   hasPermission: (params: {
     budgetId: string,
@@ -2891,7 +3376,8 @@ export interface IBudgetService {
   onboardingAnalysis: (
     budgetId: string,
     plaidConnectionItems: PlaidConnectionItemSummary[],
-    plaidConfiguration: Configuration
+    plaidConfiguration: Configuration,
+    manualInstitutionIds: string[]
   ) => Promise<ServiceResult<OnboardingRecommendSpendingAndGoalsResult>>;
   onboardingRecommendSpendingAndGoals: (
     transactions: BudgetFinAccountTransaction[],

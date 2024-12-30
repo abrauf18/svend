@@ -184,18 +184,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch onboarding state' }, { status: 500 });
     }
 
-    let dbUpdatedOnboardingState = dbOnboardingData.state as any;
-    dbUpdatedOnboardingState.account.contextKey = 'plaid';
-    // Update the state in the database
-    const { error: onboardingUpdateError } = await supabaseAdminClient
-      .from('user_onboarding')
-      .update({ state: dbUpdatedOnboardingState })
-      .eq('user_id', user.id);
+    // let dbUpdatedOnboardingState = dbOnboardingData.state as any;
+    // dbUpdatedOnboardingState.account.contextKey = 'plaid';
+    // // Update the state in the database
+    // const { error: onboardingUpdateError } = await supabaseAdminClient
+    //   .from('user_onboarding')
+    //   .update({ state: dbUpdatedOnboardingState })
+    //   .eq('user_id', user.id);
 
-    if (onboardingUpdateError) {
-      console.error('Error updating onboarding state:', onboardingUpdateError);
-      return NextResponse.json({ error: 'Failed to update onboarding state' }, { status: 500 });
-    }
+    // if (onboardingUpdateError) {
+    //   console.error('Error updating onboarding state:', onboardingUpdateError);
+    //   return NextResponse.json({ error: 'Failed to update onboarding state' }, { status: 500 });
+    // }
 
     const resPlaidItemAccounts = plaidItemAccountsResponse.data.accounts.map((plaidAccount) => {
       const insertedAccount = accountInsertResults.find(result => result.plaidAccount?.account_id === plaidAccount.account_id);

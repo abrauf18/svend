@@ -2,23 +2,32 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
-  useMemo,
   useState,
 } from 'react';
 
 import {
-  OnboardingState,
+  Budget,
+  BudgetCategoryGroups,
+  BudgetGoal,
+  BudgetSpendingRecommendations,
+  BudgetSpendingTrackingsByMonth,
+} from '../lib/model/budget.types';
+import { FinAccount, ProfileData } from '../lib/model/fin.types';
+import {
+  AccountOnboardingInstitution,
+  AccountOnboardingInstitutionAccount,
+  AccountOnboardingInstitutionTransaction,
   AccountOnboardingPlaidConnectionItem,
-  AccountOnboardingStepContextKey,
-  accountOnboardingSteps,
-  accountOnboardingStepContextKeys,
   AccountOnboardingPlaidItemAccount,
   AccountOnboardingState,
+  AccountOnboardingStepContextKey,
+  accountOnboardingStepContextKeys,
+  accountOnboardingSteps,
+  OnboardingState,
 } from '../lib/model/onboarding.types';
-import { ProfileData } from '../lib/model/fin.types';
-import { Budget, BudgetCategoryGroups, BudgetGoal, BudgetSpendingRecommendations, BudgetSpendingTrackingsByMonth } from '../lib/model/budget.types';
 
 import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
 
@@ -30,20 +39,67 @@ export type OnboardingContextType = {
     plaidConnectionItem: AccountOnboardingPlaidConnectionItem,
   ) => void;
   accountPlaidConnItemRemoveOne: (svendItemId: string) => void;
-  accountPlaidItemAccountLinkOne: (svendItemId: string, svendAccountId: string, budgetFinAccountId: string) => void;
-  accountPlaidItemAccountUnlinkOne: (svendItemId: string, svendAccountId: string) => void;
-  accountProfileDataUpdate: (
-    profileData: ProfileData,
+  accountPlaidItemAccountLinkOne: (
+    svendItemId: string,
+    svendAccountId: string,
+    budgetFinAccountId: string,
   ) => void;
-  accountBudgetUpdate: (
-    budget: Budget,
+  accountPlaidItemAccountUnlinkOne: (
+    svendItemId: string,
+    svendAccountId: string,
   ) => void;
-  accountBudgetGoalsAddOne: (
-    budgetGoal: BudgetGoal,
+  accountManualAccountDeleteOne: (accountId: string) => void;
+  accountManualAccountAddOne: (
+    institutionId: string,
+    account: AccountOnboardingInstitutionAccount,
   ) => void;
+  accountManualAccountUpdateOne: (
+    accountId: string,
+    institutionId: string,
+    data: { name: string; type: string; mask: string },
+  ) => void;
+  accountManualInstitutionsAddOne: (
+    institution: AccountOnboardingInstitution,
+  ) => void;
+  accountManualInstitutionsAddMany: (
+    institutions: AccountOnboardingInstitution[],
+  ) => void;
+  accountManualInstitutionsDeleteOne: (institutionId: string) => void;
+  accountManualInstitutionsLinkAccount: (
+    accountId: string,
+    budgetFinAccountId: string,
+  ) => void;
+  accountManualInstitutionsUnlinkAccount: (accountId: string) => void;
+  accountManualInstitutionsUpdateOne: (
+    institutionId: string,
+    data: { name: string; symbol: string },
+  ) => void;
+  accountManualTransactionUpdate: (
+    transactionId: string,
+    data: {
+      date: string;
+      amount: string;
+      svend_category_id: string;
+      manual_account_id: string;
+    },
+  ) => void;
+  accountManualTransactionCreateOne: (
+    accountId: string,
+    data: AccountOnboardingInstitutionTransaction,
+  ) => void;
+  accountManualTransactionDeleteOne: (transactionId: string) => void;
+  accountProfileDataUpdate: (profileData: ProfileData) => void;
+  accountBudgetUpdate: (budget: Budget) => void;
+  accountBudgetGoalsAddOne: (budgetGoal: BudgetGoal) => void;
   accountChangeStepContextKey: (
     contextKey: AccountOnboardingStepContextKey,
   ) => void;
+  accountTransactionsPanelSetSelectedAccount: (accountId: string) => void;
+  accountTransactionsSideMenuSetSelectedTransaction: (
+    transactionId: string | undefined,
+  ) => void;
+  accountSetStepContext: (newContextKey: AccountOnboardingStepContextKey) => void;
+  accountBudgetSetLinkedFinAccounts: (linkedFinAccounts: FinAccount[]) => void;
 };
 
 export const OnboardingContext = createContext<
@@ -75,7 +131,7 @@ export function OnboardingContextProvider({
         spendingRecommendations: {
           balanced: {},
           conservative: {},
-          relaxed: {}
+          relaxed: {},
         } as BudgetSpendingRecommendations,
         goals: [],
         onboardingStep: 'start',
@@ -91,32 +147,33 @@ export function OnboardingContextProvider({
     console.log('updated state', state);
   }, [state]);
 
-  const fetchAccountOnboardingState = useMemo(() => {
-    return async () => {
-      const supabase = getSupabaseBrowserClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        // setState((prevState) => ({
-        //   ...prevState,
-        //   account: {
-        //     ...prevState.account,
-        //     userId: user.id,
-        //   },
-        // }));
+  const fetchAccountOnboardingState = useCallback(async () => {
+    const supabase = getSupabaseBrowserClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      // setState((prevState) => ({
+      //   ...prevState,
+      //   account: {
+      //     ...prevState.account,
+      //     userId: user.id,
+      //   },
+      // }));
 
-        const response = await fetch('/api/onboarding/account/state');
-        if (!response.ok) {
-          const error = await response.json();
-          console.error('Error fetching account onboarding state:', error);
-          return null;
-        }
-        const { accountOnboardingState } = await response.json();
-        return accountOnboardingState;
+      const response = await fetch('/api/onboarding/account/state');
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Error fetching account onboarding state:', error);
+        return null;
       }
-      return null;
-    };
+      const { accountOnboardingState } = (await response.json()) as {
+        accountOnboardingState: AccountOnboardingState;
+      };
+
+      return accountOnboardingState;
+    }
+    return null;
   }, []);
 
   useEffect(() => {
@@ -133,10 +190,11 @@ export function OnboardingContextProvider({
   const accountNextStep = async () => {
     const prevState = state.account;
     console.log('updating state >> prevState.contextKey', prevState.contextKey);
-    const prevStepIdx = accountOnboardingSteps.findIndex((step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
-      step.contextKeys.includes(
-        prevState.contextKey as AccountOnboardingStepContextKey,
-      ),
+    const prevStepIdx = accountOnboardingSteps.findIndex(
+      (step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
+        step.contextKeys.includes(
+          prevState.contextKey as AccountOnboardingStepContextKey,
+        ),
     );
     const nextStepIndex = Math.min(
       prevStepIdx + 1,
@@ -176,18 +234,10 @@ export function OnboardingContextProvider({
       newStateAccount.contextKey,
     );
 
-    if (
-      ['profile_goals', 'analyze_spending'].includes(
-        newStateAccount.contextKey as AccountOnboardingStepContextKey,
-      )
-    ) {
-      try {
-        await updateContextKeyInDatabase(
-          newStateAccount.contextKey as AccountOnboardingStepContextKey,
-        );
-      } catch (error) {
-        return;
-      }
+    if (newStateAccount.contextKey == 'manual') {
+      // transition to next step
+      accountNextStep();
+      return;
     }
 
     // udpate state
@@ -202,10 +252,11 @@ export function OnboardingContextProvider({
       const currentIndex = accountOnboardingStepContextKeys.indexOf(
         prevState.account.contextKey as AccountOnboardingStepContextKey,
       );
-      let currentStep = accountOnboardingSteps.find((step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
-        step.contextKeys.includes(
-          prevState.account.contextKey as AccountOnboardingStepContextKey,
-        ),
+      let currentStep = accountOnboardingSteps.find(
+        (step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
+          step.contextKeys.includes(
+            prevState.account.contextKey as AccountOnboardingStepContextKey,
+          ),
       );
       let prevIndex = currentIndex - 1;
       while (
@@ -254,58 +305,72 @@ export function OnboardingContextProvider({
       ...prevState,
       account: {
         ...prevState.account,
-        plaidConnectionItems: (prevState.account.plaidConnectionItems ?? []).filter(
-          (item: AccountOnboardingPlaidConnectionItem) => item.svendItemId !== svendItemId
+        plaidConnectionItems: (
+          prevState.account.plaidConnectionItems ?? []
+        ).filter(
+          (item: AccountOnboardingPlaidConnectionItem) =>
+            item.svendItemId !== svendItemId,
         ),
       },
     }));
   };
 
-  const accountPlaidItemAccountLinkOne = (svendItemId: string, svendAccountId: string, budgetFinAccountId: string) => {
-    setState((prevState: OnboardingState) => ({
-      ...prevState,
-      account: {
-        ...prevState.account,
-        plaidConnectionItems: (prevState.account.plaidConnectionItems ?? []).map((item: AccountOnboardingPlaidConnectionItem) =>
-          item.svendItemId === svendItemId
-            ? {
-                ...item,
-                itemAccounts: item.itemAccounts.map((account: AccountOnboardingPlaidItemAccount) =>
-                  account.svendAccountId === svendAccountId
-                    ? { ...account, budgetFinAccountId: budgetFinAccountId }
-                    : account
-                ),
-              }
-            : item
-        ),
-      },
-    }));
-  };
-
-  const accountPlaidItemAccountUnlinkOne = (svendItemId: string, svendAccountId: string) => {
-    setState((prevState: OnboardingState) => ({
-      ...prevState,
-      account: {
-        ...prevState.account,
-        plaidConnectionItems: (prevState.account.plaidConnectionItems ?? []).map((item: AccountOnboardingPlaidConnectionItem) =>
-          item.svendItemId === svendItemId
-            ? {
-                ...item,
-                itemAccounts: item.itemAccounts.map((account: AccountOnboardingPlaidItemAccount) =>
-                  account.svendAccountId === svendAccountId
-                    ? { ...account, budgetFinAccountId: null }
-                    : account
-                ),
-              }
-            : item
-        ),
-      },
-    }));
-  };
-
-  const accountProfileDataUpdate = (
-    profileData: ProfileData,
+  const accountPlaidItemAccountLinkOne = (
+    svendItemId: string,
+    svendAccountId: string,
+    budgetFinAccountId: string,
   ) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        plaidConnectionItems: (
+          prevState.account.plaidConnectionItems ?? []
+        ).map((item: AccountOnboardingPlaidConnectionItem) =>
+          item.svendItemId === svendItemId
+            ? {
+                ...item,
+                itemAccounts: item.itemAccounts.map(
+                  (account: AccountOnboardingPlaidItemAccount) =>
+                    account.svendAccountId === svendAccountId
+                      ? { ...account, budgetFinAccountId: budgetFinAccountId }
+                      : account,
+                ),
+              }
+            : item,
+        ),
+      },
+    }));
+  };
+
+  const accountPlaidItemAccountUnlinkOne = (
+    svendItemId: string,
+    svendAccountId: string,
+  ) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        plaidConnectionItems: (
+          prevState.account.plaidConnectionItems ?? []
+        ).map((item: AccountOnboardingPlaidConnectionItem) =>
+          item.svendItemId === svendItemId
+            ? {
+                ...item,
+                itemAccounts: item.itemAccounts.map(
+                  (account: AccountOnboardingPlaidItemAccount) =>
+                    account.svendAccountId === svendAccountId
+                      ? { ...account, budgetFinAccountId: null }
+                      : account,
+                ),
+              }
+            : item,
+        ),
+      },
+    }));
+  };
+
+  const accountProfileDataUpdate = (profileData: ProfileData) => {
     setState((prevState: OnboardingState) => ({
       ...prevState,
       account: {
@@ -315,51 +380,60 @@ export function OnboardingContextProvider({
     }));
   };
 
-  const accountBudgetUpdate = (
-    budget: Budget,
-  ) => {
+  const accountBudgetUpdate = (budget: Budget) => {
     setState((prevState: OnboardingState) => {
       const newState = {
         ...prevState,
         account: {
           ...prevState.account,
-          budget
+          budget,
         },
       };
 
-      console.log('onboarding context >> accountBudgetUpdateSpending, newState', newState);
+      console.log(
+        'onboarding context >> accountBudgetUpdateSpending, newState',
+        newState,
+      );
 
       return newState;
     });
   };
 
-  const accountBudgetGoalsAddOne = (
-    budgetGoal: BudgetGoal,
-  ) => {
-    setState((prevState: OnboardingState) => ({
-      ...prevState,
-      account: {
-        ...prevState.account,
-        budget: {
-          ...prevState.account.budget,
-          goals: [
-            ...(prevState.account.budget?.goals || []),
-            budgetGoal,
-          ],
+  const accountBudgetGoalsAddOne = (budgetGoal: BudgetGoal) => {
+    setState((prevState: OnboardingState) => {
+      const existingGoals = prevState.account.budget?.goals || [];
+      
+      // Check if goal with same ID already exists
+      if (existingGoals.some(goal => goal.id === budgetGoal.id)) {
+        // If it exists, don't add it again
+        return prevState;
+      }
+
+      // If it's a new goal, add it
+      return {
+        ...prevState,
+        account: {
+          ...prevState.account,
+          budget: {
+            ...prevState.account.budget,
+            goals: [...existingGoals, budgetGoal],
+          },
         },
-      },
-    }));
+      };
+    });
   };
 
   const accountChangeStepContextKey = (
     contextKey: AccountOnboardingStepContextKey,
   ): boolean => {
     let success = false;
+
     setState((prevState: OnboardingState) => {
-      const currentStep = accountOnboardingSteps.find((step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
-        step.contextKeys.includes(
-          prevState.account.contextKey as AccountOnboardingStepContextKey,
-        ),
+      const currentStep = accountOnboardingSteps.find(
+        (step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
+          step.contextKeys.includes(
+            prevState.account.contextKey as AccountOnboardingStepContextKey,
+          ),
       );
       if (currentStep && currentStep.contextKeys.includes(contextKey)) {
         success = true;
@@ -376,6 +450,421 @@ export function OnboardingContextProvider({
     return success;
   };
 
+  const accountManualInstitutionsAddOne = (
+    institution: AccountOnboardingInstitution,
+  ) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        manualInstitutions: [
+          ...(prevState.account.manualInstitutions || []),
+          institution,
+        ],
+      },
+    }));
+  };
+
+  const accountManualInstitutionsAddMany = (
+    institutions: AccountOnboardingInstitution[],
+  ) => {
+    console.log('accountManualInstitutionsAddMany called with:', institutions);
+    
+    setState((prevState: OnboardingState) => {
+      console.log('Current state institutions:', prevState.account.manualInstitutions);
+      const existingInstitutions = prevState.account.manualInstitutions ?? [];
+      
+      // Create a map of existing institutions by normalized name+symbol
+      const institutionsMap = new Map(
+        existingInstitutions.map(inst => [
+          `${(inst.name || '').toLowerCase()}_${(inst.symbol || '').toLowerCase()}`,
+          inst
+        ])
+      );
+      
+      // Merge new institutions with existing ones
+      institutions.forEach(newInst => {
+        const institutionKey = `${(newInst.name || '').toLowerCase()}_${(newInst.symbol || '').toLowerCase()}`;
+        const existingInst = institutionsMap.get(institutionKey);
+        
+        if (existingInst) {
+          // If institution exists, merge accounts
+          const existingAccounts = new Map(
+            existingInst.accounts.map(acc => [
+              (acc.name || '').toLowerCase(),
+              acc
+            ])
+          );
+          
+          newInst.accounts.forEach(newAcc => {
+            const accountKey = (newAcc.name || '').toLowerCase();
+            const existingAcc = existingAccounts.get(accountKey);
+            
+            if (existingAcc) {
+              // For existing accounts, just add the new transactions
+              existingAccounts.set(accountKey, {
+                ...existingAcc,
+                transactions: [
+                  ...existingAcc.transactions,
+                  ...newAcc.transactions.filter(newTrans => 
+                    !existingAcc.transactions.some(existingTrans => 
+                      existingTrans.user_tx_id === newTrans.user_tx_id
+                    )
+                  )
+                ]
+              });
+            } else {
+              // Add new account with its transactions
+              existingAccounts.set(accountKey, newAcc);
+            }
+          });
+          
+          institutionsMap.set(institutionKey, {
+            ...existingInst,
+            accounts: Array.from(existingAccounts.values()),
+          });
+        } else {
+          // If institution doesn't exist, add it with all its accounts
+          institutionsMap.set(institutionKey, newInst);
+        }
+      });
+
+      return {
+        ...prevState,
+        account: {
+          ...prevState.account,
+          manualInstitutions: Array.from(institutionsMap.values()),
+        },
+      };
+    });
+  };
+
+  const accountManualInstitutionsDeleteOne = (institutionId: string) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        manualInstitutions: (prevState.account.manualInstitutions ?? []).filter(
+          (institution: AccountOnboardingInstitution) =>
+            institution.id !== institutionId,
+        ),
+      },
+    }));
+  };
+
+  const accountManualInstitutionsLinkAccount = (
+    accountId: string,
+    budgetFinAccountId: string,
+  ) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        manualInstitutions: (prevState.account.manualInstitutions ?? []).map(
+          (inst) => ({
+            ...inst,
+            accounts: inst.accounts.map((acc) => ({
+              ...acc,
+              budgetFinAccountId:
+                acc.id === accountId
+                  ? budgetFinAccountId
+                  : acc.budgetFinAccountId,
+            })),
+          }),
+        ),
+      },
+    }));
+  };
+
+  const accountManualInstitutionsUnlinkAccount = (accountId: string) => {
+    setState((prevState: OnboardingState) => ({
+      ...prevState,
+      account: {
+        ...prevState.account,
+        manualInstitutions: (prevState.account.manualInstitutions ?? []).map(
+          (inst) => ({
+            ...inst,
+            accounts: inst.accounts.map((acc) => ({
+              ...acc,
+              budgetFinAccountId:
+                acc.id === accountId ? undefined : acc.budgetFinAccountId,
+            })),
+          }),
+        ),
+      },
+    }));
+  };
+
+  const accountManualTransactionUpdate = (
+    transactionId: string,
+    data: {
+      date: string;
+      amount: string;
+      svend_category_id: string;
+      manual_account_id: string;
+    },
+  ) => {
+    const transactionsState = (state.account.manualInstitutions ?? []).flatMap(
+      (inst) => inst.accounts.flatMap((acc) => acc.transactions),
+    );
+
+    const transaction = transactionsState.find((t) => t.id === transactionId);
+
+    if (!transaction)
+      throw new Error('[Onboarding State] Transaction not found');
+
+    if (transaction.manual_account_id !== data.manual_account_id) {
+      setState((prev) => ({
+        ...prev,
+        account: {
+          ...prev.account,
+          manualInstitutions: (prev.account.manualInstitutions ?? []).map(
+            (inst) => ({
+              ...inst,
+              accounts: inst.accounts.map((acc) => ({
+                ...acc,
+                transactions:
+                  acc.id === data.manual_account_id
+                    ? [
+                        ...acc.transactions,
+                        {
+                          ...transaction,
+                          ...data,
+                          amount: parseFloat(data.amount),
+                        },
+                      ]
+                    : acc.transactions.filter(
+                        (trans) => trans.id !== transactionId,
+                      ),
+              })),
+            }),
+          ),
+        },
+      }));
+    } else {
+      setState((prev) => ({
+        ...prev,
+        account: {
+          ...prev.account,
+          manualInstitutions: (prev.account.manualInstitutions ?? []).map(
+            (inst) => ({
+              ...inst,
+              accounts: inst.accounts.map((acc) => ({
+                ...acc,
+                transactions: acc.transactions.map((trans) =>
+                  trans.id === transactionId
+                    ? { ...trans, ...data, amount: parseFloat(data.amount) }
+                    : trans,
+                ),
+              })),
+            }),
+          ),
+        },
+      }));
+    }
+  };
+
+  const accountManualTransactionDeleteOne = (transactionId: string) => {
+    setState((prev) => ({
+      ...prev,
+      account: {
+        ...prev.account,
+        manualInstitutions: (prev.account.manualInstitutions ?? []).map(
+          (inst) => ({
+            ...inst,
+            accounts: inst.accounts.map((acc) => ({
+              ...acc,
+              transactions: acc.transactions.filter(
+                (trans) => trans.id !== transactionId,
+              ),
+            })),
+          }),
+        ),
+      },
+    }));
+  };
+
+  const accountManualAccountDeleteOne = (accountId: string) => {
+    setState((prev) => ({
+      ...prev,
+      account: {
+        ...prev.account,
+        manualInstitutions: (prev.account.manualInstitutions ?? []).map(
+          (inst) => ({
+            ...inst,
+            accounts: inst.accounts.filter((acc) => acc.id !== accountId),
+          }),
+        ),
+      },
+    }));
+  };
+
+  const accountManualAccountAddOne = (
+    institutionId: string,
+    account: AccountOnboardingInstitutionAccount,
+  ) => {
+    setState((prev) => ({
+      ...prev,
+      account: {
+        ...prev.account,
+        manualInstitutions: (prev.account.manualInstitutions ?? []).map(
+          (inst) =>
+            inst.id === institutionId
+              ? { ...inst, accounts: [...(inst.accounts ?? []), account] }
+              : inst,
+        ),
+      },
+    }));
+  };
+
+  const accountManualTransactionCreateOne = (
+    accountId: string,
+    transaction: AccountOnboardingInstitutionTransaction,
+  ) => {
+    setState((prev) => ({
+      ...prev,
+      account: {
+        ...prev.account,
+        manualInstitutions: (prev.account.manualInstitutions ?? []).map(
+          (inst) => ({
+            ...inst,
+            accounts: inst.accounts.map((acc) =>
+              acc.id === accountId
+                ? {
+                    ...acc,
+                    transactions: [...(acc.transactions ?? []), transaction],
+                  }
+                : acc,
+            ),
+          }),
+        ),
+      },
+    }));
+  };
+
+  const accountTransactionsPanelSetSelectedAccount = (accountId: string) => {
+    setState((prev) => ({
+      ...prev,
+      account: {
+        ...prev.account,
+        transactions: {
+          ...prev.account.transactions,
+          transactionsPanel: { selectedAccount: accountId },
+        },
+      },
+    }));
+  };
+
+  const accountTransactionsSideMenuSetSelectedTransaction = (
+    transactionId: string | undefined,
+  ) => {
+    setState((prev) => ({
+      ...prev,
+      account: {
+        ...prev.account,
+        transactions: {
+          ...prev.account.transactions,
+          sideMenu: { selectedTransaction: transactionId },
+        },
+      },
+    }));
+  };
+
+  const accountManualInstitutionsUpdateOne = (
+    institutionId: string,
+    data: { name: string; symbol: string },
+  ) => {
+    setState((prev) => ({
+      ...prev,
+      account: {
+        ...prev.account,
+        manualInstitutions: (prev.account.manualInstitutions ?? []).map(
+          (inst) =>
+            inst.id === institutionId
+              ? {
+                  ...inst,
+                  ...data,
+                }
+              : inst,
+        ),
+      },
+    }));
+  };
+
+  const accountManualAccountUpdateOne = (
+    accountId: string,
+    institutionId: string,
+    data: { name: string; type: string; mask: string },
+  ) => {
+    setState((prev) => ({
+      ...prev,
+      account: {
+        ...prev.account,
+        manualInstitutions: (prev.account.manualInstitutions ?? []).map(
+          (inst) => {
+            if (inst.id === institutionId) {
+              return {
+                ...inst,
+                accounts: inst.accounts.map((acc) =>
+                  acc.id === accountId ? { ...acc, ...data } : acc,
+                ),
+              };
+            }
+
+            return inst;
+          },
+        ),
+      },
+    }));
+  };
+
+  const accountSetStepContext = (newContextKey: AccountOnboardingStepContextKey) => {
+    setState((prevState: OnboardingState) => {
+      const currentStepIdx = accountOnboardingSteps.findIndex(
+        (step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
+          step.contextKeys.includes(
+            prevState.account.contextKey as AccountOnboardingStepContextKey,
+          ),
+      );
+
+      // Verify the new context key belongs to the current step
+      const isValidContextKey = accountOnboardingSteps[currentStepIdx]?.contextKeys.includes(newContextKey);
+      
+      if (!isValidContextKey) {
+        console.error('Invalid context key for current step:', newContextKey);
+        return prevState;
+      }
+
+      return {
+        ...prevState,
+        account: {
+          ...prevState.account,
+          contextKey: newContextKey,
+        },
+      };
+    });
+  };
+
+  const accountBudgetSetLinkedFinAccounts = (linkedFinAccounts: FinAccount[]) => {
+    setState((prevState: OnboardingState) => {
+      if (!prevState.account.budget) {
+        console.warn('Cannot update linkedFinAccounts: budget is not initialized');
+        return prevState;
+      }
+
+      return {
+        ...prevState,
+        account: {
+          ...prevState.account,
+          budget: {
+            ...prevState.account.budget,
+            linkedFinAccounts
+          }
+        }
+      };
+    });
+  };
+
   return (
     <OnboardingContext.Provider
       value={{
@@ -390,6 +879,22 @@ export function OnboardingContextProvider({
         accountBudgetUpdate,
         accountBudgetGoalsAddOne,
         accountChangeStepContextKey,
+        accountManualInstitutionsAddOne,
+        accountManualInstitutionsAddMany,
+        accountManualInstitutionsDeleteOne,
+        accountManualInstitutionsLinkAccount,
+        accountManualInstitutionsUnlinkAccount,
+        accountManualTransactionUpdate,
+        accountManualTransactionDeleteOne,
+        accountManualAccountDeleteOne,
+        accountManualAccountAddOne,
+        accountManualTransactionCreateOne,
+        accountTransactionsPanelSetSelectedAccount,
+        accountTransactionsSideMenuSetSelectedTransaction,
+        accountManualInstitutionsUpdateOne,
+        accountManualAccountUpdateOne,
+        accountSetStepContext,
+        accountBudgetSetLinkedFinAccounts,
       }}
     >
       {children}

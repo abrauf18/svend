@@ -35,7 +35,7 @@ export async function PATCH(request: Request) {
     let dbAccountOnboardingState = dbAccountOnboardingData.account as any;
 
     console.log('dbAccountOnboardingState.contextKey', dbAccountOnboardingState.contextKey);
-    if (dbAccountOnboardingState.contextKey != 'start' && dbAccountOnboardingState.contextKey != 'plaid') {
+    if (!['start', 'plaid', 'manual'].includes(dbAccountOnboardingState.contextKey)) {
         return NextResponse.json({ error: 'Onboarding not in correct state' }, { status: 409 });
     }
 

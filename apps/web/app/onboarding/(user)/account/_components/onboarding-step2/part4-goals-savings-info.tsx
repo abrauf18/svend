@@ -47,13 +47,13 @@ const FormSchema = z.object({
     .refine(
       (val) => {
         if (!val) return true;
+        
+        // Get today's date and strip time components
         const today = new Date();
-        today.setHours(0, 0, 0, 0);  // Normalize to start of day
+        const todayStr = today.toISOString().split('T')[0]!;
         
-        const targetDate = new Date(val);
-        targetDate.setHours(0, 0, 0, 0);  // Normalize to start of day
-        
-        return targetDate > today;  // Must be strictly greater than today
+        // Compare the date strings directly
+        return val > todayStr;  // This will compare YYYY-MM-DD strings
       },
       'Target date must be in the future.',
     ),
@@ -65,27 +65,24 @@ export function SavingsInformation(props: {
   onValidationChange: (isValid: boolean) => void;
   triggerSubmit: (submitHandler: () => Promise<boolean>) => void;
 }) {
-  const [accounts, setAccounts] = useState<Record<string, { name: string; balance: number }>>({});
+  const [accounts, setAccounts] = useState<Record<string, { name: string; balance: number; isManual: boolean }>>({});
   const { state, accountBudgetGoalsAddOne } = useOnboardingContext();
 
   useEffect(() => {
-    const accountsData = state.account.plaidConnectionItems
-      ?.flatMap((item) => item.itemAccounts.map((account) => ({
-        ...account,
-        institutionName: item.institutionName,
-      })))
-      .filter((account) => !!account.budgetFinAccountId)
-      .reduce((acc: Record<string, { name: string; balance: number }>, account) => {
-        if (account.budgetFinAccountId) {
-          acc[account.budgetFinAccountId] = {
-            name: `${account.institutionName} - ${account.accountName} - ***${account.mask}`,
-            balance: account.balanceCurrent,
-          };
-        }
-        return acc;
-      }, {});
-    setAccounts(accountsData as Record<string, { name: string; balance: number }>);
-  }, [state.account.plaidConnectionItems]);
+    const accountsData: Record<string, { name: string; balance: number; isManual: boolean }> = {};
+
+    state.account.budget?.linkedFinAccounts.forEach((account) => {
+      if (account.budgetFinAccountId) {
+        accountsData[account.budgetFinAccountId] = {
+          name: `${account.institutionName || ''} - ${account.name} - ***${account.mask}`,
+          balance: account.balance,
+          isManual: account.source === 'svend'
+        };
+      }
+    });
+
+    setAccounts(accountsData);
+  }, [state.account.budget?.linkedFinAccounts]);
 
   // Set default values using useMemo
   const defaultValues = React.useMemo(() => {
@@ -172,7 +169,7 @@ export function SavingsInformation(props: {
             budgetId: state.account.budget?.id,
             type: 'savings',
             name: data.name,
-            amount: data.amount,
+            amount: Number(data.amount),
             budgetFinAccountId: data.budgetFinAccountId,
             balance: data.balance,
             targetDate: data.targetDate,
@@ -274,6 +271,10 @@ export function SavingsInformation(props: {
                         <Select
                           value={field.value}
                           onValueChange={(value) => {
+                            console.log('Selected account:', value);
+                            console.log('Available accounts:', accounts);
+                            console.log('Account balance:', accounts[value]?.balance);
+                            
                             field.onChange(value);
                             form.setValue('balance', accounts[value]?.balance ?? 0);
                           }}
@@ -284,7 +285,12 @@ export function SavingsInformation(props: {
                           <SelectContent>
                             {Object.entries(accounts).map(([key, value]) => (
                               <SelectItem key={key} value={key}>
-                                <span className="text-sm capitalize">{value.name}</span>
+                                <span className="text-sm capitalize flex items-center">
+                                  {value.isManual && (
+                                    <span className="text-xs text-muted-foreground mr-2">m</span>
+                                  )}
+                                  {value.name}
+                                </span>
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -323,7 +329,7 @@ export function SavingsInformation(props: {
                           data-test={'investment-form-balance-input'}
                           type={'string'}
                           {...field}
-                          value={form.getValues('budgetFinAccountId') ? field.value ?? '' : ''}
+                          value={form.getValues('budgetFinAccountId') ? field.value?.toFixed(2) ?? '' : ''}
                           readOnly
                           tabIndex={-1}
                         />

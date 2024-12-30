@@ -727,6 +727,7 @@ export type Database = {
           plaid_category_confidence: string | null
           plaid_category_detailed: string | null
           plaid_raw_data: Json | null
+          svend_category_id: string
           updated_at: string | null
         }
         Insert: {
@@ -738,6 +739,7 @@ export type Database = {
           plaid_category_confidence?: string | null
           plaid_category_detailed?: string | null
           plaid_raw_data?: Json | null
+          svend_category_id: string
           updated_at?: string | null
         }
         Update: {
@@ -749,6 +751,7 @@ export type Database = {
           plaid_category_confidence?: string | null
           plaid_category_detailed?: string | null
           plaid_raw_data?: Json | null
+          svend_category_id?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -764,6 +767,20 @@ export type Database = {
             columns: ["plaid_account_id"]
             isOneToOne: false
             referencedRelation: "plaid_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_account_recurring_transactions_svend_category_id_fkey"
+            columns: ["svend_category_id"]
+            isOneToOne: false
+            referencedRelation: "built_in_categories"
+            referencedColumns: ["category_id"]
+          },
+          {
+            foreignKeyName: "fin_account_recurring_transactions_svend_category_id_fkey"
+            columns: ["svend_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
             referencedColumns: ["id"]
           },
         ]
@@ -782,7 +799,10 @@ export type Database = {
           plaid_category_confidence: string | null
           plaid_category_detailed: string | null
           plaid_raw_data: Json | null
+          plaid_tx_id: string | null
+          svend_category_id: string
           updated_at: string | null
+          user_tx_id: string
         }
         Insert: {
           amount: number
@@ -797,7 +817,10 @@ export type Database = {
           plaid_category_confidence?: string | null
           plaid_category_detailed?: string | null
           plaid_raw_data?: Json | null
+          plaid_tx_id?: string | null
+          svend_category_id: string
           updated_at?: string | null
+          user_tx_id: string
         }
         Update: {
           amount?: number
@@ -812,7 +835,10 @@ export type Database = {
           plaid_category_confidence?: string | null
           plaid_category_detailed?: string | null
           plaid_raw_data?: Json | null
+          plaid_tx_id?: string | null
+          svend_category_id?: string
           updated_at?: string | null
+          user_tx_id?: string
         }
         Relationships: [
           {
@@ -827,6 +853,20 @@ export type Database = {
             columns: ["plaid_account_id"]
             isOneToOne: false
             referencedRelation: "plaid_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_account_transactions_svend_category_id_fkey"
+            columns: ["svend_category_id"]
+            isOneToOne: false
+            referencedRelation: "built_in_categories"
+            referencedColumns: ["category_id"]
+          },
+          {
+            foreignKeyName: "fin_account_transactions_svend_category_id_fkey"
+            columns: ["svend_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
             referencedColumns: ["id"]
           },
         ]
@@ -903,13 +943,14 @@ export type Database = {
           balance_limit: number | null
           created_at: string | null
           id: string
+          institution_id: string
           iso_currency_code: string | null
           mask: string | null
           name: string
           official_name: string | null
           owner_account_id: string
           subtype: string | null
-          type: string
+          type: Database["public"]["Enums"]["fin_account_type_enum"]
           updated_at: string | null
         }
         Insert: {
@@ -918,13 +959,14 @@ export type Database = {
           balance_limit?: number | null
           created_at?: string | null
           id?: string
+          institution_id: string
           iso_currency_code?: string | null
           mask?: string | null
           name: string
           official_name?: string | null
           owner_account_id: string
           subtype?: string | null
-          type: string
+          type: Database["public"]["Enums"]["fin_account_type_enum"]
           updated_at?: string | null
         }
         Update: {
@@ -933,16 +975,24 @@ export type Database = {
           balance_limit?: number | null
           created_at?: string | null
           id?: string
+          institution_id?: string
           iso_currency_code?: string | null
           mask?: string | null
           name?: string
           official_name?: string | null
           owner_account_id?: string
           subtype?: string | null
-          type?: string
+          type?: Database["public"]["Enums"]["fin_account_type_enum"]
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "manual_fin_accounts_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "manual_fin_institutions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "manual_fin_accounts_owner_account_id_fkey"
             columns: ["owner_account_id"]
@@ -959,6 +1009,55 @@ export type Database = {
           },
           {
             foreignKeyName: "manual_fin_accounts_owner_account_id_fkey"
+            columns: ["owner_account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      manual_fin_institutions: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_account_id: string
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_account_id: string
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_account_id?: string
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_fin_institutions_owner_account_id_fkey"
+            columns: ["owner_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_fin_institutions_owner_account_id_fkey"
+            columns: ["owner_account_id"]
+            isOneToOne: false
+            referencedRelation: "user_account_workspace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_fin_institutions_owner_account_id_fkey"
             columns: ["owner_account_id"]
             isOneToOne: false
             referencedRelation: "user_accounts"
@@ -1146,7 +1245,7 @@ export type Database = {
           plaid_conn_item_id: string
           plaid_persistent_account_id: string | null
           subtype: string | null
-          type: string
+          type: Database["public"]["Enums"]["fin_account_type_enum"]
           updated_at: string | null
         }
         Insert: {
@@ -1164,7 +1263,7 @@ export type Database = {
           plaid_conn_item_id: string
           plaid_persistent_account_id?: string | null
           subtype?: string | null
-          type: string
+          type: Database["public"]["Enums"]["fin_account_type_enum"]
           updated_at?: string | null
         }
         Update: {
@@ -1182,7 +1281,7 @@ export type Database = {
           plaid_conn_item_id?: string
           plaid_persistent_account_id?: string | null
           subtype?: string | null
-          type?: string
+          type?: Database["public"]["Enums"]["fin_account_type_enum"]
           updated_at?: string | null
         }
         Relationships: [
@@ -1754,6 +1853,26 @@ export type Database = {
           updated_by: string | null
         }
       }
+      delete_manual_accounts_and_transactions: {
+        Args: {
+          p_manual_account_ids: string[]
+        }
+        Returns: undefined
+      }
+      delete_manual_institutions_accounts_and_transactions: {
+        Args: {
+          p_manual_institution_ids: string[]
+        }
+        Returns: undefined
+      }
+      delete_transactions: {
+        Args: {
+          p_transaction_ids: string[]
+        }
+        Returns: {
+          deleted_transaction_id: string
+        }[]
+      }
       get_account_invitations: {
         Args: {
           account_slug: string
@@ -1884,6 +2003,8 @@ export type Database = {
         }
         Returns: {
           id: string
+          user_tx_id: string
+          plaid_tx_id: string
           date: string
           amount: number
           iso_currency_code: string
@@ -1907,6 +2028,8 @@ export type Database = {
         }
         Returns: {
           id: string
+          user_tx_id: string
+          plaid_tx_id: string
           date: string
           amount: number
           iso_currency_code: string
@@ -2059,6 +2182,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_onboarding_transaction: {
+        Args: {
+          p_transaction_input: Database["public"]["CompositeTypes"]["onboarding_transaction_input"]
+        }
+        Returns: string[]
+      }
       upsert_order: {
         Args: {
           target_account_id: string
@@ -2149,6 +2278,12 @@ export type Database = {
         | "Auto Loans"
         | "Business Loans"
         | "Other"
+      fin_account_type_enum:
+        | "depository"
+        | "credit"
+        | "loan"
+        | "investment"
+        | "other"
       fin_profile_state_enum: "florida" | "california"
       financial_goal_enum:
         | "Debt - Loans"
@@ -2180,6 +2315,7 @@ export type Database = {
       onboarding_step_enum:
         | "start"
         | "plaid"
+        | "manual"
         | "profile_goals"
         | "analyze_spending"
         | "analyze_spending_in_progress"
@@ -2219,6 +2355,8 @@ export type Database = {
         raw_data: Json | null
       }
       budget_transaction_input: {
+        user_tx_id: string | null
+        plaid_tx_id: string | null
         budget_fin_account_id: string | null
         amount: number | null
         date: string | null
@@ -2233,6 +2371,15 @@ export type Database = {
       invitation: {
         email: string | null
         role: string | null
+      }
+      onboarding_transaction_input: {
+        amount: number | null
+        date: string | null
+        svend_category_id: string | null
+        manual_account_id: string | null
+        id: string | null
+        user_tx_id: string | null
+        merchant_name: string | null
       }
     }
   }

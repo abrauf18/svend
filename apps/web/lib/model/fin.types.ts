@@ -3,6 +3,7 @@ import { Transaction, TransactionStream } from "plaid";
 export type FinAccount = {
   id: string;
   source: 'plaid' | 'svend';
+  institutionName: string;
   budgetFinAccountId?: string;
   name: string;
   mask: string;
@@ -13,10 +14,13 @@ export type FinAccount = {
 // Interface representing a financial account transaction
 export interface FinAccountTransaction {
   id: string; // Unique identifier for the transaction
+  userTxId: string; // Unique identifier for the transaction presented to the user
+  plaidTxId?: string; // Unique identifier for the transaction presented to the user
   date: string; // Date of the transaction
   amount: number; // Amount of the transaction
   plaidAccountId?: string; // UUID referencing the Plaid account associated with the transaction
   manualAccountId?: string; // UUID referencing the manual account associated with the transaction
+  svendCategoryId?: string; // UUID referencing the SVEND category associated with the transaction
   plaidDetailedCategory?: string; // Detailed category from Plaid
   plaidCategoryConfidence?: string; // Confidence level for the category from Plaid
   merchantName: string; // Name of the merchant involved in the transaction
@@ -34,6 +38,7 @@ export interface FinAccountRecurringTransaction {
   id: string; // Unique identifier for the transaction
   plaidAccountId?: string; // UUID referencing the Plaid account associated with the transaction
   manualAccountId?: string; // UUID referencing the manual account associated with the transaction
+  svendCategoryId?: string; // UUID referencing the SVEND category associated with the transaction
   plaidDetailedCategory?: string; // Detailed category from Plaid
   plaidCategoryConfidence?: string; // Confidence level for the category from Plaid
   finAccountTransactionIds: string[]; // Array of UUIDs referencing the fin account transactions associated with the recurring transaction

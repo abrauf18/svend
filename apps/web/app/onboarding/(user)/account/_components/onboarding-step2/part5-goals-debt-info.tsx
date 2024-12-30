@@ -75,13 +75,13 @@ const FormSchema = z.object({
     .refine(
       (val) => {
         if (!val) return true;
+        
+        // Get today's date and strip time components
         const today = new Date();
-        today.setHours(0, 0, 0, 0);  // Normalize to start of day
+        const todayStr = today.toISOString().split('T')[0]!;
         
-        const targetDate = new Date(val);
-        targetDate.setHours(0, 0, 0, 0);  // Normalize to start of day
-        
-        return targetDate > today;  // Must be strictly greater than today
+        // Compare the date strings directly
+        return val > todayStr;  // This will compare YYYY-MM-DD strings
       },
       'Target date must be in the future.',
     ),
@@ -93,27 +93,24 @@ export function PayOffDebtInformation(props: {
   onValidationChange: (isValid: boolean) => void;
   triggerSubmit: (submitHandler: () => Promise<boolean>) => void;
 }) {
-  const [accounts, setAccounts] = useState<Record<string, { name: string; balance: number }>>({});
+  const [accounts, setAccounts] = useState<Record<string, { name: string; balance: number; isManual: boolean }>>({});
   const { state, accountBudgetGoalsAddOne } = useOnboardingContext();
 
   useEffect(() => {
-    const accountsData = state.account.plaidConnectionItems
-      ?.flatMap((item) => item.itemAccounts.map((account) => ({
-        ...account,
-        institutionName: item.institutionName,
-      })))
-      .filter((account) => !!account.budgetFinAccountId)
-      .reduce((acc: Record<string, { name: string; balance: number }>, account) => {
-        if (account.budgetFinAccountId) {
-          acc[account.budgetFinAccountId] = {
-            name: `${account.institutionName} - ${account.accountName} - ***${account.mask}`,
-            balance: account.balanceCurrent,
-          };
-        }
-        return acc;
-      }, {});
-    setAccounts(accountsData as Record<string, { name: string; balance: number }>);
-  }, [state.account.plaidConnectionItems]);
+    const accountsData: Record<string, { name: string; balance: number; isManual: boolean }> = {};
+
+    state.account.budget?.linkedFinAccounts.forEach((account) => {
+      if (account.budgetFinAccountId) {
+        accountsData[account.budgetFinAccountId] = {
+          name: `${account.institutionName || ''} - ${account.name} - ***${account.mask}`,
+          balance: account.balance,
+          isManual: account.source === 'svend'
+        };
+      }
+    });
+
+    setAccounts(accountsData);
+  }, [state.account.budget?.linkedFinAccounts]);
 
   const defaultValues = React.useMemo(() => {
     if (props.initialData) {
@@ -210,7 +207,7 @@ export function PayOffDebtInformation(props: {
             debtPaymentComponent: data.debtPaymentComponent,
             amount: Math.abs(data.balance),
             balance: data.balance,
-            debtInterestRate: data.debtInterestRate,
+            debtInterestRate: Number(data.debtInterestRate),
             targetDate: data.targetDate,
             description: data.description
           }),
@@ -326,7 +323,12 @@ export function PayOffDebtInformation(props: {
                           <SelectContent>
                             {Object.entries(accounts).map(([key, value]) => (
                               <SelectItem key={key} value={key}>
-                                <span className="text-sm capitalize">{value.name}</span>
+                                <span className="text-sm capitalize flex items-center">
+                                  {value.isManual && (
+                                    <span className="text-xs text-muted-foreground mr-2">m</span>
+                                  )}
+                                  {value.name}
+                                </span>
                               </SelectItem>
                             ))}
                           </SelectContent>

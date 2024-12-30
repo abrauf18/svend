@@ -32,10 +32,21 @@ export async function POST(request: Request) {
     const { data: analysisResult, error: analysisError } = await onboardingService.budgetAnalysis(user.id);
 
     if (analysisError) {
-      console.error('[budget/analysis] Analysis error:', analysisError);
-      const statusCode = analysisError.startsWith('CLIENT_ERROR:') ? 400 : 500;
-      return NextResponse.json({ 
+      // Log the detailed error for debugging
+      console.error('[budget/analysis] Analysis error:', {
         error: analysisError,
+        userId: user.id,
+        timestamp: new Date().toISOString()
+      });
+
+      // Return a generic error message to the client
+      const statusCode = analysisError.startsWith('CLIENT_ERROR:') ? 400 : 500;
+      const clientMessage = statusCode === 400 
+        ? 'invalid onboarding state' 
+        : 'an unexpected error occurred';
+
+      return NextResponse.json({ 
+        error: clientMessage,
         context: 'budget_analysis'
       }, { status: statusCode });
     }
@@ -47,9 +58,17 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error('[budget/analysis] Unexpected error:', error);
+    // Log the detailed error for debugging
+    console.error('[budget/analysis] Unexpected error:', {
+      error: error,
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+
+    // Return a generic error message to the client
     return NextResponse.json({ 
-      error: `SERVER_ERROR:[budget/analysis] Unexpected error: ${error.message}`,
+      error: 'An unexpected error occurred',
       context: 'budget_analysis'
     }, { status: 500 });
   }

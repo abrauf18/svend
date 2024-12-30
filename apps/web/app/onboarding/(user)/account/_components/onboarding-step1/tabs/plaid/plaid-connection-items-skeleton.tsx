@@ -13,7 +13,7 @@ export function PlaidConnectionItemsSkeleton({ className = '' }) {
         {/* First account item */}
         <div className="pl-4 mt-2">
           <div className="flex items-center justify-between p-4 w-full max-w-xl border border-gray-600 mt-3 rounded-lg">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 h-12">
               <Skeleton className="h-12 w-12 rounded" />
               <div className="space-y-2">
                 <Skeleton className="h-5 w-[180px]" />
@@ -26,7 +26,7 @@ export function PlaidConnectionItemsSkeleton({ className = '' }) {
       </div>
       
       {/* Gradient fade-out overlay */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-transparent to-background" />
+      <div className="absolute bottom-0 left-0 right-0 h-[30vh] [background:linear-gradient(180deg,transparent_10%,hsl(var(--background))_70%)]" />
     </div>
   )
 } 

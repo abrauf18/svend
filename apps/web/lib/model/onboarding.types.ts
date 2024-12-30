@@ -1,10 +1,12 @@
-import { Budget, BudgetCategoryGroups } from "./budget.types";
-import { ProfileData } from "./fin.types";
+import { Database } from '../database.types';
+import { Budget, BudgetCategoryGroups } from './budget.types';
+import { ProfileData } from './fin.types';
 
 // Define the enum for onboarding steps
 export type AccountOnboardingStepContextKey =
   | 'start'
   | 'plaid'
+  | 'manual'
   | 'profile_goals'
   | 'analyze_spending'
   | 'analyze_spending_in_progress'
@@ -27,7 +29,7 @@ export const accountOnboardingSteps: Array<{
   contextKeys: Array<AccountOnboardingStepContextKey>;
 }> = [
   {
-    contextKeys: ['start', 'plaid'],
+    contextKeys: ['start', 'plaid', 'manual'],
   },
   {
     contextKeys: ['profile_goals'],
@@ -70,13 +72,43 @@ export type AccountOnboardingPlaidItemAccount = {
   updatedAt: string;
 };
 
+export type AccountOnboardingInstitutionTransaction =
+  Database['public']['Tables']['fin_account_transactions']['Row'];
+
+export type AccountOnboardingInstitutionAccount = {
+  id: string;
+  name: string;
+  type: string;
+  institutionId: string;
+  balanceCurrent: number;
+  budgetFinAccountId?: string;
+  transactions: AccountOnboardingInstitutionTransaction[];
+  mask: string;
+};
+
+export type AccountOnboardingInstitution = {
+  id: string;
+  name: string;
+  symbol: string;
+  accounts: AccountOnboardingInstitutionAccount[];
+};
+
 export type AccountOnboardingState = {
   budget: Budget;
   profileData?: ProfileData;
   contextKey?: AccountOnboardingStepContextKey;
   userId?: string;
   plaidConnectionItems?: AccountOnboardingPlaidConnectionItem[];
+  manualInstitutions?: AccountOnboardingInstitution[];
   svendCategoryGroups?: BudgetCategoryGroups;
+  transactions?: {
+    transactionsPanel?: {
+      selectedAccount?: string;
+    };
+    sideMenu?: {
+      selectedTransaction?: string;
+    };
+  };
 };
 
 export type OnboardingState = {

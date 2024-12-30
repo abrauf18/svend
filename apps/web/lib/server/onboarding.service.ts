@@ -81,7 +81,7 @@ class OnboardingService {
     // validate contextKey
     const currentIndex = validContextKeys.indexOf(dbUpdatedOnboardingState.account.contextKey);
     if (currentIndex === -1) {
-      if (!['start', 'plaid'].includes(dbUpdatedOnboardingState.account.contextKey)) {
+      if (!['start', 'plaid', 'manual'].includes(dbUpdatedOnboardingState.account.contextKey)) {
         return {
           data: null,
           error: 'Invalid contextKey value found in onboarding state'
@@ -196,17 +196,28 @@ class OnboardingService {
       const budgetService = createBudgetService(this.supabase);
 
       try {
-        // Fetch Plaid items
-        const { data: itemSummaries, error: itemsError } =
-          await budgetService.getPlaidConnectionItemSummaries(state.budgetId);
+        // Fetch Plaid items and manual institution IDs in parallel
+        const [itemSummariesResult, manualInstitutionIdsResult] = await Promise.all([
+          budgetService.getPlaidConnectionItemSummaries(state.budgetId),
+          budgetService.getManualInstitutionIds(state.budgetId)
+        ]);
 
+        const { data: itemSummaries, error: itemsError } = itemSummariesResult;
         if (itemsError || !itemSummaries) {
           throw new Error(itemsError || 'Failed to fetch Plaid connection items');
         }
 
+        const { data: manualInstitutionIds, error: manualInstitutionIdsError } = manualInstitutionIdsResult;
+        if (manualInstitutionIdsError || !manualInstitutionIds) {
+          throw new Error(manualInstitutionIdsError || 'Failed to fetch manual institution IDs');
+        }
+
+        // remove duplicates from manualInstitutionIds
+        const uniqueManualInstitutionIds = [...new Set(manualInstitutionIds)];
+
         // Perform analysis
         const { data: analysisResult, error: analysisError } =
-          await budgetService.onboardingAnalysis(state.budgetId, itemSummaries, this.plaidConfiguration!);
+          await budgetService.onboardingAnalysis(state.budgetId, itemSummaries, this.plaidConfiguration!, uniqueManualInstitutionIds);
 
         if (analysisError || !analysisResult?.spendingRecommendations || !analysisResult?.spendingTrackings) {
           throw new Error(analysisError || 'No recommendations or tracking data generated');
