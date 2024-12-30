@@ -22,6 +22,7 @@ interface TransactionCategorySelectProps {
   categoryGroups: CategoryGroup[];
   disabled?: boolean;
   placeholder?: string;
+  className?: string;
 }
 
 const highlightMatch = (text: string, query: string) => {
@@ -44,7 +45,8 @@ export function TransactionCategorySelect({
   onValueChange,
   categoryGroups,
   disabled,
-  placeholder = "Select category"
+  placeholder = "Select category",
+  className
 }: TransactionCategorySelectProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -138,7 +140,10 @@ export function TransactionCategorySelect({
             
             <div 
               ref={viewportRef}
-              className="p-1 h-[40vh] max-h-[300px] overflow-y-auto"
+              className={cn(
+                "p-1 h-[40vh] max-h-[300px] overflow-y-auto",
+                className
+              )}
             >
               {categoryGroups.map((group) => {
                 const filteredCategories = filterAndSortCategories(group.categories, searchQuery);

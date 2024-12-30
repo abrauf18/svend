@@ -1418,7 +1418,6 @@ class BudgetService {
       } as TransactionsSyncRequest);
 
       for (const transaction of response.data.added) {
-        console.log('Raw Plaid transaction ID:', transaction.transaction_id);
         const plaidCategory = transaction.personal_finance_category?.detailed;
         if (plaidCategory) {
           const newTransaction = this.onboardingAnalysisCreateTransactionFromPlaid(
@@ -1494,11 +1493,6 @@ class BudgetService {
 
       // Process inflow and outflow streams separately
       for (const stream of [...response.data.inflow_streams, ...response.data.outflow_streams]) {
-        console.log('Raw Plaid recurring transaction stream:', {
-          accountId: stream.account_id,
-          transactionIds: stream.transaction_ids
-        });
-
         const newRecurringTransaction = this.onboardingAnalysisCreateRecurringTransactionFromPlaid(
           stream,
           plaidAccounts
@@ -1972,12 +1966,6 @@ class BudgetService {
       const plaidToDbIdMap = new Map(
         dbTransactions?.map(tx => [tx.plaid_tx_id, tx.id]) || []
       );
-
-      console.log('Database ID mappings:', {
-        plaidIds: allPlaidTxIds,
-        dbMappings: Object.fromEntries(plaidToDbIdMap),
-        dbTransactions
-      });
 
       // Update recurring transactions with the correct fin_account_transaction_ids
       transactionData.newRecurringTransactions = transactionData.newRecurringTransactions.map(rt => {

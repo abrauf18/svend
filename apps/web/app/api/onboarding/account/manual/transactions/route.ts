@@ -9,7 +9,10 @@ import { z } from 'zod';
 
 const transactionSchema = z.object({
   date: z.string().min(1, { message: 'Date is required' }),
-  amount: z.number().min(1, { message: 'Amount is required' }),
+  amount: z.number({
+    required_error: 'Amount is a required field',
+    invalid_type_error: 'Must be a valid number',
+  }),
   manual_account_id: z.string().min(1, { message: 'Account is required' }),
   svend_category_id: z.string().min(1, { message: 'Category is required' }),
   user_tx_id: z
@@ -23,6 +26,7 @@ const transactionSchema = z.object({
     .refine((data) => (data.match(/[a-z]/g) ? false : true), {
       message: 'Only capital letters are allowed',
     }),
+  merchant_name: z.string().optional(),
 });
 
 export const POST = enhanceRouteHandler(
@@ -82,7 +86,7 @@ export const POST = enhanceRouteHandler(
               svend_category_id,
               budget_fin_account_id: budgetFinAccountId,
               iso_currency_code: null,
-              merchant_name: null,
+              merchant_name: body.merchant_name ?? null,
               payee: null,
               plaid_category_detailed: null,
               plaid_category_confidence: null,
@@ -97,11 +101,20 @@ export const POST = enhanceRouteHandler(
       if (error) throw new Error(error.message);
       if (!data) throw new Error('No data was returned from the database');
 
+      // Fetch the full transaction details
+      const { data: newTransaction, error: fetchError } = await supabaseAdmin
+        .from('fin_account_transactions')
+        .select('*')
+        .eq('id', data[0]!)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (!newTransaction) throw new Error('Could not fetch created transaction');
+
       return NextResponse.json(
         {
-          message:
-            '[Create Transaction Endpoint] Transaction created successfully',
-          transactionId: data[0],
+          message: '[Create Transaction Endpoint] Transaction created successfully',
+          transaction: newTransaction, // Return full transaction instead of just ID
         },
         { status: 200 },
       );

@@ -11,7 +11,7 @@ import {
 import { Input } from '@kit/ui/input';
 import { Label } from '@kit/ui/label';
 import { Loader2, PlusIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -23,12 +23,10 @@ import TransactionIdInput from './components/transaction-id-input';
 
 const institutionSchema = z.object({
   date: z.string().min(1, { message: 'Date is a required field' }),
-  amount: z
-    .number({
-      required_error: 'Amount is a required field',
-      invalid_type_error: 'Must be a valid number',
-    })
-    .min(1),
+  amount: z.number({
+    required_error: 'Amount is a required field',
+    invalid_type_error: 'Must be a valid number',
+  }),
   svend_category_id: z
     .string()
     .min(1, { message: 'Category is a required field' }),
@@ -43,6 +41,7 @@ const institutionSchema = z.object({
     .refine((data) => (data.match(/[a-z]/g) ? false : true), {
       message: 'Only capital letters are allowed',
     }),
+  merchant_name: z.string().optional(),
 });
 
 type Props = {
@@ -72,11 +71,25 @@ export default function CreateTransaction({
     setError,
   } = useForm<z.infer<typeof institutionSchema>>({
     resolver: zodResolver(institutionSchema),
-    mode: 'onChange',
-    defaultValues: {
-      amount: 0,
-    },
+    mode: 'onChange'
   });
+
+  const [amountInput, setAmountInput] = useState('0.00');
+
+  const handleAmountBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const numericValue = parseFloat(rawValue);
+    
+    if (isNaN(numericValue)) {
+      setAmountInput('0.00');
+      setValue('amount', 0);
+      return;
+    }
+
+    const formattedValue = numericValue.toFixed(2);
+    setAmountInput(formattedValue);
+    setValue('amount', parseFloat(formattedValue));
+  }, [setValue]);
 
   async function handleCreateTransaction(
     data: z.infer<typeof institutionSchema>,
@@ -117,33 +130,21 @@ export default function CreateTransaction({
 
       if (!res.ok) throw new Error(res.statusText);
 
-      const { transactionId } = await res.json();
+      const { transaction: resTransaction } = await res.json();
 
-      accountManualTransactionCreateOne(manualAccount.id, {
-        ...data,
-        id: transactionId,
-        plaid_tx_id: null,
-        manual_account_id: manualAccount.id,
-        created_at: null,
-        updated_at: null,
-        iso_currency_code: null,
-        merchant_name: null,
-        payee: null,
-        plaid_account_id: null,
-        plaid_category_confidence: null,
-        plaid_category_detailed: null,
-        plaid_raw_data: {},
-      });
+      accountManualTransactionCreateOne(manualAccount.id, resTransaction);
 
       toast.success('Transaction created successfully');
-
+      
       reset();
+      setAmountInput('0.00');
+      setIsDialogOpened(false);
+      
     } catch (err: any) {
       console.error('Unknown server error');
 
       toast.error('Transaction could not be created');
     } finally {
-      setIsDialogOpened(false);
       setIsLoading(false);
     }
   }
@@ -151,7 +152,10 @@ export default function CreateTransaction({
   function handleDialogState(open: boolean) {
     setIsDialogOpened(open);
 
-    if (formState.isDirty && !open) reset();
+    if (!open) {
+      reset();
+      setAmountInput('0.00');
+    }
   }
 
   const svendCategoryId = watch('svend_category_id');
@@ -195,6 +199,7 @@ export default function CreateTransaction({
               date: data.date,
               svend_category_id: data.svend_category_id,
               user_tx_id: data.user_tx_id,
+              merchant_name: data.merchant_name,
             }),
           )}
         >
@@ -225,18 +230,22 @@ export default function CreateTransaction({
                 Amount<span className="text-destructive">*</span>
               </Label>
 
-              <Input
-                id="amount"
-                type="text"
-                placeholder="0.00"
-                {...register('amount', { valueAsNumber: true })}
-                onInput={(e) =>
-                  (e.currentTarget.value = e.currentTarget.value.replace(
-                    /[^0-9.]/g,
-                    '',
-                  ))
-                }
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+                  $
+                </span>
+                <Input
+                  id="amount"
+                  value={amountInput}
+                  placeholder="0.00"
+                  className="pl-7 w-full"
+                  type="text"
+                  inputMode="decimal"
+                  {...register('amount')}
+                  onChange={(e) => setAmountInput(e.target.value)}
+                  onBlur={handleAmountBlur}
+                />
+              </div>
 
               <RenderError formState={formState} name="amount" />
             </div>
@@ -254,8 +263,15 @@ export default function CreateTransaction({
                   });
                 }}
                 categoryGroups={Object.values(categories)}
+                className="max-h-[200px] overflow-y-auto"
               />
               <RenderError formState={formState} name="svend_category_id" />
+            </div>
+
+            <div className={`flex flex-col gap-2`}>
+              <Label>Merchant Name</Label>
+              <Input {...register('merchant_name')} placeholder="Enter merchant name" />
+              <RenderError formState={formState} name="merchant_name" />
             </div>
           </div>
           <div className={`flex items-center justify-end gap-2`}>

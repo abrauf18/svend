@@ -8,7 +8,10 @@ import { z } from 'zod';
 
 const putBodySchema = z.object({
   date: z.string().min(1, { message: 'Date is required' }),
-  amount: z.number().min(1, { message: 'Amount is required' }),
+  amount: z.number({
+    required_error: 'Amount is a required field',
+    invalid_type_error: 'Must be a valid number',
+  }),
   svend_category_id: z.string().min(1, { message: 'Category is required' }),
   manual_account_id: z.string().min(1, { message: 'Account is required' }),
   user_tx_id: z.string().min(1, { message: 'user_tx_id is required' }),

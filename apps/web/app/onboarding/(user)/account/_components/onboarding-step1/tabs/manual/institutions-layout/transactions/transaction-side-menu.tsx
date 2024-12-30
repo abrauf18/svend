@@ -28,12 +28,9 @@ const transactionFormSchema = z.object({
   amount: z
     .string()
     .min(1, 'Amount is a required field')
-    .transform((val) => val.replace(/[^0-9.]/g, ''))
+    .transform((val) => val.replace(/[^0-9.-]/g, ''))
     .refine((val) => !isNaN(Number(val)), {
       message: 'Must be a valid number',
-    })
-    .refine((val) => Number(val) > 0, {
-      message: 'Amount must be greater than 0',
     }),
   manual_account_id: z.string().min(1, 'Account is a required field'),
   user_tx_id: z
@@ -232,7 +229,7 @@ export default function TransactionSideMenu() {
                 className="pl-8"
                 {...register('amount')}
                 onInput={(e) => {
-                  let value = e.currentTarget.value.replace(/[^0-9.]/g, '');
+                  let value = e.currentTarget.value.replace(/[^0-9.-]/g, '');
                   const decimalCount = (value.match(/\./g) || []).length;
                   if (decimalCount > 1) {
                     value = value.replace(/\.(?=.*\.)/g, '');
@@ -241,11 +238,18 @@ export default function TransactionSideMenu() {
                 }}
                 onBlur={(e) => {
                   const value = e.currentTarget.value;
-                  if (value) {
-                    const roundedValue = Number(Number(value).toFixed(2)).toFixed(2);
-                    e.currentTarget.value = roundedValue;
-                    setValue('amount', roundedValue);
+                  const numericValue = Number(value);
+                  
+                  if (isNaN(numericValue)) {
+                    // Revert to previous valid value
+                    e.currentTarget.value = transaction.amount.toFixed(2);
+                    setValue('amount', transaction.amount.toFixed(2));
+                    return;
                   }
+
+                  const roundedValue = numericValue.toFixed(2);
+                  e.currentTarget.value = roundedValue;
+                  setValue('amount', roundedValue);
                 }}
               />
             </div>
@@ -263,11 +267,6 @@ export default function TransactionSideMenu() {
               categoryGroups={Object.values(categories)}
             />
             <RenderError formState={formState} name="svend_category_id" />
-          </div>
-          <div className={`flex flex-col gap-4`}>
-            <Label>Merchant Name</Label>
-            <Input {...register('merchant_name')} placeholder="Enter merchant name" />
-            <RenderError formState={formState} name="merchant_name" />
           </div>
           <div className={`flex flex-col gap-4`}>
             <Label htmlFor="account">
@@ -299,6 +298,11 @@ export default function TransactionSideMenu() {
             </Select>
             <RenderError formState={formState} name="manual_account_id" />
           </div>
+          <div className={`flex flex-col gap-4`}>
+            <Label>Merchant Name</Label>
+            <Input {...register('merchant_name')} placeholder="Enter merchant name" />
+            <RenderError formState={formState} name="merchant_name" />
+          </div>
           <div className="mt-auto flex border-t bg-background p-4">
             <div className="flex w-full flex-col gap-4 sm:flex-row sm:justify-end">
               <Button
@@ -316,7 +320,10 @@ export default function TransactionSideMenu() {
                 className="w-full sm:w-auto"
               >
                 {isLoading ? (
-                  <Spinner className={`fill-black dark:fill-white`} />
+                  <div className="flex items-center gap-2">
+                    Saving...
+                    <Spinner className={`fill-black dark:fill-white`} />
+                  </div>
                 ) : (
                   'Save'
                 )}

@@ -29,6 +29,7 @@ T2022060303,12/02/2024,35.00,Bank of America,Bank Fees,Bank of America,BOA,Credi
 BOA123400000003,12/02/2024,89.75,Albertsons,Groceries,Bank of America,BOA,Cash,DEPOSITORY,1234
 T2022050302,12/01/2024,479.99,Target,Superstores,Bank of America,BOA,Credit Card Main,CREDIT,3124
 BOA123400000002,12/01/2024,12.99,McDonald's,Fast Food,Bank of America,BOA,Cash,DEPOSITORY,1234
+BOA123400000001,12/01/2024,-4000,Direct Deposit,Income,Bank of America,BOA,Cash,DEPOSITORY,1234
 T2022040301,11/26/2024,156.78,Safeway,Groceries,Bank of America,BOA,Checking Primary,DEPOSITORY,3123
 T2022040331,11/26/2024,189.45,Whole Foods,Groceries,Bank of America,BOA,Checking Primary,DEPOSITORY,3124
 T2022040333,11/26/2024,167.89,Kroger,Groceries,Citibank,CITI,Joint Checking,DEPOSITORY,3123
