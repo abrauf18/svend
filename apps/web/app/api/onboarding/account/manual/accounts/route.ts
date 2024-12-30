@@ -9,7 +9,9 @@ const accountSchema = z.object({
     .string()
     .min(1, { message: 'Name should have between 1 and 50 characters' })
     .max(50, { message: 'Name should have between 1 and 50 characters' }),
-  type: z.string().min(1, { message: 'Type is a required field' }),
+  type: z.enum(['depository', 'credit', 'loan', 'investment', 'other'], {
+    errorMap: () => ({ message: 'Please select a valid account type' }),
+  }),
   mask: z
     .string()
     .length(4, { message: 'Mask must be 4 characters long' })
@@ -54,7 +56,7 @@ export const POST = enhanceRouteHandler(
           .from('manual_fin_accounts')
           .insert({
             institution_id: institutionId,
-            type,
+            type: type as "investment" | "depository" | "credit" | "loan" | "other",
             name,
             owner_account_id: user.id,
             mask,

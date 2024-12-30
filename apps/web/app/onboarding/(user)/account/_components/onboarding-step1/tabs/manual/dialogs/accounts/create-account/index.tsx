@@ -19,13 +19,30 @@ import { useOnboardingContext } from '~/components/onboarding-context';
 import RenderError from '~/components/ui/forms/render-error';
 import Tooltip from '~/components/ui/tooltip';
 import { AccountOnboardingInstitution } from '~/lib/model/onboarding.types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@kit/ui/select';
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from "@kit/ui/form";
 
 const accountSchema = z.object({
   name: z
     .string()
     .min(1, { message: 'Name should have between 1 and 50 characters' })
     .max(50, { message: 'Name should have between 1 and 50 characters' }),
-  type: z.string().min(1, { message: 'Type is a required field' }),
+  type: z.enum(['depository', 'credit', 'loan', 'investment', 'other'], {
+    errorMap: () => ({ message: 'Please select an account type' }),
+  }),
   mask: z
     .string()
     .length(4, { message: 'Mask must be 4 digits' })
@@ -78,15 +95,15 @@ export default function CreateAccount({
     return `${whole}.${decimal.slice(0, 2).padEnd(2, '0')}`;
   }, []);
 
-  const { register, handleSubmit, reset, formState, setError, setValue } = useForm<
-    z.infer<typeof accountSchema>
-  >({
+  const form = useForm<z.infer<typeof accountSchema>>({
     resolver: zodResolver(accountSchema),
     mode: 'onChange',
     defaultValues: {
       balanceCurrent: '0.00',
     },
   });
+
+  const { formState, setError, setValue } = form;
 
   const handleBalanceBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
@@ -139,7 +156,7 @@ export default function CreateAccount({
 
       toast.success('Account created successfully');
 
-      reset();
+      form.reset();
     } catch (err: any) {
       console.error('Unknown server error');
       toast.error('Account could not be created');
@@ -154,7 +171,7 @@ export default function CreateAccount({
     setIsDialogOpened(open);
     setIsAddingAccount(open);
 
-    if (formState.isDirty && !open) reset();
+    if (formState.isDirty && !open) form.reset();
   }
 
   return (
@@ -186,107 +203,126 @@ export default function CreateAccount({
               : institution.name + ` (${institution.symbol})`}
           </DialogDescription>
         </DialogHeader>
-        <form
-          className={`flex flex-col gap-4`}
-          onSubmit={handleSubmit((data) =>
-            handleCreateAccount({
-              name: data.name,
-              type: data.type,
-              mask: data.mask,
-              balanceCurrent: data.balanceCurrent,
-            }),
-          )}
-        >
-          <div className={`flex w-full flex-col gap-6`}>
-            <div className={`flex flex-col gap-2`}>
-              <Label htmlFor="name">
-                Name<span className="text-destructive">*</span>
-              </Label>
-              <Input
-                {...register('name')}
-                placeholder="Name"
-                className={`w-full`}
-                id="name"
-              />
-              <RenderError formState={formState} name="name" />
-            </div>
-            <div className={`flex flex-col gap-2`}>
-              <Label htmlFor="mask" className={`flex items-center`}>
-                Mask<span className="text-destructive">*</span>
-                <Tooltip
-                  className={`ml-2`}
-                  message="The last 4 digits of your account number"
-                />
-              </Label>
-              <Input
-                {...register('mask')}
-                placeholder="Type"
-                className={`w-full`}
-                id="mask"
-              />
-              <RenderError formState={formState} name="mask" />
-            </div>
-            <div className={`flex flex-col gap-2`}>
-              <Label htmlFor="type">
-                Type<span className="text-destructive">*</span>
-              </Label>
-              <Input
-                {...register('type')}
-                placeholder="Type"
-                className={`w-full`}
-                id="type"
-              />
-              <RenderError formState={formState} name="type" />
-            </div>
-            <div className={`flex flex-col gap-2`}>
-              <Label htmlFor="balanceCurrent">
-                Current Balance<span className="text-destructive">*</span>
-              </Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                  $
-                </span>
+        <Form {...form}>
+          <form
+            className={`flex flex-col gap-4`}
+            onSubmit={form.handleSubmit((data) =>
+              handleCreateAccount({
+                name: data.name,
+                type: data.type,
+                mask: data.mask,
+                balanceCurrent: data.balanceCurrent,
+              }),
+            )}
+          >
+            <div className={`flex w-full flex-col gap-6`}>
+              <div className={`flex flex-col gap-2`}>
+                <Label htmlFor="name">
+                  Name<span className="text-destructive">*</span>
+                </Label>
                 <Input
-                  {...register('balanceCurrent')}
-                  value={balanceInput}
-                  onChange={(e) => setBalanceInput(e.target.value)}
-                  onBlur={handleBalanceBlur}
-                  placeholder="0.00"
-                  className="pl-7 w-full"
-                  id="balance_current"
-                  type="text"
-                  inputMode="decimal"
+                  {...form.register('name')}
+                  placeholder="Name"
+                  className={`w-full`}
+                  id="name"
                 />
+                <RenderError formState={formState} name="name" />
               </div>
-              <RenderError formState={formState} name="balanceCurrent" />
+              <div className={`flex flex-col gap-2`}>
+                <Label htmlFor="mask" className={`flex items-center`}>
+                  Mask<span className="text-destructive">*</span>
+                  <Tooltip
+                    className={`ml-2`}
+                    message="The last 4 digits of your account number"
+                  />
+                </Label>
+                <Input
+                  {...form.register('mask')}
+                  placeholder="1234"
+                  className={`w-full`}
+                  id="mask"
+                />
+                <RenderError formState={formState} name="mask" />
+              </div>
+              <div className={`flex flex-col gap-2`}>
+                <Label htmlFor="type">
+                  Type<span className="text-destructive">*</span>
+                </Label>
+                <FormField
+                  control={form.control}
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an account type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="depository">Depository</SelectItem>
+                          <SelectItem value="credit">Credit</SelectItem>
+                          <SelectItem value="loan">Loan</SelectItem>
+                          <SelectItem value="investment">Investment</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <RenderError formState={formState} name="type" />
+              </div>
+              <div className={`flex flex-col gap-2`}>
+                <Label htmlFor="balanceCurrent">
+                  Current Balance<span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+                    $
+                  </span>
+                  <Input
+                    {...form.register('balanceCurrent')}
+                    value={balanceInput}
+                    onChange={(e) => setBalanceInput(e.target.value)}
+                    onBlur={handleBalanceBlur}
+                    placeholder="0.00"
+                    className="pl-7 w-full"
+                    id="balance_current"
+                    type="text"
+                    inputMode="decimal"
+                  />
+                </div>
+                <RenderError formState={formState} name="balanceCurrent" />
+              </div>
             </div>
-          </div>
-          <div className={`flex items-center justify-end gap-2`}>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleDialogState(false)}
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
+            <div className={`flex items-center justify-end gap-2`}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleDialogState(false)}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
 
-            <Button
-              disabled={isLoading || Object.values(formState.errors).length > 0}
-              type="submit"
-              variant="default"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Create Account'
-              )}
-            </Button>
-          </div>
-        </form>
+              <Button
+                disabled={isLoading || Object.values(formState.errors).length > 0}
+                type="submit"
+                variant="default"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Create Account'
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

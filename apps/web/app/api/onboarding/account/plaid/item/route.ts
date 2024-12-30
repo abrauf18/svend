@@ -144,7 +144,7 @@ export async function POST(request: Request) {
         p_plaid_account_id: plaidAccount.account_id,
         p_account_id: user.id,
         p_name: plaidAccount.name,
-        p_type: plaidAccount.type,
+        p_type: plaidAccount.type.toLowerCase() as "investment" | "depository" | "credit" | "loan" | "other",
 
         // nullable fields
         p_mask: plaidAccount.mask as string | undefined,

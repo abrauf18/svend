@@ -24,10 +24,27 @@ import {
   AccountOnboardingInstitution,
   AccountOnboardingInstitutionAccount,
 } from '~/lib/model/onboarding.types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@kit/ui/select';
+import {
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from "@kit/ui/form";
+import { Form } from "@kit/ui/form";
 
 const accountSchema = z.object({
   name: z.string().min(1).max(50),
-  type: z.string().min(1),
+  type: z.enum(['depository', 'credit', 'loan', 'investment', 'other'], {
+    errorMap: () => ({ message: 'Please select an account type' }),
+  }),
   mask: z.string().length(4).refine((data) => !data.match(/[^0-9]/g)),
   balanceCurrent: z.string()
     .min(1)
@@ -84,16 +101,19 @@ export default function UpdateAccount({ account, institution }: Props) {
     }
   }, [account?.balanceCurrent]);
 
-  const { register, handleSubmit, reset, formState, setError, setValue } = useForm<FormValues>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(accountSchema),
     mode: 'onChange',
     defaultValues: {
       name: account.name,
-      type: account.type,
+      type: account.type as 'depository' | 'credit' | 'loan' | 'investment' | 'other',
       mask: account.mask,
       balanceCurrent: balanceInput,
     },
   });
+
+  // Replace existing destructured values
+  const { formState, setError, setValue, reset, register, handleSubmit, control } = form;
 
   // Ensure balance stays formatted if account prop changes
   useEffect(() => {
@@ -191,107 +211,126 @@ export default function UpdateAccount({ account, institution }: Props) {
             Update the account in the {institution.name} institution.
           </DialogDescription>
         </DialogHeader>
-        <form
-          className={`flex flex-col gap-4`}
-          onSubmit={handleSubmit((data: FormValues) =>
-            handleUpdateAccount({
-              name: data.name,
-              type: data.type,
-              mask: data.mask,
-              balanceCurrent: balanceInput,
-            }),
-          )}
-        >
-          <div className={`flex w-full flex-col gap-6`}>
-            <div className={`flex flex-col gap-2`}>
-              <Label htmlFor="name">
-                Name<span className="text-destructive">*</span>
-              </Label>
-              <Input
-                {...register('name')}
-                placeholder="Name"
-                className={`w-full`}
-                id="name"
-              />
-              <RenderError formState={formState} name="name" />
-            </div>
-            <div className={`flex flex-col gap-2`}>
-              <Label htmlFor="mask" className={`flex items-center`}>
-                Mask<span className="text-destructive">*</span>
-                <Tooltip
-                  className={`ml-2`}
-                  message="The last 4 digits of your account number"
-                />
-              </Label>
-              <Input
-                {...register('mask')}
-                placeholder="Type"
-                className={`w-full`}
-                id="mask"
-              />
-              <RenderError formState={formState} name="mask" />
-            </div>
-            <div className={`flex flex-col gap-2`}>
-              <Label htmlFor="type">
-                Type<span className="text-destructive">*</span>
-              </Label>
-              <Input
-                {...register('type')}
-                placeholder="Type"
-                className={`w-full`}
-                id="type"
-              />
-              <RenderError formState={formState} name="type" />
-            </div>
-            <div className={`flex flex-col gap-2`}>
-              <Label htmlFor="balanceCurrent">
-                Current Balance<span className="text-destructive">*</span>
-              </Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                  $
-                </span>
+        <Form {...form}>
+          <form
+            className={`flex flex-col gap-4`}
+            onSubmit={handleSubmit((data: FormValues) =>
+              handleUpdateAccount({
+                name: data.name,
+                type: data.type,
+                mask: data.mask,
+                balanceCurrent: balanceInput,
+              }),
+            )}
+          >
+            <div className={`flex w-full flex-col gap-6`}>
+              <div className={`flex flex-col gap-2`}>
+                <Label htmlFor="name">
+                  Name<span className="text-destructive">*</span>
+                </Label>
                 <Input
-                  {...register('balanceCurrent')}
-                  value={balanceInput}
-                  onChange={(e) => setBalanceInput(e.target.value)}
-                  onBlur={handleBalanceBlur}
-                  placeholder="0.00"
-                  className="pl-7 w-full"
-                  id="balanceCurrent"
-                  type="text"
-                  inputMode="decimal"
+                  {...register('name')}
+                  placeholder="Name"
+                  className={`w-full`}
+                  id="name"
                 />
+                <RenderError formState={formState} name="name" />
               </div>
-              <RenderError formState={formState} name="balanceCurrent" />
+              <div className={`flex flex-col gap-2`}>
+                <Label htmlFor="mask" className={`flex items-center`}>
+                  Mask<span className="text-destructive">*</span>
+                  <Tooltip
+                    className={`ml-2`}
+                    message="The last 4 digits of your account number"
+                  />
+                </Label>
+                <Input
+                  {...register('mask')}
+                  placeholder="1234"
+                  className={`w-full`}
+                  id="mask"
+                />
+                <RenderError formState={formState} name="mask" />
+              </div>
+              <div className={`flex flex-col gap-2`}>
+                <Label htmlFor="type">
+                  Type<span className="text-destructive">*</span>
+                </Label>
+                <FormField
+                  control={control}
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an account type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="depository">Depository</SelectItem>
+                          <SelectItem value="credit">Credit</SelectItem>
+                          <SelectItem value="loan">Loan</SelectItem>
+                          <SelectItem value="investment">Investment</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <RenderError formState={formState} name="type" />
+              </div>
+              <div className={`flex flex-col gap-2`}>
+                <Label htmlFor="balanceCurrent">
+                  Current Balance<span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+                    $
+                  </span>
+                  <Input
+                    {...register('balanceCurrent')}
+                    value={balanceInput}
+                    onChange={(e) => setBalanceInput(e.target.value)}
+                    onBlur={handleBalanceBlur}
+                    placeholder="0.00"
+                    className="pl-7 w-full"
+                    id="balanceCurrent"
+                    type="text"
+                    inputMode="decimal"
+                  />
+                </div>
+                <RenderError formState={formState} name="balanceCurrent" />
+              </div>
             </div>
-          </div>
-          <div className={`flex items-center justify-end gap-2`}>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleDialogState(false)}
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
+            <div className={`flex items-center justify-end gap-2`}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleDialogState(false)}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
 
-            <Button
-              disabled={isLoading || Object.values(formState.errors).length > 0}
-              type="submit"
-              variant="default"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Update Account'
-              )}
-            </Button>
-          </div>
-        </form>
+              <Button
+                disabled={isLoading || Object.values(formState.errors).length > 0}
+                type="submit"
+                variant="default"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Update Account'
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
