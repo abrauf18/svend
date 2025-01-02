@@ -53,7 +53,7 @@ class BudgetService {
         iso_currency_code: budgetTransaction.transaction.isoCurrencyCode || 'USD',
         plaid_category_detailed: budgetTransaction.transaction.plaidDetailedCategory ?? null,
         plaid_category_confidence: budgetTransaction.transaction.plaidCategoryConfidence ?? null,
-        raw_data: budgetTransaction.transaction.plaidRawData as any
+        plaid_raw_data: budgetTransaction.transaction.plaidRawData as any
       }));
 
       // Call the RPC function with the array of inputs
@@ -93,11 +93,13 @@ class BudgetService {
       // Transform transactions into the expected input format
       const transactionInputs = transactions.map(budgetTransaction => ({
         budget_fin_account_id: budgetTransaction.budgetFinAccountId!,
+        user_tx_id: budgetTransaction.transaction.userTxId,
+        plaid_tx_id: budgetTransaction.transaction.plaidTxId ?? null,
         fin_account_transaction_ids: budgetTransaction.transaction.finAccountTransactionIds,
         svend_category_id: budgetTransaction.categoryId!,
         plaid_category_detailed: budgetTransaction.transaction.plaidDetailedCategory ?? null,
         plaid_category_confidence: budgetTransaction.transaction.plaidCategoryConfidence ?? null,
-        raw_data: budgetTransaction.transaction.plaidRawData as any
+        plaid_raw_data: budgetTransaction.transaction.plaidRawData as any
       }));
 
       // Call the RPC function with the array of inputs
@@ -202,6 +204,8 @@ class BudgetService {
       for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
         const batch = transactions.slice(i, i + BATCH_SIZE);
         const transactionsToInsert = batch.map((tx) => ({
+          user_tx_id: tx.userTxId,
+          plaid_tx_id: tx.plaidTxId,
           fin_account_transaction_ids: tx.finAccountTransactionIds,
           svend_category_id: tx.svendCategoryId as string,
           plaid_account_id: tx.plaidAccountId,
@@ -808,6 +812,8 @@ class BudgetService {
           const validTransaction: BudgetFinAccountRecurringTransaction = {
             transaction: {
               id: budgetRecurringTransaction.id,
+              userTxId: budgetRecurringTransaction.user_tx_id,
+              plaidTxId: budgetRecurringTransaction.plaid_tx_id,
               finAccountTransactionIds: budgetRecurringTransaction.fin_account_transaction_ids ?? [],
               createdAt: budgetRecurringTransaction.created_at,
               updatedAt: budgetRecurringTransaction.updated_at,
@@ -1138,6 +1144,7 @@ class BudgetService {
   ): Promise<OnboardingAnalysisTransactionCollection> {
     const result: OnboardingAnalysisTransactionCollection = {
       allTransactions: [],
+      allRecurringTransactions: [],
       newTransactions: [],
       newUnlinkedTransactions: [],
       newRecurringTransactions: [],
@@ -1164,44 +1171,7 @@ class BudgetService {
       );
     }
 
-    // Process both new transactions and new unlinked transactions
-    for (const tx of [...result.newTransactions, ...result.newUnlinkedTransactions]) {
-      const transaction = 'transaction' in tx ? tx.transaction : tx;
-
-      if (!transaction.userTxId && transaction.plaidTxId) {
-        let isUnique = false;
-        while (!isUnique) {
-          const potentialIds = Array.from({ length: 10 }, () =>
-            this.generateUserTxIdFromPlaidTx(transaction)
-          );
-
-          const { data: existingTxs } = await this.supabase
-            .from('fin_account_transactions')
-            .select('user_tx_id')
-            .in('user_tx_id', potentialIds);
-
-          const existingIds = new Set(existingTxs?.map(tx => tx.user_tx_id));
-          const uniqueId = potentialIds.find(id => !existingIds.has(id));
-
-          if (uniqueId) {
-            transaction.userTxId = uniqueId;
-            isUnique = true;
-          }
-        }
-      }
-    }
-
     return result;
-  }
-
-  // Helper method to generate user_tx_id
-  private generateUserTxIdFromPlaidTx(transaction: FinAccountTransaction): string {
-    const date = new Date(transaction.date);
-    const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-    const plaidTxIdSuffix = transaction.plaidTxId?.slice(-6) || '000000'; // Last 6 of plaid_tx_id
-    const randomCounter = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // Random 6-digit number
-
-    return `P${formattedDate}${randomCounter}${plaidTxIdSuffix}`;
   }
 
   /**
@@ -1251,27 +1221,141 @@ class BudgetService {
       const existingTransactions = await this.onboardingAnalysisFetchPlaidItemTransactions(item.svendItemId, budgetId);
 
       // 2. Get Plaid account mappings
-      const plaidAccounts = this.onboardingAnalysisGetPlaidAccountMappings(existingTransactions);
+      const plaidAccountMappings = this.onboardingAnalysisGetPlaidAccountMappings(existingTransactions);
 
       // 3. Process existing transactions
       this.onboardingAnalysisProcessExistingTransactions(existingTransactions, result);
 
       // 4. Sync new transactions from Plaid with retry
       await this.retryOperation(async () => {
-        await this.onboardingAnalysisSyncNewTransactions(item, plaidClient, plaidAccounts, result);
+        await this.onboardingAnalysisSyncNewTransactions(item, plaidClient, plaidAccountMappings, result);
       });
 
-      // 5. Sync new recurring transactions from Plaid with retry
+      // Auto-generate userTxId for new transactions
+      for (const tx of [...result.newTransactions, ...result.newUnlinkedTransactions]) {
+        const transaction = 'transaction' in tx ? tx.transaction : tx;
+
+        if (!transaction.userTxId && transaction.plaidTxId) {
+          transaction.userTxId = await this.generateUserTxIdFromPlaidTx(transaction);
+        }
+      }
+
+      // 5. Fetch existing recurring transactions
+      const existingRecurringTransactions = await this.onboardingAnalysisFetchPlaidItemRecurringTransactions(item.svendItemId, budgetId);
+
+      // 6. Process existing recurring transactions
+      this.onboardingAnalysisProcessExistingRecurringTransactions(existingRecurringTransactions, result);
+
+      // 7. Sync new recurring transactions from Plaid with retry
       await this.retryOperation(async () => {
-        await this.onboardingAnalysisSyncNewRecurringTransactions(item, plaidClient, plaidAccounts, result);
+        await this.onboardingAnalysisSyncNewRecurringTransactions(item, plaidClient, plaidAccountMappings, result);
       });
 
+      // Auto-generate userTxId for new recurring transactions
+      for (const tx of [...result.newRecurringTransactions, ...result.newUnlinkedRecurringTransactions]) {
+        const transaction = 'transaction' in tx ? tx.transaction : tx;
+
+        if (!transaction.userTxId && transaction.plaidTxId) {
+          transaction.userTxId = await this.generateUserTxIdFromRecurringPlaidTx(transaction);
+        }
+      }
     } catch (error: any) {
       throw new Error(
         `Failed to process Plaid item ${item.svendItemId}: ${error.message}`
       );
     }
   }
+
+  /**
+     * Generates a unique user transaction ID for a given transaction
+     * @param transaction The transaction needing a unique ID
+     * @returns A promise resolving to a unique user transaction ID
+     */
+  private async generateUserTxIdFromPlaidTx(transaction: FinAccountTransaction): Promise<string> {
+    let isUnique = false;
+    let uniqueId: string | undefined;
+
+    // Helper method to generate user_tx_id
+    const generateUserTxId = (transaction: FinAccountTransaction): string => {
+      const date = new Date(transaction.date);
+      const formattedDate = date.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+      const plaidTxIdSuffix = transaction.plaidTxId?.slice(-6) || '000000'; // Last 6 of plaid_tx_id
+      const randomCounter = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // Random 6-digit number
+
+      return `P${formattedDate}${randomCounter}${plaidTxIdSuffix}`;
+    }
+
+    while (!isUnique) {
+      // Generate 10 potential IDs at once for efficiency
+      const potentialIds = Array.from({ length: 10 }, () =>
+        generateUserTxId(transaction)
+      );
+
+      // Check which IDs already exist in the database
+      const { data: existingTxs } = await this.supabase
+        .from('fin_account_transactions')
+        .select('user_tx_id')
+        .in('user_tx_id', potentialIds);
+
+      // Find first ID that doesn't exist in database
+      const existingIds = new Set(existingTxs?.map(tx => tx.user_tx_id));
+      uniqueId = potentialIds.find(id => !existingIds.has(id));
+
+      if (uniqueId) {
+        isUnique = true;
+      }
+    }
+
+    return uniqueId!;
+  }
+
+  /**
+     * Generates a unique user transaction ID for a given recurring transaction
+     * @param transaction The transaction needing a unique ID
+     * @returns A promise resolving to a unique user transaction ID
+     */
+  private async generateUserTxIdFromRecurringPlaidTx(transaction: FinAccountRecurringTransaction): Promise<string> {
+    let isUnique = false;
+    let uniqueId: string | undefined;
+
+    // Get the most recent date from plaid_raw_data.last_date or use current date
+    const getMostRecentDate = (transaction: FinAccountRecurringTransaction): Date => {
+        const lastDate = transaction.plaidRawData?.last_date;
+        return lastDate ? new Date(lastDate) : new Date();
+    };
+
+    // Get date once
+    const mostRecentDate = getMostRecentDate(transaction);
+    const formattedDate = mostRecentDate.toISOString().slice(0, 10).replace(/-/g, '');
+    const plaidTxIdSuffix = transaction.plaidTxId?.slice(-6) || '000000';
+
+    while (!isUnique) {
+        // Generate 10 IDs with the same date
+        const potentialIds = Array.from({ length: 10 }, () => {
+            const randomCounter = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+            return `P${formattedDate}${randomCounter}${plaidTxIdSuffix}`;
+        });
+
+        const { data: existingTxs, error: existingTxsError } = await this.supabase
+            .from('fin_account_recurring_transactions')
+            .select('user_tx_id')
+            .in('user_tx_id', potentialIds);
+
+        if (existingTxsError) {
+            throw new Error(`[generateUserTxIdFromRecurringPlaidTx]:[generateUserTxId]: Failed to fetch recurring transaction IDs: ${existingTxsError.message}`);
+        }
+
+        const existingIds = new Set(existingTxs?.map(tx => tx.user_tx_id));
+        uniqueId = potentialIds.find(id => !existingIds.has(id));
+
+        if (uniqueId) {
+            isUnique = true;
+        }
+    }
+
+    return uniqueId!;
+  }
+
   /**
    * 2.1 Collects transactions for a single manual institution
    * Part of the transaction collection process
@@ -1312,6 +1396,32 @@ class BudgetService {
         id,
         plaid_account_id,
         fin_account_transactions (*),
+        budget_fin_accounts (id)
+      `)
+      .eq('plaid_conn_item_id', itemId)
+      .eq('budget_fin_accounts.budget_id', budgetId);
+
+    if (error) {
+      throw new Error(`Failed to fetch existing transactions: ${error.message}`);
+    }
+
+    return transactions;
+  }
+
+  /**
+   * 2.2 Fetches existing transactions from the database
+   * Part of the transaction collection process
+   * @param itemId - The ID of the Plaid connection item
+   * @param budgetId - The ID of the budget
+   * @returns Array of existing transactions from the database
+   */
+  private async onboardingAnalysisFetchPlaidItemRecurringTransactions(itemId: string, budgetId: string) {
+    const { data: transactions, error } = await this.supabase
+      .from('plaid_accounts')
+      .select(`
+        id,
+        plaid_account_id,
+        fin_account_recurring_transactions (*),
         budget_fin_accounts (id)
       `)
       .eq('plaid_conn_item_id', itemId)
@@ -1375,10 +1485,21 @@ class BudgetService {
     result: OnboardingAnalysisTransactionCollection
   ) {
     const transactions = dbExistingTransactions
-      .flatMap(account => account.fin_account_transactions.map((transaction: any) => ({
-        ...transaction,
-        budgetFinAccountId: account.budget_fin_accounts[0]?.id
-      })))
+      .flatMap(account => {
+        // Check if account and fin_account_transactions exist
+        if (!account || !account.fin_account_transactions) {
+          console.warn('Account or transactions missing:', {
+            accountId: account?.id,
+            hasTransactions: !!account?.fin_account_transactions
+          });
+          return [];
+        }
+
+        return account.fin_account_transactions.map((transaction: any) => ({
+          ...transaction,
+          budgetFinAccountId: account.budget_fin_accounts?.[0]?.id
+        }));
+      })
       .filter(Boolean);
 
     for (const transaction of transactions) {
@@ -1395,6 +1516,56 @@ class BudgetService {
         } as FinAccountTransaction,
         budgetFinAccountId: transaction.budgetFinAccountId,
       } as BudgetFinAccountTransaction);
+    }
+  }
+
+  /**
+   * 2.4 Processes existing transactions into the result object
+   * Part of the transaction collection process
+   * @param dbExistingTransactions - Array of transactions from database
+   * @param result - Collection to store processed transactions
+   */
+  private onboardingAnalysisProcessExistingRecurringTransactions(
+    dbExistingTransactions: any[],
+    result: OnboardingAnalysisTransactionCollection
+  ) {
+    const transactions = dbExistingTransactions
+      .flatMap(account => {
+        // Check if account and fin_account_recurring_transactions exist
+        if (!account || !account.fin_account_recurring_transactions) {
+          console.warn('Account or recurring transactions missing:', {
+            accountId: account?.id,
+            hasTransactions: !!account?.fin_account_recurring_transactions
+          });
+          return [];
+        }
+
+        return account.fin_account_recurring_transactions.map((transaction: any) => ({
+          ...transaction,
+          budgetFinAccountId: account.budget_fin_accounts?.[0]?.id
+        }));
+      })
+      .filter(Boolean);
+
+    for (const transaction of transactions) {
+      result.allRecurringTransactions.push({
+        transaction: {
+          id: transaction.id,
+          plaidAccountId: transaction.plaid_account_id,
+          manualAccountId: transaction.manual_account_id,
+          svendCategoryId: transaction.svend_category_id,
+          userTxId: transaction.user_tx_id,
+          plaidTxId: transaction.plaid_tx_id,
+          plaidDetailedCategory: transaction.plaid_category_detailed,
+          plaidCategoryConfidence: transaction.plaid_category_confidence,
+          plaidTransactionIds: transaction.plaid_transaction_ids,
+          finAccountTransactionIds: transaction.fin_account_transaction_ids,
+          plaidRawData: transaction.plaid_raw_data,
+          createdAt: transaction.created_at,
+          updatedAt: transaction.updated_at
+        } as FinAccountRecurringTransaction,
+        budgetFinAccountId: transaction.budgetFinAccountId,
+      } as BudgetFinAccountRecurringTransaction);
     }
   }
 
@@ -1493,6 +1664,10 @@ class BudgetService {
 
       // Process inflow and outflow streams separately
       for (const stream of [...response.data.inflow_streams, ...response.data.outflow_streams]) {
+        if (result.allRecurringTransactions.some(t => t.transaction.plaidTxId === stream.stream_id)) {
+          continue;
+        }
+        
         const newRecurringTransaction = this.onboardingAnalysisCreateRecurringTransactionFromPlaid(
           stream,
           plaidAccounts
@@ -1501,6 +1676,7 @@ class BudgetService {
         if (newRecurringTransaction) {
           if (newRecurringTransaction.budgetFinAccountId) {
             result.newRecurringTransactions.push(newRecurringTransaction);
+            result.allRecurringTransactions.push(newRecurringTransaction);
           } else {
             result.newUnlinkedRecurringTransactions.push(newRecurringTransaction.transaction);
           }
@@ -1529,6 +1705,8 @@ class BudgetService {
       return {
         transaction: {
           id: '',
+          userTxId: '',
+          plaidTxId: stream.stream_id,
           plaidAccountId: matchingAccount.id,
           plaidDetailedCategory: stream.personal_finance_category?.detailed,
           plaidCategoryConfidence: stream.personal_finance_category?.confidence_level,
@@ -1543,7 +1721,7 @@ class BudgetService {
       return null;
     }
   }
-  
+
   /**
    * 3. Maps Plaid categories to Svend categories and processes transactions
    */
@@ -1556,6 +1734,7 @@ class BudgetService {
       // Get both Plaid category mappings and all Svend categories
       const uniquePlaidCategories = [...new Set([
         ...transactionData.allTransactions.map(t => t.transaction.plaidDetailedCategory),
+        ...transactionData.allRecurringTransactions.map(t => t.transaction.plaidDetailedCategory),
         ...transactionData.newUnlinkedTransactions.map(t => t.plaidDetailedCategory),
         ...transactionData.newUnlinkedRecurringTransactions.map(t => t.plaidDetailedCategory)
       ].filter((cat): cat is string => !!cat))];
@@ -1593,10 +1772,10 @@ class BudgetService {
         if (!mappedCategory) return null;
 
         // Find the group containing this category
-        const group = Object.values(svendCategories).find(group => 
+        const group = Object.values(svendCategories).find(group =>
           group.categories.some(cat => cat.id === mappedCategory.id)
         );
-        
+
         if (!group) return null;
 
         return {
@@ -1810,6 +1989,9 @@ class BudgetService {
       transactionData.allTransactions = sortTransactionsByDate(
         mapBudgetTransactionCategories(transactionData.allTransactions)
       );
+
+      transactionData.allRecurringTransactions =
+        mapBudgetRecurringTransactionCategories(transactionData.allRecurringTransactions)
 
       transactionData.newTransactions = sortTransactionsByDate(
         mapBudgetTransactionCategories(transactionData.newTransactions)
@@ -2109,9 +2291,12 @@ class BudgetService {
 
       console.log('Transaction Data Analysis:', {
         totalTransactions: transactionData.allTransactions.length,
-        sampleTransaction: transactionData.allTransactions[0],
         newTransactions: transactionData.newTransactions.length,
         newUnlinkedTransactions: transactionData.newUnlinkedTransactions.length,
+        sampleTransaction: transactionData.allTransactions[0],
+        totalRecurringTransactions: transactionData.allRecurringTransactions.length,
+        newRecurringTransactions: transactionData.newRecurringTransactions.length,
+        newUnlinkedRecurringTransactions: transactionData.newUnlinkedRecurringTransactions.length,
       });
 
       // 3. Category Processing
@@ -3314,6 +3499,7 @@ class BudgetService {
 
 interface OnboardingAnalysisTransactionCollection {
   allTransactions: BudgetFinAccountTransaction[];
+  allRecurringTransactions: BudgetFinAccountRecurringTransaction[];
   newTransactions: BudgetFinAccountTransaction[];
   newUnlinkedTransactions: FinAccountTransaction[];
   newRecurringTransactions: BudgetFinAccountRecurringTransaction[];

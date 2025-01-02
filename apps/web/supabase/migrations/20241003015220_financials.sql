@@ -1059,7 +1059,7 @@ create table if not exists public.fin_account_transactions (
   -- pending_transaction_id uuid,
   -- personal_finance_category jsonb,
   user_tx_id varchar(100) not null,
-  plaid_tx_id varchar(100),
+  plaid_tx_id varchar(100) unique,
   -- transaction_code text,
   -- transaction_type text,
   plaid_raw_data jsonb,
@@ -1158,7 +1158,7 @@ CREATE TYPE budget_transaction_input AS (
     iso_currency_code TEXT,
     plaid_category_detailed TEXT,
     plaid_category_confidence TEXT,
-    raw_data JSONB
+    plaid_raw_data JSONB
 );
 
 -- Modified function to handle arrays
@@ -1216,7 +1216,7 @@ BEGIN
             COALESCE(v_transaction.iso_currency_code, 'USD'),
             v_transaction.plaid_category_detailed,
             v_transaction.plaid_category_confidence,
-            v_transaction.raw_data,
+            v_transaction.plaid_raw_data,
             v_transaction.svend_category_id,
             v_transaction.user_tx_id,
             v_transaction.plaid_tx_id
@@ -1258,6 +1258,8 @@ create table if not exists public.fin_account_recurring_transactions (
   id uuid primary key default uuid_generate_v4(),
   plaid_account_id uuid references public.plaid_accounts(id) on delete cascade,
   manual_account_id uuid references public.manual_fin_accounts(id) on delete cascade,
+  user_tx_id varchar(100) not null,
+  plaid_tx_id varchar(100) unique,
   fin_account_transaction_ids uuid[] default '{}',
   svend_category_id UUID NOT NULL REFERENCES public.categories(id),
   plaid_category_detailed text,
@@ -1379,11 +1381,13 @@ grant select, update, insert on public.budget_fin_account_recurring_transactions
 -- Create a composite type for the recurring transaction input parameters
 CREATE TYPE budget_recurring_transaction_input AS (
     budget_fin_account_id UUID,
+    user_tx_id VARCHAR(100),
+    plaid_tx_id VARCHAR(100),
     fin_account_transaction_ids UUID[],
     svend_category_id UUID,
     plaid_category_detailed TEXT,
     plaid_category_confidence TEXT,
-    raw_data JSONB
+    plaid_raw_data JSONB
 );
 
 -- Modified function to handle arrays of recurring transactions
@@ -1420,6 +1424,8 @@ BEGIN
         INSERT INTO fin_account_recurring_transactions (
             plaid_account_id,
             manual_account_id,
+            user_tx_id,
+            plaid_tx_id,
             fin_account_transaction_ids,
             svend_category_id,
             plaid_category_detailed,
@@ -1428,11 +1434,13 @@ BEGIN
         ) VALUES (
             v_plaid_account_id,
             v_manual_account_id,
+            v_transaction.user_tx_id,
+            v_transaction.plaid_tx_id,
             v_transaction.fin_account_transaction_ids,
             v_transaction.svend_category_id,
             v_transaction.plaid_category_detailed,
             v_transaction.plaid_category_confidence,
-            v_transaction.raw_data
+            v_transaction.plaid_raw_data
         )
         RETURNING id INTO v_recurring_transaction_id;
 
@@ -1462,6 +1470,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION get_budget_recurring_transactions_by_team_account_slug(p_team_account_slug TEXT)
 RETURNS TABLE (
     id UUID,
+    user_tx_id varchar(100),
+    plaid_tx_id varchar(100),
     budget_fin_account_id UUID,
     svend_category_group_id UUID,
     svend_category_group TEXT,
@@ -1500,6 +1510,8 @@ grant execute on function get_budget_recurring_transactions_by_team_account_slug
 CREATE OR REPLACE FUNCTION get_budget_recurring_transactions_by_budget_id(p_budget_id UUID)
 RETURNS TABLE (
     id UUID,
+    user_tx_id varchar(100),
+    plaid_tx_id varchar(100),
     budget_fin_account_id UUID,
     svend_category_group_id UUID,
     svend_category_group TEXT,
@@ -1516,6 +1528,8 @@ BEGIN
     RETURN QUERY
     SELECT 
         fart.id,
+        fart.user_tx_id,
+        fart.plaid_tx_id,
         bfa.id AS budget_fin_account_id,
         cg.id AS svend_category_group_id,
         cg.name::TEXT AS svend_category_group,

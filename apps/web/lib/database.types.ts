@@ -727,8 +727,10 @@ export type Database = {
           plaid_category_confidence: string | null
           plaid_category_detailed: string | null
           plaid_raw_data: Json | null
+          plaid_tx_id: string | null
           svend_category_id: string
           updated_at: string | null
+          user_tx_id: string
         }
         Insert: {
           created_at?: string | null
@@ -739,8 +741,10 @@ export type Database = {
           plaid_category_confidence?: string | null
           plaid_category_detailed?: string | null
           plaid_raw_data?: Json | null
+          plaid_tx_id?: string | null
           svend_category_id: string
           updated_at?: string | null
+          user_tx_id: string
         }
         Update: {
           created_at?: string | null
@@ -751,8 +755,10 @@ export type Database = {
           plaid_category_confidence?: string | null
           plaid_category_detailed?: string | null
           plaid_raw_data?: Json | null
+          plaid_tx_id?: string | null
           svend_category_id?: string
           updated_at?: string | null
+          user_tx_id?: string
         }
         Relationships: [
           {
@@ -1954,6 +1960,8 @@ export type Database = {
         }
         Returns: {
           id: string
+          user_tx_id: string
+          plaid_tx_id: string
           budget_fin_account_id: string
           svend_category_group_id: string
           svend_category_group: string
@@ -1973,6 +1981,8 @@ export type Database = {
         }
         Returns: {
           id: string
+          user_tx_id: string
+          plaid_tx_id: string
           budget_fin_account_id: string
           svend_category_group_id: string
           svend_category_group: string
@@ -2348,11 +2358,13 @@ export type Database = {
       }
       budget_recurring_transaction_input: {
         budget_fin_account_id: string | null
+        user_tx_id: string | null
+        plaid_tx_id: string | null
         fin_account_transaction_ids: string[] | null
         svend_category_id: string | null
         plaid_category_detailed: string | null
         plaid_category_confidence: string | null
-        raw_data: Json | null
+        plaid_raw_data: Json | null
       }
       budget_transaction_input: {
         user_tx_id: string | null
@@ -2366,7 +2378,7 @@ export type Database = {
         iso_currency_code: string | null
         plaid_category_detailed: string | null
         plaid_category_confidence: string | null
-        raw_data: Json | null
+        plaid_raw_data: Json | null
       }
       invitation: {
         email: string | null

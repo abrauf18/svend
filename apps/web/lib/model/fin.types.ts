@@ -39,6 +39,8 @@ export interface FinAccountRecurringTransaction {
   plaidAccountId?: string; // UUID referencing the Plaid account associated with the transaction
   manualAccountId?: string; // UUID referencing the manual account associated with the transaction
   svendCategoryId?: string; // UUID referencing the SVEND category associated with the transaction
+  userTxId: string; // Unique identifier for the transaction presented to the user
+  plaidTxId?: string; // Unique identifier for the transaction presented to the user
   plaidDetailedCategory?: string; // Detailed category from Plaid
   plaidCategoryConfidence?: string; // Confidence level for the category from Plaid
   finAccountTransactionIds: string[]; // Array of UUIDs referencing the fin account transactions associated with the recurring transaction
