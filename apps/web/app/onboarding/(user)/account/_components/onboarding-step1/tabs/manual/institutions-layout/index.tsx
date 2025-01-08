@@ -17,6 +17,7 @@ import { FileUp } from 'lucide-react';
 import { Trans } from 'react-i18next';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@kit/ui/accordion";
 import CSVGuideDialog from '../dialogs/institutions/upload-csv-guide';
+import { toast } from 'sonner';
 
 export default function InstitutionsLayout() {
   
@@ -114,18 +115,31 @@ export default function InstitutionsLayout() {
         error?: string;
       }>((res) => res.json());
 
-      if (error) throw new Error(error);
-      if (!institutions)
-        throw new Error('No institutions were returned from server');
+      if (error) {
+        console.error('financial data import error:', error);
+        toast.error('Could not import financial data', {
+          position: 'bottom-center',
+          duration: 3000,
+        });
+      }
+      if (!institutions) {
+        toast.warning('No financial data imported', {
+          position: 'bottom-center',
+          duration: 3000,
+        });
+      }
 
-      accountManualInstitutionsAddMany(institutions);
+      accountManualInstitutionsAddMany(institutions!);
+      
+      toast.success('Financial data imported successfully', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
+      
       setIsImportingFile(false);
     } catch (err: any) {
-      console.error('CSV upload error:', err);
-      if (err.response) {
-        const errorText = await err.response.text();
-        console.error('Server error details:', errorText);
-      }
+      console.error('financial data import error:', err);
+    } finally {
       setIsImportingFile(false);
     }
 

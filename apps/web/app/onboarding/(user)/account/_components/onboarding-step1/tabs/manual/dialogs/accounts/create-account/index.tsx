@@ -154,12 +154,18 @@ export default function CreateAccount({
         balanceCurrent: parseFloat(data.balanceCurrent),
       });
 
-      toast.success('Account created successfully');
+      toast.success('Account created successfully', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
 
       form.reset();
     } catch (err: any) {
       console.error('Unknown server error');
-      toast.error('Account could not be created');
+      toast.error('Account could not be created', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
     } finally {
       setIsDialogOpened(false);
       setIsLoading(false);

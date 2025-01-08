@@ -54,7 +54,8 @@ export function CategoryManagementGroupSelect({
   const inputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   
-  const categoryGroups = Object.values(workspace.budgetCategories);
+  const categoryGroups = Object.values(workspace.budgetCategories)
+    .filter(group => group.name !== workspace.budget.id);
   const budgetId = workspace.budget.id;
 
   const validateName = (name: string) => {
@@ -211,7 +212,7 @@ export function CategoryManagementGroupSelect({
         <SelectPrimitive.Value placeholder={placeholder}>
           <div className="flex items-center">
             {value && categoryGroups.find((g) => g.id === value)?.budgetId == null && (
-              <LockClosedIcon className="mr-2 h-3 w-3 opacity-70" />
+              <LockClosedIcon className="mr-2 h-4 w-4 opacity-70" />
             )}
             <span className={`${truncateText}`}>
               {value && categoryGroups.find((g) => g.id === value)?.name}
@@ -299,7 +300,7 @@ export function CategoryManagementGroupSelect({
                   className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
                 >
                   {group.budgetId == null && (
-                    <LockClosedIcon className="mr-2 h-3 w-3 opacity-70" />
+                    <LockClosedIcon className="mr-2 h-4 w-4 opacity-70" />
                   )}
                   <SelectPrimitive.ItemText>
                     <span className={truncateText}>

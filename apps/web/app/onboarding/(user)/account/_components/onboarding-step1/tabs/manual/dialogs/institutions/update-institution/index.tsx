@@ -117,7 +117,10 @@ export default function UpdateInstitution({ institution }: Props) {
 
       accountManualInstitutionsUpdateOne(institution.id, data);
 
-      toast.success('Institution updated successfully');
+      toast.success('Institution updated successfully', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
 
       reset({
         name: data.name,
@@ -126,7 +129,10 @@ export default function UpdateInstitution({ institution }: Props) {
     } catch (err: any) {
       console.error('Unknown server error');
 
-      toast.error('Institution could not be updated');
+      toast.error('Institution could not be updated', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
     } finally {
       setIsDialogOpened(false);
       setIsLoading(false);

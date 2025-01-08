@@ -84,7 +84,7 @@ const calculateProgressPercentage = (actual: number, target: number): number => 
 };
 
 // Helper function to get the effective target value
-const getEffectiveTarget = (group: any, asNumber: boolean = false): string | number => {
+const getEffectiveTarget = (group: any, asNumber = false): string | number => {
   if (group.targetSource === 'category') {
     const sum = group.categories.reduce((sum: number, cat: any) => 
       sum + parseFloat(cat.target || '0'), 0
@@ -131,7 +131,7 @@ const getProgressBarColors = (
 };
 
 // Update the formatCurrency function to handle accounting style
-const formatCurrency = (amount: string | number, isIncome: boolean = false): string => {
+const formatCurrency = (amount: string | number, isIncome = false): string => {
   const numberAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
   const absAmount = Math.abs(numberAmount);
   
@@ -182,45 +182,47 @@ export const BudgetManageTable = forwardRef<HTMLFormElement, BudgetManageTablePr
         const selectedMonth = selectedDate.toISOString().slice(0, 7); // Format: YYYY-MM
         const currentMonthTracking = budgetSpendingTrackingsByMonth[selectedMonth] || {};
 
-        // Map and process all groups
-        const spendingGroups = Object.entries(allCategories).map(([groupName, group]) => {
-          const groupTracking = currentMonthTracking[groupName] || {
-            spendingActual: 0,
-            spendingTarget: 0,
-            isTaxDeductible: false,
-            targetSource: 'group' as const,
-            categories: []
-          };
-
-          // Map all categories from allCategories, merging with tracking data
-          const categories = group.categories.map(category => {
-            const categoryTracking = groupTracking.categories?.find(
-              c => c.categoryName === category.name
-            ) || {
+        // Filter and map the groups
+        const spendingGroups = Object.entries(allCategories)
+          .filter(([groupName]) => groupName !== workspace.budget.id) // Filter the group with name equal to budget_id
+          .map(([groupName, group]) => {
+            const groupTracking = currentMonthTracking[groupName] || {
               spendingActual: 0,
               spendingTarget: 0,
-              isTaxDeductible: false
+              isTaxDeductible: false,
+              targetSource: 'group' as const,
+              categories: []
             };
+
+            // Map all categories from allCategories, merging with tracking data
+            const categories = group.categories.map(category => {
+              const categoryTracking = groupTracking.categories?.find(
+                c => c.categoryName === category.name
+              ) || {
+                spendingActual: 0,
+                spendingTarget: 0,
+                isTaxDeductible: false
+              };
+
+              return {
+                id: category.id,
+                categoryName: category.name,
+                spending: categoryTracking.spendingActual,
+                target: categoryTracking.spendingTarget.toFixed(2),
+                isTaxDeductible: categoryTracking.isTaxDeductible
+              };
+            });
 
             return {
-              id: category.id,
-              categoryName: category.name,
-              spending: categoryTracking.spendingActual,
-              target: categoryTracking.spendingTarget.toFixed(2),
-              isTaxDeductible: categoryTracking.isTaxDeductible
+              groupId: group.id,
+              groupName: groupName,
+              spending: groupTracking.spendingActual,
+              target: groupTracking.spendingTarget.toFixed(2),
+              isTaxDeductible: groupTracking.isTaxDeductible,
+              targetSource: groupTracking.targetSource,
+              categories
             };
           });
-
-          return {
-            groupId: group.id,
-            groupName: groupName,
-            spending: groupTracking.spendingActual,
-            target: groupTracking.spendingTarget.toFixed(2),
-            isTaxDeductible: groupTracking.isTaxDeductible,
-            targetSource: groupTracking.targetSource,
-            categories
-          };
-        });
 
         // Sort the groups according to the requirements
         const sortedSpendings = spendingGroups.sort((a, b) => {
@@ -330,20 +332,16 @@ export const BudgetManageTable = forwardRef<HTMLFormElement, BudgetManageTablePr
     } | null>(null);
 
     // Add state for progress calculation values
-    const [progressTargets, setProgressTargets] = useState<{
-      [key: string]: string;
-    }>({});
+    const [progressTargets, setProgressTargets] = useState<Record<string, string>>({});
 
     // Add state for committed values used in progress calculations
-    const [committedValues, setCommittedValues] = useState<{
-      [key: string]: string;
-    }>({});
+    const [committedValues, setCommittedValues] = useState<Record<string, string>>({});
 
     // Update initial values when form is reset
     useEffect(() => {
       const subscription = form.watch((value) => {
         if (!editingTarget) {  // Only update committed values when not editing
-          const newCommittedValues: { [key: string]: string } = {};
+          const newCommittedValues: Record<string, string> = {};
           value.categoryGroups?.forEach((group, groupIndex) => {
             if (group) { // Check if group exists
               newCommittedValues[`${groupIndex}`] = group.target ?? '0.00';
@@ -559,7 +557,7 @@ export const BudgetManageTable = forwardRef<HTMLFormElement, BudgetManageTablePr
                                 {formatCurrency(category.spending!, spending.groupName === "Income")}
                               </span>
                               <span className="text-xs font-normal pt-[6px]">
-                                {formatCurrency(category.target!, spending.groupName === "Income")}
+                                {formatCurrency(category.target, spending.groupName === "Income")}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">

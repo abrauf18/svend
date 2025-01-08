@@ -97,13 +97,19 @@ export default function CreateInstitution({ setIsCreatingInstitution }: Props) {
         symbol: data.symbol,
       });
 
-      toast.success('Institution created successfully');
+      toast.success('Institution created successfully', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
 
       reset();
     } catch (err: any) {
       console.error('Unknown server error');
 
-      toast.error('Institution could not be created');
+      toast.error('Institution could not be created', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
     } finally {
       setIsDialogOpened(false);
       setIsLoading(false);

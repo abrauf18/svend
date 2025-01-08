@@ -1,4 +1,4 @@
-import { FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from '../model/fin.types';
+import { CategoryCompositionData, FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from '../model/fin.types';
 import { BudgetFinAccountRecurringTransaction } from '../model/budget.types';
 import { Database } from '../database.types';
 import {
@@ -47,7 +47,7 @@ class BudgetService {
         plaid_tx_id: budgetTransaction.transaction.plaidTxId ?? null,
         amount: budgetTransaction.transaction.amount,
         date: budgetTransaction.transaction.date,
-        svend_category_id: budgetTransaction.categoryId!,
+        svend_category_id: budgetTransaction.category?.id,
         merchant_name: budgetTransaction.transaction.merchantName || '',
         payee: budgetTransaction.transaction.payee || '',
         iso_currency_code: budgetTransaction.transaction.isoCurrencyCode || 'USD',
@@ -572,7 +572,7 @@ class BudgetService {
       }
 
       // Parse goals from the JSON array
-      let goals: BudgetGoal[] = rawGetBudgetResults.goals as any[];
+      const goals: BudgetGoal[] = rawGetBudgetResults.goals as any[];
 
       // Return the complete budget object
       return {
@@ -751,8 +751,14 @@ class BudgetService {
             // Category information
             categoryGroupId: budgetTransaction.svend_category_group_id ?? undefined,
             categoryGroup: budgetTransaction.svend_category_group ?? undefined,
-            categoryId: budgetTransaction.svend_category_id ?? undefined,
-            category: budgetTransaction.svend_category ?? undefined,
+            category: {
+              id: budgetTransaction.svend_category_id ?? undefined,
+              name: budgetTransaction.svend_category ?? undefined,
+              isComposite: budgetTransaction.is_composite ?? false,
+              compositeData: Array.isArray(budgetTransaction.composite_data) 
+                ? (budgetTransaction.composite_data as unknown as CategoryCompositionData[])
+                : undefined,
+            } as any,
 
             // Optional fields that match SQL return
             merchantName: budgetTransaction.merchant_name ?? undefined,
@@ -949,6 +955,18 @@ class BudgetService {
       // Get category groups for the budget
       const categoryService = createCategoryService(this.supabase);
       const categoryGroups = await categoryService.getBudgetCategoryGroups(budgetId);
+      console.log('Category groups loaded:', {
+        budgetId,
+        groupNames: Object.keys(categoryGroups),
+        groups: Object.entries(categoryGroups).map(([name, group]) => ({
+          name,
+          budgetId: group.budgetId,
+          categories: group.categories.map(c => ({
+            name: c.name,
+            budgetId: c.budgetId
+          }))
+        }))
+      });
 
       // Process each month
       for (const month of months) {
@@ -977,10 +995,35 @@ class BudgetService {
         // Parse transactions into BudgetFinAccountTransaction[]
         const parsedTransactions = this.parseBudgetTransactions(dbTransactions);
 
-        // Calculate spending tracking for this month
+        // Handle composite transactions by expanding them based on their composition data
+        const expandedTransactions = parsedTransactions.flatMap(tx => {
+          if (tx.category?.isComposite && tx.category?.compositeData) {
+            return tx.category.compositeData.map(component => ({
+              ...tx,
+              transaction: {
+                ...tx.transaction,
+                amount: tx.transaction.amount * (component.weight / 100)
+              },
+              categoryGroup: tx.categoryGroup,  // Preserve the category group
+              category: {                       // Set the component category
+                id: component.categoryId,
+                name: component.categoryName,
+                isComposite: true,
+                compositeData: tx.category?.compositeData,
+                isDiscretionary: tx.category?.isDiscretionary,
+                createdAt: tx.category?.createdAt,
+                updatedAt: tx.category?.updatedAt
+              }
+            }));
+          }
+          return [tx];
+        });
+
+        // Calculate spending tracking for this month using expanded transactions
         const { spendingTrackingsByMonth } = this.calculateSpendingTrackings(
-          parsedTransactions,
-          categoryGroups
+          expandedTransactions,
+          categoryGroups,
+          budgetId
         );
 
         // Update tracking with new month data
@@ -995,12 +1038,13 @@ class BudgetService {
 
           // Copy spendingTarget values from dbTracking
           Object.entries(spendingTrackingsByMonth[month]).forEach(([groupName, groupTracking]) => {
-            if (groupTracking) {
+            if (groupTracking && dbTracking[month]?.[groupName]) {  // Add null check here
               groupTracking.spendingTarget = dbTracking[month]![groupName]!.spendingTarget;
               groupTracking.categories.forEach(categoryTracking => {
-                if (categoryTracking) {
-                  const matchingCategory = dbTracking[month]![groupName]!.categories.find(cat => cat.categoryName === categoryTracking.categoryName);
-                  if (matchingCategory) {
+                if (categoryTracking && dbTracking[month]?.[groupName]?.categories) {  // Add null check here
+                  const matchingCategory = dbTracking[month]![groupName]!.categories
+                    .find(cat => cat.categoryName === categoryTracking.categoryName);
+                  if (matchingCategory?.spendingTarget !== undefined) {  // Add null check here
                     categoryTracking.spendingTarget = matchingCategory.spendingTarget;
                   }
                 }
@@ -1515,6 +1559,9 @@ class BudgetService {
           plaidRawData: transaction.plaid_raw_data
         } as FinAccountTransaction,
         budgetFinAccountId: transaction.budgetFinAccountId,
+        category: {
+          id: transaction.svend_category_id,
+        }
       } as BudgetFinAccountTransaction);
     }
   }
@@ -1584,7 +1631,7 @@ class BudgetService {
 
     while (hasMore) {
       const response = await plaidClient.transactionsSync({
-        access_token: item.accessToken as string,
+        access_token: item.accessToken,
         cursor: nextCursor,
       } as TransactionsSyncRequest);
 
@@ -1658,7 +1705,7 @@ class BudgetService {
     try {
       // Call Plaid's recurring transactions endpoint
       const response = await plaidClient.transactionsRecurringGet({
-        access_token: item.accessToken as string,
+        access_token: item.accessToken,
         account_ids: plaidAccounts.map(acc => acc.plaid_account_id)
       });
 
@@ -1761,25 +1808,27 @@ class BudgetService {
               groupId: group.id
             };
           }
-          return null;
+          return null as { category: any; groupName: string; groupId: string; } | null;
         }, null as { category: any; groupName: string; groupId: string; } | null);
       };
 
       // Helper function to find category by Plaid category name
       const findCategoryByPlaidCategory = (plaidCategory: string) => {
-        // plaidMappings is a direct map of plaidCategory -> svendCategory
-        const mappedCategory = plaidMappings[plaidCategory];
-        if (!mappedCategory) return null;
+        // Find the category in svendCategories using the mapped name from plaidMappings
+        const mappedName = plaidMappings[plaidCategory]?.name;
+        if (!mappedName) return null;
 
-        // Find the group containing this category
+        // Find the group containing this category name
         const group = Object.values(svendCategories).find(group =>
-          group.categories.some(cat => cat.id === mappedCategory.id)
+          group.categories.some(cat => cat.name === mappedName)
         );
-
         if (!group) return null;
 
+        const category = group.categories.find(cat => cat.name === mappedName);
+        if (!category) return null;
+
         return {
-          category: mappedCategory,
+          category,
           groupName: group.name,
           groupId: group.id
         };
@@ -1806,8 +1855,12 @@ class BudgetService {
 
             return {
               ...transaction,
-              categoryId: mappedCategory.category.id,
-              category: mappedCategory.category.name,
+              category: {
+                ...mappedCategory.category,
+                isDiscretionary: mappedCategory.category.isDiscretionary,
+                createdAt: mappedCategory.category.createdAt,
+                updatedAt: mappedCategory.category.updatedAt,
+              },
               categoryGroup: mappedCategory.groupName,
               categoryGroupId: mappedCategory.groupId
             };
@@ -1828,8 +1881,12 @@ class BudgetService {
 
           return {
             ...transaction,
-            categoryId: mappedCategory.category.id,
-            category: mappedCategory.category.name,
+            category: {
+              ...mappedCategory.category,
+              isDiscretionary: mappedCategory.category.isDiscretionary,
+              createdAt: mappedCategory.category.createdAt,
+              updatedAt: mappedCategory.category.updatedAt,
+            },
             categoryGroup: mappedCategory.groupName,
             categoryGroupId: mappedCategory.groupId
           };
@@ -2026,30 +2083,30 @@ class BudgetService {
       const monthlyCategorySpending: Record<string, number> = {};
 
       transactions.forEach(budgetTransaction => {
-        if (!budgetTransaction.category) {
+        if (!budgetTransaction.category?.name) {
           console.warn('Transaction missing mapped category:', {
             date: budgetTransaction.transaction.date,
             amount: budgetTransaction.transaction.amount,
-            category: budgetTransaction.category,
+            category: budgetTransaction.category?.name,
             categoryGroup: budgetTransaction.categoryGroup
           });
           return;
         }
 
         // Use the mapped category name instead of plaidCategory
-        const categoryName = budgetTransaction.category;
+        const categoryName = budgetTransaction.category?.name;
         const isIncome = budgetTransaction.categoryGroup?.toLowerCase() === 'income';
         const amount = isIncome ? -Math.abs(budgetTransaction.transaction.amount) : Math.abs(budgetTransaction.transaction.amount);
         monthlyCategorySpending[categoryName] = (monthlyCategorySpending[categoryName] || 0) + amount;
       });
 
       // Initialize Income category if it doesn't exist
-      if (!monthlyCategorySpending['Income']) {
-        monthlyCategorySpending['Income'] = 0;
+      if (!monthlyCategorySpending.Income) {
+        monthlyCategorySpending.Income = 0;
       }
 
       // Calculate spending analysis
-      const totalIncome = Math.abs(monthlyCategorySpending['Income'] || 0);
+      const totalIncome = Math.abs(monthlyCategorySpending.Income || 0);
       const totalSpending = Object.entries(monthlyCategorySpending)
         .filter(([category]) => !category.toLowerCase().includes('income'))
         .reduce((sum, [_, amount]) => sum + amount, 0);
@@ -2324,7 +2381,8 @@ class BudgetService {
       const recommendationsResult = await this.onboardingRecommendSpendingAndGoals(
         transactionData.allTransactions,
         validBudgetGoals,
-        categoryGroups
+        categoryGroups,
+        budgetId
       );
       if (recommendationsResult.error) {
         return { data: null, error: recommendationsResult.error };
@@ -2898,7 +2956,8 @@ class BudgetService {
    */
   private calculateSpendingTrackings(
     budgetTransactions: BudgetFinAccountTransaction[],
-    categoryGroups: BudgetCategoryGroups
+    categoryGroups: BudgetCategoryGroups,
+    budgetId: string
   ): {
     spendingTrackingsByMonth: BudgetSpendingTrackingsByMonth
   } {
@@ -2960,8 +3019,13 @@ class BudgetService {
       monthlyTransactions[monthKey].push(budgetTransaction);
     });
 
-    // generate categoryToGroupMap
+    // generate categoryToGroupMap - skip groups that match the budget ID
     const categoryToGroupMap = Object.values(categoryGroups).reduce((acc, group) => {
+      // Skip the group if its name matches any budget ID
+      if (group.budgetId && group.name === group.budgetId) {
+        return acc;
+      }
+      
       group.categories.forEach(category => {
         acc[category.name] = group.name;
       });
@@ -2972,51 +3036,113 @@ class BudgetService {
     Object.entries(monthlyTransactions)
       .sort(([a], [b]) => a.localeCompare(b))
       .forEach(([monthKey, monthTransactions]) => {
+        let groupName = 'Other';
+        let categoryName = 'Other';
+        
         // Process each transaction for this month
         monthTransactions.forEach(budgetTransaction => {
-          let groupName = 'Other';
-          let categoryName = 'Other';
+          // Check if the transaction's category is composite
+          if (budgetTransaction.category?.isComposite && budgetTransaction.category.compositeData) {
+            // First ensure all needed groups are initialized for this composite transaction
+            budgetTransaction.category.compositeData.forEach(component => {
+              const componentGroupName = categoryToGroupMap[component.categoryName];
+              if (componentGroupName && !spendingTrackingsByMonth[monthKey]![componentGroupName]) {
+                spendingTrackingsByMonth[monthKey]![componentGroupName] = {
+                  groupName: componentGroupName,
+                  targetSource: 'group',
+                  spendingActual: 0,
+                  spendingTarget: 0,
+                  categories: [],
+                  isTaxDeductible: false
+                };
+              }
+            });
 
-          if (budgetTransaction.category && categoryToGroupMap[budgetTransaction.category]) {
-            groupName = categoryToGroupMap[budgetTransaction.category]!;
-            categoryName = budgetTransaction.category!;
-          }
+            // Then process the components
+            budgetTransaction.category.compositeData.forEach(component => {
+              const componentCategory = Object.values(categoryGroups)
+                .flatMap(g => g.categories)
+                .find(c => c.name === component.categoryName);
+              
+              if (componentCategory) {
+                const groupName = categoryToGroupMap[component.categoryName];
+                const amount = budgetTransaction.transaction.amount * (component.weight / 100);
+                
+                // Add defensive checks
+                if (!groupName) {
+                  console.error('No group found for category:', {
+                    categoryName: component.categoryName,
+                    availableGroups: Object.keys(categoryToGroupMap)
+                  });
+                  return;
+                }
 
-          const isIncomeGroup = groupName.toLowerCase() === 'income';
-          const amount = isIncomeGroup ? -Math.abs(budgetTransaction.transaction.amount) : budgetTransaction.transaction.amount;
+                if (!spendingTrackingsByMonth[monthKey]) {
+                  console.error('No tracking found for month:', monthKey);
+                  return;
+                }
 
-          // Group should already be initialized, but just in case
-          if (!spendingTrackingsByMonth[monthKey]?.[groupName]) {
-            console.warn(`Group ${groupName} not found for month ${monthKey}, initializing`);
-            spendingTrackingsByMonth[monthKey]![groupName] = {
-              groupName,
-              targetSource: 'group',
-              spendingActual: 0,
-              spendingTarget: 0,
-              categories: [],
-              isTaxDeductible: false
-            };
-          }
+                if (!spendingTrackingsByMonth[monthKey]![groupName]) {
+                  console.error('No group tracking found:', {
+                    month: monthKey,
+                    groupName,
+                    availableGroups: Object.keys(spendingTrackingsByMonth[monthKey] || {})
+                  });
+                  return;
+                }
 
-          const group = spendingTrackingsByMonth[monthKey]![groupName]!;
+                const group = spendingTrackingsByMonth[monthKey]![groupName]!;
+                
+                // Initialize if needed
+                if (!group.categories) {
+                  group.categories = [];
+                }
 
-          // Update group totals without rounding
-          group.spendingActual += amount;
-          group.spendingTarget += amount;
-
-          // Find or create category tracking
-          let categoryTracking = group.categories.find(cat => cat.categoryName === categoryName);
-          if (!categoryTracking) {
-            categoryTracking = {
-              categoryName: categoryName,
-              spendingActual: amount,
-              spendingTarget: amount,
-              isTaxDeductible: false
-            };
-            group.categories.push(categoryTracking);
+                let categoryTracking = group.categories.find(cat => cat.categoryName === component.categoryName);
+                if (!categoryTracking) {
+                  categoryTracking = {
+                    categoryName: component.categoryName,
+                    spendingActual: amount,
+                    spendingTarget: amount,
+                    isTaxDeductible: false
+                  };
+                  group.categories.push(categoryTracking);
+                } else {
+                  categoryTracking.spendingActual += amount;
+                  categoryTracking.spendingTarget += amount;
+                }
+              }
+            });
           } else {
-            categoryTracking.spendingActual += amount;
-            categoryTracking.spendingTarget += amount;
+            // Existing logic for non-composite transactions
+            if (budgetTransaction.category?.name && categoryToGroupMap[budgetTransaction.category.name]) {
+              groupName = categoryToGroupMap[budgetTransaction.category.name]!;
+              categoryName = budgetTransaction.category.name!;
+            }
+
+            const isIncomeGroup = groupName.toLowerCase() === 'income';
+            const amount = isIncomeGroup ? -Math.abs(budgetTransaction.transaction.amount) : budgetTransaction.transaction.amount;
+
+            const group = spendingTrackingsByMonth[monthKey]![groupName]!;
+
+            // Update group totals
+            group.spendingActual += amount;
+            group.spendingTarget += amount;
+
+            // Find or create category tracking
+            let categoryTracking = group.categories.find(cat => cat.categoryName === categoryName);
+            if (!categoryTracking) {
+              categoryTracking = {
+                categoryName: categoryName,
+                spendingActual: amount,
+                spendingTarget: amount,
+                isTaxDeductible: false
+              };
+              group.categories.push(categoryTracking);
+            } else {
+              categoryTracking.spendingActual += amount;
+              categoryTracking.spendingTarget += amount;
+            }
           }
         });
       });
@@ -3045,13 +3171,13 @@ class BudgetService {
   } {
     // Aggregate transactions by category for the rolling month
     const latestRollingMonthCategorySpending = latestRollingMonthTransactions.reduce((acc, budgetTransaction) => {
-      const category = budgetTransaction.category!;
+      const category = budgetTransaction.category?.name;
       acc[category] = (acc[category] || 0) + budgetTransaction.transaction.amount;
       return acc;
     }, {} as Record<string, number>);
-
+    
     // Ensure income is treated as a positive number for calculations
-    const totalIncome = Math.abs(latestRollingMonthCategorySpending['Income'] || 0);
+    const totalIncome = Math.abs(latestRollingMonthCategorySpending.Income || 0);
 
     // Calculate discretionary spending total
     const totalDiscretionarySpending = Object.entries(latestRollingMonthCategorySpending)
@@ -3170,7 +3296,7 @@ class BudgetService {
       const adjustedTargetDay = Math.min(targetDayOfMonth, currentMonthLastDay);
 
       // Initialize start date at beginning of current month
-      let currentDate = new Date(today);
+      const currentDate = new Date(today);
       currentDate.setDate(1); // Reset to start of month for clean iteration
 
       // Determine if we need to start next month based on adjusted target day
@@ -3389,15 +3515,13 @@ class BudgetService {
 
   /**
    * Main method for onboarding analysis
-   * @param budgetId - The ID of the budget to analyze
-   * @param plaidConnectionItems - Array of Plaid connection items
-   * @param plaidConfiguration - Plaid API configuration
    * @returns ServiceResult containing analysis results or error
    */
   async onboardingRecommendSpendingAndGoals(
     transactions: BudgetFinAccountTransaction[],
     goals: BudgetGoal[],
-    categoryGroups: BudgetCategoryGroups
+    categoryGroups: BudgetCategoryGroups,
+    budgetId: string
   ): Promise<OnboardingRecommendSpendingAndGoalsResult> {
     try {
       // 1. Initialize and prepare transaction data
@@ -3417,7 +3541,8 @@ class BudgetService {
         spendingTrackingsByMonth
       } = this.calculateSpendingTrackings(
         sortedTransactions,
-        categoryGroups
+        categoryGroups,
+        budgetId
       );
 
       // 4. Calculate spending totals and check essentials coverage
@@ -3556,7 +3681,8 @@ export interface IBudgetService {
   onboardingRecommendSpendingAndGoals: (
     transactions: BudgetFinAccountTransaction[],
     goals: BudgetGoal[],
-    categoryGroups: BudgetCategoryGroups
+    categoryGroups: BudgetCategoryGroups,
+    budgetId: string
   ) => Promise<OnboardingRecommendSpendingAndGoalsResult>;
   updateSpending: (
     budgetId: string,

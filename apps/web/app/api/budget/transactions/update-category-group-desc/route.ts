@@ -8,6 +8,12 @@ const schema = z.object({
   categoryId: z.string().uuid().optional(),
   groupDescription: z.string().optional(),
   categoryDescription: z.string().optional(),
+  isComposite: z.boolean().optional(),
+  compositeData: z.array(z.object({
+    categoryId: z.string().uuid(),
+    categoryName: z.string().min(1, 'Category name is required'),
+    weight: z.number()
+  })).nullable().optional(),
 }).refine(
   data => {
     // If groupId is provided, groupDescription must be provided (including empty string)
@@ -15,7 +21,8 @@ const schema = z.object({
     // If categoryId is provided, categoryDescription must be provided (including empty string)
     if (data.categoryId && data.categoryDescription === undefined) return false;
     // At least one update must be requested
-    return !!(data.groupId || data.categoryId);
+    if (data.isComposite && (!data.compositeData || data.compositeData.length < 2)) return false;
+    return !!(data.groupId ?? data.categoryId);
   },
   { message: "Invalid input combination" }
 );
@@ -35,8 +42,9 @@ export const PUT = enhanceRouteHandler(
         .maybeSingle();
 
       if (groupError) {
+        console.error('Error updating category group:', groupError);
         return NextResponse.json(
-          { success: false, error: groupError.message },
+          { success: false, error: 'An error occurred while updating the category group' },
           { status: 500 }
         );
       }
@@ -50,17 +58,33 @@ export const PUT = enhanceRouteHandler(
     }
 
     if (body.categoryId) {
+      const updateData: any = {
+        description: body.categoryDescription
+      };
+
+      if (body.isComposite !== undefined) {
+        updateData.is_composite = body.isComposite;
+        if (body.isComposite) {
+          updateData.composite_data = body.compositeData?.map(item => ({
+            categoryId: item.categoryId,
+            weight: item.weight,
+            categoryName: item.categoryName
+          })) ?? null;
+        }
+      }
+
       const { data: categoryData, error: categoryError } = await supabaseAdmin
         .from('categories')
-        .update({ description: body.categoryDescription })
+        .update(updateData)
         .eq('id', body.categoryId)
         .not('budget_id', 'is', null)
         .select()
         .maybeSingle();
 
       if (categoryError) {
+        console.error('Error updating category:', categoryError);
         return NextResponse.json(
-          { success: false, error: categoryError.message },
+          { success: false, error: 'An error occurred while updating the category' },
           { status: 500 }
         );
       }

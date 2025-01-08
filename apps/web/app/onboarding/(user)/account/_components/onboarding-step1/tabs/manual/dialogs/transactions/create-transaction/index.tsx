@@ -134,7 +134,10 @@ export default function CreateTransaction({
 
       accountManualTransactionCreateOne(manualAccount.id, resTransaction);
 
-      toast.success('Transaction created successfully');
+      toast.success('Transaction created successfully', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
       
       reset();
       setAmountInput('0.00');
@@ -143,7 +146,10 @@ export default function CreateTransaction({
     } catch (err: any) {
       console.error('Unknown server error');
 
-      toast.error('Transaction could not be created');
+      toast.error('Transaction could not be created', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
     } finally {
       setIsLoading(false);
     }

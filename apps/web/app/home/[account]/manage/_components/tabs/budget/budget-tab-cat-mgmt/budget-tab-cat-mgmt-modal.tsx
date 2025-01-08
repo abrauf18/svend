@@ -13,6 +13,7 @@ import { CategoryManagementCatSelect } from './budget-tab-cat-mgmt-cat-select';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
+import { CategoryCompositionData } from '~/lib/model/fin.types';
 
 const formSchema = z.object({
   groupId: z.string().min(1, 'Group is required'),
@@ -32,9 +33,14 @@ export function CategoryManagementModal({
   open,
   onOpenChange,
 }: CategoryManagementModalProps) {
-  const { workspace, updateCategoryGroupDescription, updateCategoryDescription, addBudgetCategory } = useBudgetWorkspace();
+  const { workspace, updateCategoryGroupDescription, updateCategory, addBudgetCategory } = useBudgetWorkspace();
   const [isUpdating, setIsUpdating] = useState(false);
   const [isCreatingCategoryId, setIsCreatingCategoryId] = useState('');
+  const [compositeData, setCompositionData] = useState<{
+    isCompositeMode: boolean;
+    selectedCategories: CategoryCompositionData[];
+  }>({ isCompositeMode: false, selectedCategories: [] });
+  const [shouldReset, setShouldReset] = useState(false);
 
   const form = useForm<FormValues>({
     resetOptions: {
@@ -49,17 +55,18 @@ export function CategoryManagementModal({
     },
   });
 
-  // Add this effect to reset form when modal is closed
+  // Modify the effect to only reset when shouldReset is true
   useEffect(() => {
-    if (!open) {
+    if (!open && shouldReset) {
       form.reset({
         groupId: '',
         groupDescription: '',
         categoryId: '',
         categoryDescription: '',
       });
+      setShouldReset(false);
     }
-  }, [open, form]);
+  }, [open, form, shouldReset]);
 
   const { handleSubmit, watch, setValue, register } = form;
   const selectedGroupId = watch('groupId');
@@ -73,20 +80,37 @@ export function CategoryManagementModal({
   useEffect(() => {
     if (selectedGroupId) {
       const group = Object.values(workspace.budgetCategories).find(g => g.id === selectedGroupId);
-      setValue('groupDescription', group?.description || '');
-      
+      setValue('groupDescription', group?.description ?? '');
+
       // Always reset category values when group changes
       setValue('categoryId', '');
       setValue('categoryDescription', '');
     }
-  }, [selectedGroupId, workspace.budgetCategories, setValue]);
+  }, [selectedGroupId, setValue]);
 
   // Handle category selection changes
   useEffect(() => {
     if (selectedCategoryId && selectedGroupId) {
       const group = Object.values(workspace.budgetCategories).find(g => g.id === selectedGroupId);
       const category = group?.categories.find(c => c.id === selectedCategoryId);
-      setValue('categoryDescription', category?.description || '');
+      setValue('categoryDescription', category?.description ?? '');
+
+      // Initialize composite mode if category is composite
+      if (category?.isComposite && category.compositeData) {
+        setCompositionData({
+          isCompositeMode: true,
+          selectedCategories: category.compositeData.map(comp => ({
+            categoryName: comp.categoryName,
+            weight: comp.weight,
+            categoryId: comp.categoryId
+          }))
+        });
+      } else {
+        setCompositionData({
+          isCompositeMode: false,
+          selectedCategories: []
+        });
+      }
     }
   }, [selectedCategoryId, selectedGroupId, workspace.budgetCategories, setValue]);
 
@@ -96,58 +120,135 @@ export function CategoryManagementModal({
       console.log('isCreatingCategory... selected id:', isCreatingCategoryId);
       const group = Object.values(workspace.budgetCategories).find(g => g.id === selectedGroupId);
       const category = group?.categories.find(c => c.id === isCreatingCategoryId);
-      setValue('categoryId', category?.id || '');
-      setValue('categoryDescription', category?.description || '');
+      setValue('categoryId', category?.id ?? '');
+      setValue('categoryDescription', category?.description ?? '');
     }
   }, [workspace.budgetCategories]);
 
   const onSubmit = async (data: FormValues) => {
+    if (isUpdating) return;
     setIsUpdating(true);
 
-    console.log('onSubmit data:', data);
-    form.reset(data);
-
     try {
-      const payload = {
-        groupId: data.groupId,
-        ...(data.groupDescription !== undefined && { groupDescription: data.groupDescription }),
-        ...(data.categoryId && { 
-          categoryId: data.categoryId,
-          categoryDescription: data.categoryDescription 
-        })
-      };
-
-      const response = await fetch('/api/budget/transactions/update-category-group-desc', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (response.status === 400) {
-          toast.error(
-            errorData.message || 
-            'Invalid input. Descriptions must be 255 characters or less.'
-          );
-        } else {
-          throw new Error('Failed to update descriptions');
+      if (compositeData.isCompositeMode) {
+        // Validate composition data first
+        if (compositeData.selectedCategories.length === 0) {
+          throw new Error('Must select at least two categories for the composition');
         }
-        return;
+
+        const hasIncompleteRows = compositeData.selectedCategories.some(
+          category => !category.categoryId || !category.categoryName || category.categoryId === ''
+        );
+        
+        if (hasIncompleteRows) {
+          throw new Error('All composition rows must be complete. Please remove empty rows or complete their information.');
+        }
+
+        const validCategories = compositeData.selectedCategories.filter(
+          category => category.categoryId && category.categoryName && category.categoryId !== ''
+        );
+
+        if (validCategories.length < 2) {
+          throw new Error('Composite categories must include at least two valid categories');
+        }
+
+        const hasZeroWeight = validCategories.some(category => category.weight === 0);
+        if (hasZeroWeight) {
+          throw new Error('All categories must have a weight greater than 0%');
+        }
+
+        const total = validCategories.reduce((sum, category) => sum + category.weight, 0);
+        if (total !== 100) {
+          throw new Error('The total distribution must equal 100%');
+        }
+
+        const payload = {
+          groupId: data.groupId,
+          ...(data.groupDescription !== undefined && { groupDescription: data.groupDescription }),
+          ...(data.categoryId && { 
+            categoryId: data.categoryId,
+            categoryDescription: data.categoryDescription,
+            isComposite: true,
+            compositeData: validCategories
+          })
+        };
+
+        const response = await fetch('/api/budget/transactions/update-category-group-desc', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to update descriptions');
+        }
+
+        // Update local state
+        if (data.groupId && data.groupDescription !== undefined) {
+          updateCategoryGroupDescription(data.groupId, data.groupDescription);
+        }
+        
+        if (data.categoryId) {
+          updateCategory(
+            data.groupId,
+            data.categoryId,
+            {
+              description: data.categoryDescription,
+              isComposite: compositeData.isCompositeMode,
+              compositeData: compositeData.isCompositeMode 
+                ? compositeData.selectedCategories 
+                : null
+            }
+          );
+        }
+      } else {
+        // Non-composite mode logic...
+        const selectedCategory = selectedGroup?.categories.find(c => c.id === data.categoryId);
+        const payload = {
+          groupId: data.groupId,
+          ...(data.groupDescription !== undefined && { groupDescription: data.groupDescription }),
+          ...(data.categoryId && { 
+            categoryId: data.categoryId,
+            categoryDescription: data.categoryDescription,
+            isComposite: false,
+            compositeData: selectedCategory?.compositeData ?? null
+          })
+        };
+
+        const response = await fetch('/api/budget/transactions/update-category-group-desc', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to update descriptions');
+        }
+
+        // Update local state
+        if (data.groupId && data.groupDescription !== undefined) {
+          updateCategoryGroupDescription(data.groupId, data.groupDescription);
+        }
+        if (data.categoryId && data.categoryDescription !== undefined) {
+          updateCategory(
+            data.groupId,
+            data.categoryId,
+            {
+              description: data.categoryDescription,
+              isComposite: false,
+              compositeData: selectedCategory?.compositeData ?? null
+            }
+          );
+        }
       }
 
-      // Update local state through context
-      if (data.groupId && data.groupDescription !== undefined) {
-        updateCategoryGroupDescription(data.groupId, data.groupDescription);
-      }
-      if (data.categoryId && data.categoryDescription !== undefined) {
-        updateCategoryDescription(data.groupId, data.categoryId, data.categoryDescription);
-      }
-
+      // Show success toast only once after all updates are complete
       toast.success('Categories updated successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating categories:', error);
-      toast.error('Failed to update categories. Please try again later.');
+      toast.error(error.message || 'Error updating categories. Please try again.');
     } finally {
       setIsUpdating(false);
     }
@@ -155,7 +256,7 @@ export function CategoryManagementModal({
 
   const sortedCategories = selectedGroup?.categories.slice().sort((a, b) => 
     a.name.localeCompare(b.name)
-  ) || [];
+  ) ?? [];
 
   return (
     <Dialog 
@@ -163,11 +264,12 @@ export function CategoryManagementModal({
       onOpenChange={(isOpen) => {
         // Only allow closing through explicit cancel actions
         if (!isOpen && !isUpdating) {
+          setShouldReset(true);
           onOpenChange(false);
         }
       }}
     >
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Manage Categories</DialogTitle>
         </DialogHeader>
@@ -210,9 +312,11 @@ export function CategoryManagementModal({
                 value={selectedCategoryId}
                 disabled={!selectedGroupId}
                 categories={sortedCategories}
+                budgetCategories={workspace.budgetCategories}
                 isBuiltIn={isBuiltIn}
                 budgetId={selectedGroup?.budgetId}
                 groupId={selectedGroupId}
+                onCompositionDataChange={setCompositionData}
               />
             </div>
 
@@ -238,8 +342,7 @@ export function CategoryManagementModal({
               Cancel
             </Button>
             <Button
-              type="button"
-              onClick={() => void onSubmit(form.getValues())}
+              type="submit"
               disabled={isUpdating || !selectedGroupId || isBuiltIn}
             >
               {isUpdating ? (

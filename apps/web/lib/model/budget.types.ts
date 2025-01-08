@@ -1,5 +1,5 @@
 import { Database } from '../database.types';
-import { CategoryGroup, FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from './fin.types';
+import { Category, CategoryCompositionData, CategoryGroup, FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from './fin.types';
 
 export type Budget = {
   id: string;
@@ -16,8 +16,7 @@ export interface BudgetFinAccountTransaction {
   budgetFinAccountId: string; // UUID referencing the financial account link to the budget
   categoryGroupId: string; // UUID referencing the group of the category associated with the transaction
   categoryGroup: string; // Group of the category associated with the transaction
-  categoryId: string; // UUID referencing the category associated with the transaction
-  category: string; // Name of the category associated with the transaction
+  category: Category;
   merchantName: string; // Name of the merchant involved in the transaction
   payee: string; // Name of the payee for the transaction
   notes: string; // Notes for the transaction

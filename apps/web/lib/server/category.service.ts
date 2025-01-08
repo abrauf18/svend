@@ -1,4 +1,3 @@
-import { CategoryGroup } from '../model/fin.types';
 import plaidSvendCategories from '../config/plaid_svend_categories.json';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { BudgetCategoryGroups } from '../model/budget.types';
@@ -84,9 +83,9 @@ class CategoryService implements ICategoryService {
   }
 
   /**
- * Fetches the default category groups from the Supabase database.
- * @returns A promise that resolves to a record of category groups.
- */
+   * Fetches the default category groups from the Supabase database.
+   * @returns A promise that resolves to a record of category groups.
+   */
   async getBudgetCategoryGroups(budget_id: string): Promise<BudgetCategoryGroups> {
     const { data, error } = await this.supabase.rpc('get_budget_categories', {
       p_budget_id: budget_id
@@ -113,7 +112,7 @@ class CategoryService implements ICategoryService {
           categories: []
         };
       }
-      
+
       if (category.category_id && category.category_name) {
         categoryGroups[groupName].categories.push({
           id: category.category_id,
@@ -121,6 +120,8 @@ class CategoryService implements ICategoryService {
           name: category.category_name,
           description: category.category_description,
           isDiscretionary: category.category_is_discretionary,
+          isComposite: category.category_is_composite,
+          compositeData: category.category_composite_data as any,
           createdAt: category.category_created_at,
           updatedAt: category.category_updated_at,
         });

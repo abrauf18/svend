@@ -60,12 +60,20 @@ export interface CategoryGroup {
   categories: Category[];
 }
 
+export interface CategoryCompositionData {
+  categoryId: string;
+  weight: number;
+  categoryName: string;
+}
+
 export interface Category {
   id: string; // UUID
   budgetId?: string; // Optional UUID referencing budgets
   name: string; // Category name
   description?: string; // Optional description
   isDiscretionary: boolean; // Indicates if the group is discretionary
+  isComposite?: boolean;
+  compositeData?: CategoryCompositionData[] | null;
   createdAt: string; // Timestamp
   updatedAt: string; // Timestamp
 }

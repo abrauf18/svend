@@ -191,7 +191,7 @@ export class TransactionSearchService {
       formattedAmount,
       simplifiedAmount,
       ...(budgetTransaction.budgetTags?.map(t => t.name.toLowerCase()) || []),
-      (budgetTransaction.category || '').toLowerCase(),
+      (budgetTransaction.category?.name || '').toLowerCase(),
       (budgetTransaction.categoryGroup || '').toLowerCase(),
       (budgetTransaction.merchantName || '').toLowerCase(),
       (budgetTransaction.payee || '').toLowerCase(),

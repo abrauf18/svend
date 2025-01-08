@@ -486,7 +486,9 @@ RETURNS TABLE (
     notes TEXT,
     budget_fin_account_id UUID,
     tags jsonb,
-    attachments_storage_names text[]
+    attachments_storage_names text[],
+    is_composite BOOLEAN,  
+    composite_data jsonb
 ) AS $$
 DECLARE
     v_budget_id UUID;
@@ -528,7 +530,9 @@ RETURNS TABLE (
     notes TEXT,
     budget_fin_account_id UUID,
     tags jsonb,
-    attachments_storage_names text[]
+    attachments_storage_names text[],
+    is_composite BOOLEAN,
+    composite_data JSONB
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -571,7 +575,9 @@ BEGIN
                 AND (storage.foldername(name))[4] = fat.id::text
             ),
             ARRAY[]::text[]
-        ) as attachments_storage_names
+        ) as attachments_storage_names,
+        c.is_composite,
+        c.composite_data
     FROM 
         fin_account_transactions fat
     JOIN 
@@ -584,7 +590,7 @@ BEGIN
         accounts a ON b.team_account_id = a.id
     LEFT JOIN
         budget_fin_account_transactions bfat ON fat.id = bfat.fin_account_transaction_id AND b.id = bfat.budget_id
-    JOIN 
+    JOIN                                           -- ¡Aquí está el JOIN a categories!
         categories c ON bfat.svend_category_id = c.id
     JOIN 
         category_groups cg ON c.group_id = cg.id
@@ -609,7 +615,9 @@ BEGIN
         c.id,
         bfat.svend_category_id,
         c.name,
-        bfat.tag_ids
+        bfat.tag_ids,
+        c.is_composite,
+        c.composite_data
     ORDER BY 
         fat.date DESC;
 END;
@@ -693,6 +701,8 @@ CREATE TABLE IF NOT EXISTS public.categories (
     name VARCHAR(50) NOT NULL,
     description TEXT,
     is_discretionary BOOLEAN NOT NULL DEFAULT FALSE,
+    is_composite BOOLEAN NOT NULL DEFAULT FALSE,
+    composite_data JSONB,
     group_id UUID NOT NULL REFERENCES public.category_groups(id) ON DELETE CASCADE,
     budget_id UUID REFERENCES public.budgets(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -907,6 +917,8 @@ RETURNS TABLE (
     category_name VARCHAR(50),
     category_description TEXT,
     category_is_discretionary BOOLEAN,
+    category_is_composite BOOLEAN,
+    category_composite_data JSONB,
     category_created_at TIMESTAMP,
     category_updated_at TIMESTAMP
 ) AS $$
@@ -924,6 +936,8 @@ BEGIN
         c.name AS category_name,
         c.description AS category_description,
         c.is_discretionary AS category_is_discretionary,
+        c.is_composite AS category_is_composite,
+        c.composite_data AS category_composite_data,
         c.created_at AS category_created_at,
         c.updated_at AS category_updated_at
     FROM 
@@ -931,10 +945,8 @@ BEGIN
     LEFT JOIN 
         public.categories c ON cg.id = c.group_id
     WHERE 
-        cg.budget_id IS NULL
-          OR cg.budget_id = p_budget_id
-          OR c.budget_id IS NULL
-          OR c.budget_id = p_budget_id;
+        (cg.budget_id IS NULL OR cg.budget_id = p_budget_id)
+        AND (c.budget_id IS NULL OR c.budget_id = p_budget_id);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1688,12 +1700,14 @@ grant execute on function get_budget_tags_by_team_account_slug(TEXT) to authenti
 CREATE TABLE if not exists public.budget_fin_account_transactions (
     budget_id UUID NOT NULL REFERENCES public.budgets(id),
     fin_account_transaction_id UUID NOT NULL REFERENCES public.fin_account_transactions(id),
+    PRIMARY KEY (budget_id, fin_account_transaction_id),
     svend_category_id UUID NOT NULL REFERENCES public.categories(id),
     merchant_name TEXT,
     payee TEXT,
     notes TEXT,
     tag_ids UUID[] default '{}',
-    PRIMARY KEY (budget_id, fin_account_transaction_id)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 revoke all on public.budget_fin_account_transactions from public, service_role;
@@ -2093,6 +2107,21 @@ FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
 
 CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.budget_fin_account_transactions
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.category_groups
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.categories
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
 BEFORE INSERT OR UPDATE ON public.budgets
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
@@ -2101,4 +2130,3 @@ CREATE TRIGGER set_timestamp
 BEFORE INSERT OR UPDATE ON public.budget_goals
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
-

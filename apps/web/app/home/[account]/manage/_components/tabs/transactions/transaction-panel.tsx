@@ -27,9 +27,11 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { TransactionCategorySelect } from '../_shared/transaction-category-select';
 import { ResizableTextarea } from '@kit/ui/resizable-textarea';
+import { Switch } from '@kit/ui/switch';
 import { sanitizeFileName } from '~/utils/sanitize-filename';
 import { getUniqueFileName } from '~/utils/get-unique-filename';
 import { getFileNameFromUrl } from '~/utils/get-filename-from-url';
+import { toast } from 'sonner';
 
 interface DisabledFields {
   userTxId?: boolean;
@@ -56,7 +58,17 @@ const transactionFormSchema = z.object({
   date: z.date({
     required_error: 'Date is required',
   }),
-  categoryId: z.string().min(1, 'Category is required'),
+  categoryId: z.string().superRefine((val, ctx) => {
+    const isSplit = (ctx as any)._parent?.data?.isSplit;
+    if (!isSplit && !val) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Category or split is required"
+      });
+      return false;
+    }
+    return true;
+  }),
   merchantName: z.string().optional(),
   notes: z.string().optional(),
   amount: z
@@ -64,16 +76,62 @@ const transactionFormSchema = z.object({
     .min(1, 'Amount is required')
     .refine((val) => !isNaN(parseFloat(val)), 'Must be a valid number'),
   budgetFinAccountId: z.string().min(1, 'Account is required'),
-  userTxId: z.string(),
-  tags: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-      }),
-    )
-    .default([]),
+  tags: z.array(z.object({
+    id: z.string(),
+    name: z.string()
+  })).default([]),
   attachments: z.array(z.union([z.instanceof(File), z.string()])).default([]),
+  isSplit: z.boolean().default(false),
+  splitComponents: z.array(z.object({
+    categoryId: z.string(),
+    weight: z.number()
+  }))
+  .default([])
+  .superRefine((components, ctx) => {
+    // Only validate if split mode is enabled
+    const isSplit = (ctx as any)._parent?.data?.isSplit;
+    if (!isSplit) return true;
+
+    // Require at least 2 components when in split mode
+    if (components.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Split mode requires at least 2 components"
+      });
+      return false;
+    }
+
+    // Validate that all components have categories selected
+    if (components.some(comp => !comp.categoryId)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "All split components must have a category selected"
+      });
+      return false;
+    }
+
+    // Validate that all weights are positive numbers
+    if (components.some(comp => comp.weight <= 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "All categories must have a weight greater than 0%"
+      });
+      return false;
+    }
+
+    // Validate that weights sum to 100%
+    const total = components.reduce((sum, comp) => sum + comp.weight, 0);
+    if (Math.abs(total - 100) > 0.01) { // Using small epsilon for floating point comparison
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Total distribution must equal 100%"
+      });
+      return false;
+    }
+
+    return true;
+  }),
+  userTxId: z.string()
 });
 
 type TransactionFormValues = z.infer<typeof transactionFormSchema>;
@@ -81,7 +139,10 @@ type TransactionFormValues = z.infer<typeof transactionFormSchema>;
 export function TransactionPanel(props: TransactionPanelProps) {
   const { workspace, updateTransaction, updateBudgetSpending } = useBudgetWorkspace();
   const supabase = getSupabaseBrowserClient();
-
+  const isOneOffSplit = props.selectedTransaction.category?.id === props.selectedTransaction.category?.name && 
+                      props.selectedTransaction.categoryGroup === workspace?.budget?.id;
+  const [isSplitMode, setIsSplitMode] = useState(isOneOffSplit);
+  const budgetId = workspace?.budget?.id;
   // Add this state to track the current storage files
   const [currentStorageFiles, setCurrentStorageFiles] = useState<string[]>(
     props.selectedTransaction.budgetAttachmentsStorageNames ?? [],
@@ -95,13 +156,22 @@ export function TransactionPanel(props: TransactionPanelProps) {
       date: parseDate(props.selectedTransaction.transaction.date),
       amount: props.selectedTransaction.transaction.amount.toFixed(2),
       budgetFinAccountId: props.selectedTransaction.budgetFinAccountId ?? '',
-      categoryId: props.selectedTransaction.categoryId ?? '',
+      categoryId: props.selectedTransaction.category?.id ?? '',
       merchantName: props.selectedTransaction.merchantName ?? '',
       notes: props.selectedTransaction.notes ?? '',
       tags: props.selectedTransaction.budgetTags ?? [],
-      attachments:
-        props.selectedTransaction.budgetAttachmentsStorageNames ?? [],
+      attachments: props.selectedTransaction.budgetAttachmentsStorageNames ?? [],
+      // Check for either type of split category
+      isSplit: isOneOffSplit,
+      // Initialize with 2 empty rows if no composite data exists
+      splitComponents: isOneOffSplit && props.selectedTransaction.category?.compositeData?.length 
+        ? props.selectedTransaction.category.compositeData 
+        : [
+            { categoryId: '', weight: 0 },
+            { categoryId: '', weight: 0 }
+          ],
     },
+    mode: 'onSubmit',
   });
 
   // Add this useEffect to debug the value
@@ -116,14 +186,46 @@ export function TransactionPanel(props: TransactionPanelProps) {
     setIsSaving(true);
 
     try {
-      // Get the selected category and group information
-      const allCategories = Object.values(workspace?.budgetCategories ?? {}).flatMap(
-        (group) => group.categories
-      );
-      const selectedCategory = allCategories.find((cat) => cat.id === data.categoryId);
-      const selectedGroup = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
-        group.categories.some((cat) => cat.id === data.categoryId)
-      );
+      // Validate composite data first
+      if (data.isSplit) {
+        const hasInvalidComponents = !data.splitComponents || 
+          data.splitComponents.length < 2 || 
+          data.splitComponents.some(comp => !comp.categoryId) ||
+          Math.abs(data.splitComponents.reduce((sum, comp) => sum + comp.weight, 0) - 100) > 0.01;
+
+        if (hasInvalidComponents) {
+          toast.error('Split transactions must have at least 2 categories and weights must total 100%', {
+            duration: 3000,
+            position: 'bottom-center',
+          });
+          return;
+        }
+      }
+
+      let categoryId;
+      let categoryName;
+      let categoryGroupId;
+      let categoryGroupName;
+
+      if (data.isSplit) {
+        categoryGroupId = workspace?.budget?.id;
+        categoryGroupName = workspace?.budget?.id;
+        // We'll update these after the API response
+        categoryId = undefined;
+        categoryName = undefined;
+      } else {
+        const allCategories = Object.values(workspace?.budgetCategories ?? {}).flatMap(
+          (group) => group.categories
+        );
+        const selectedCategory = allCategories.find((cat) => cat.id === data.categoryId);
+        const selectedGroup = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
+          group.categories.some((cat) => cat.id === data.categoryId)
+        );
+        categoryId = selectedCategory?.id;
+        categoryName = selectedCategory?.name;
+        categoryGroupId = selectedGroup?.id;
+        categoryGroupName = selectedGroup?.name;
+      }
 
       // Compare current attachments with initial storage files
       const { toUpload, toKeep, toDelete } = compareAttachments(
@@ -147,6 +249,53 @@ export function TransactionPanel(props: TransactionPanelProps) {
       // Update the current storage files
       setCurrentStorageFiles(finalAttachments);
 
+      const response = await fetch(
+        `/api/budgets/${workspace.budget.id}/transactions/${props.selectedTransaction.transaction.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            categoryId: data.isSplit ? undefined : data.categoryId,
+            merchantName: data.merchantName,
+            notes: data.notes,
+            tags: data.tags,
+            isSplit: data.isSplit,
+            splitComponents: data.isSplit ? data.splitComponents.map(comp => {
+              const category = categoryGroups
+                .flatMap(g => g.categories)
+                .find(c => c.id === comp.categoryId);
+              return {
+                categoryId: comp.categoryId,
+                weight: comp.weight,
+                categoryName: category?.name ?? ''
+              };
+            }) : undefined
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        toast.error('Failed to save transaction', {
+          duration: 10000,
+          position: 'bottom-center',
+        });
+        return;
+      }
+
+      const responseData = await response.json();
+      console.log('responseData', responseData);
+
+      if (data.isSplit) {
+        // Handle both new and existing split categories
+        const splitCategoryId = responseData.newCategoryId || responseData.existingCategoryId;
+        if (splitCategoryId) {
+          categoryId = splitCategoryId;
+          categoryName = splitCategoryId;
+        }
+      }
+
       const updatedTransaction = {
         ...props.selectedTransaction,
         transaction: {
@@ -155,43 +304,36 @@ export function TransactionPanel(props: TransactionPanelProps) {
           amount: parseFloat(data.amount),
         },
         budgetFinAccountId: data.budgetFinAccountId,
-        categoryId: data.categoryId,
-        categoryGroupId: selectedGroup?.id ?? props.selectedTransaction.categoryGroupId,
-        categoryGroup: selectedGroup?.name ?? props.selectedTransaction.categoryGroup,
-        category: selectedCategory?.name ?? props.selectedTransaction.category,
+        categoryId: categoryId,
+        categoryGroupId: categoryGroupId,
+        categoryGroup: categoryGroupName,
+        categoryName: categoryName,
         merchantName: data.merchantName,
         notes: data.notes,
         budgetTags: data.tags,
         budgetAttachmentsStorageNames: finalAttachments,
+        isComposite: data.isSplit,
+        category: {
+          ...props.selectedTransaction.category,
+          id: categoryId,
+          name: categoryName,
+          isComposite: data.isSplit,
+          compositeData: data.isSplit ? data.splitComponents.map(comp => ({
+            categoryId: comp.categoryId,
+            weight: comp.weight,
+            categoryName: categoryGroups
+              .flatMap(g => g.categories)
+              .find(c => c.id === comp.categoryId)?.name ?? ''
+          })) : undefined
+        }
       } as BudgetFinAccountTransaction;
-
-      const response = await fetch(
-        `/api/budgets/${workspace.budget.id}/transactions/${updatedTransaction.transaction.id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            categoryId: updatedTransaction?.categoryId,
-            merchantName: updatedTransaction?.merchantName,
-            notes: updatedTransaction?.notes,
-            tags: updatedTransaction?.budgetTags,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to save transaction');
-      }
 
       // update the transaction in the workspace
       updateTransaction(updatedTransaction);
 
       // update the spending tracking if the category changed
-      const res = await response.json();
-      if (res.spendingTracking) {
-        updateBudgetSpending(res.spendingTracking);
+      if (responseData.spendingTracking) {
+        updateBudgetSpending(responseData.spendingTracking);
       }
     } catch (error) {
       console.error('Error during submission:', error);
@@ -216,18 +358,19 @@ export function TransactionPanel(props: TransactionPanelProps) {
   }, []);
 
   useEffect(() => {
-    setCategoryGroups(Object.values(workspace?.budgetCategories ?? {}));
+    const filteredCategoryGroups = Object.values(workspace?.budgetCategories ?? {}).filter(
+      group => group.name !== workspace?.budget?.id
+    );
+    setCategoryGroups(filteredCategoryGroups);
 
     // Find and set the initial category
-    const matchingCategoryGroup = Object.values(
-      workspace?.budgetCategories ?? {},
-    ).find((group) =>
+    const matchingCategoryGroup = filteredCategoryGroups.find((group) =>
       group.categories?.some(
-        (category) => category?.name === props.selectedTransaction?.category,
+        (category) => category?.name === props.selectedTransaction?.category?.name,
       ),
     );
     const matchingCategory = matchingCategoryGroup?.categories?.find(
-      (category) => category.name === props.selectedTransaction?.category,
+      (category) => category.name === props.selectedTransaction?.category?.name,
     );
     if (matchingCategory) {
       setSelectedCategory({
@@ -289,7 +432,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
       >
         <SelectTrigger>
           <SelectValue placeholder="Select account">
-            {accounts[selectedAccountId]?.name || 'Select account'}
+            {accounts[selectedAccountId]?.name ?? 'Select account'}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
@@ -408,23 +551,6 @@ export function TransactionPanel(props: TransactionPanelProps) {
     }
   };
 
-  // Add this helper function to get currency symbol
-  const getCurrencySymbol = (currencyCode: string): string => {
-    try {
-      return (
-        new Intl.NumberFormat('en', {
-          style: 'currency',
-          currency: currencyCode,
-          currencyDisplay: 'symbol',
-        })
-          .formatToParts(0)
-          .find((part) => part.type === 'currency')?.value || '$'
-      );
-    } catch (e) {
-      return '$'; // Fallback if invalid currency code
-    }
-  };
-
   // Add this helper function at the top level
   const compareAttachments = (
     currentAttachments: (File | string)[],
@@ -451,6 +577,52 @@ export function TransactionPanel(props: TransactionPanelProps) {
       toDelete,
     };
   };
+  
+  const getCurrencySymbol = (currencyCode: string): string => {
+    try {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode })
+        .formatToParts(0)
+        .find(part => part.type === 'currency')?.value ?? '$';
+    } catch {
+      return '$';
+    }
+  };
+
+  const handleSplitComponentsChange = React.useCallback((components: Array<{
+    categoryId: string;
+    weight: number;
+  }>) => {
+    setValue('splitComponents', components, {
+      shouldValidate: false
+    });
+    console.log('splitComponents', components);
+  }, [setValue]);
+
+  useEffect(() => {
+    if (props.selectedTransaction) {
+      setValue('categoryId', props.selectedTransaction.category?.id || '');
+      setValue('merchantName', props.selectedTransaction.merchantName || '');
+      setValue('notes', props.selectedTransaction.notes || '');
+      setValue('tags', props.selectedTransaction.budgetTags || []);
+      
+      if (props.selectedTransaction.category?.isComposite) {
+        setIsSplitMode(true);
+        setValue('isSplit', true);
+        // Ensure we have at least 2 rows even if compositeData is empty
+        setValue('splitComponents', 
+          props.selectedTransaction.category?.compositeData?.length
+            ? props.selectedTransaction.category.compositeData.map(comp => ({
+                categoryId: comp.categoryId,
+                weight: comp.weight
+              }))
+            : [
+                { categoryId: '', weight: 0 },
+                { categoryId: '', weight: 0 }
+              ]
+        );
+      }
+    }
+  }, [props.selectedTransaction, setValue]);
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
@@ -471,7 +643,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
         </SheetHeader>
         <form 
           onSubmit={handleSubmit(onSubmit)} 
-          className="flex flex-col flex-1"
+          className="flex flex-col flex-1 overflow-hidden"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
               e.preventDefault();
@@ -565,11 +737,34 @@ export function TransactionPanel(props: TransactionPanelProps) {
 
             {/* Categorization */}
             <div className="space-y-2">
-              <Label htmlFor="category">
-                Category<span className="text-destructive">*</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="category">Category<span className="text-destructive">*</span></Label>
+                <div className="flex items-center gap-2">
+                  <Label>Split</Label>
+                  <Switch 
+                    checked={isSplitMode}
+                    onCheckedChange={(value) => {
+                      setIsSplitMode(value);
+                      setValue('isSplit', value);
+                      if (!value) {
+                        // Clear split components when turning off split mode
+                        setValue('splitComponents', [], {
+                          shouldValidate: true
+                        });
+                        // Only clear categoryId if it's not already set to a regular category
+                        if (!selectedCategory?.id) {
+                          setValue('categoryId', '', {
+                            shouldValidate: true
+                          });
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </div>
               <TransactionCategorySelect
                 value={selectedCategory?.id}
+                budgetId={budgetId}
                 onValueChange={(value) => {
                   const selected = categoryGroups
                     .flatMap((group) => group.categories)
@@ -584,14 +779,16 @@ export function TransactionPanel(props: TransactionPanelProps) {
                       isDiscretionary: selected.isDiscretionary,
                     });
 
-                    // Update the form value
                     setValue('categoryId', selected.id);
                   }
                 }}
                 categoryGroups={categoryGroups}
                 disabled={props.disabledFields?.category ?? props.isReadOnly}
+                isSplitMode={isSplitMode}
+                onSplitComponentsChange={handleSplitComponentsChange}
+                splitComponents={watch('splitComponents')}
               />
-              {errors.categoryId && (
+              {errors.categoryId && !isSplitMode && (
                 <span className="text-sm text-destructive">
                   {errors.categoryId.message}
                 </span>
@@ -696,12 +893,10 @@ export function TransactionPanel(props: TransactionPanelProps) {
                             </span>
                           ) : (
                             <button
-                              onClick={() =>
-                                downloadAttachment(attachment as string)
-                              }
+                              onClick={() => downloadAttachment(attachment)}
                               className="truncate text-left text-sm hover:underline"
                             >
-                              {getFileNameFromUrl(attachment as string)}
+                              {getFileNameFromUrl(attachment)}
                             </button>
                           )}
                           {!props.isReadOnly &&
@@ -771,6 +966,7 @@ export function TransactionPanel(props: TransactionPanelProps) {
                 )}
               </div>
             </div>
+
           </div>
 
           <div className="sticky bottom-0 flex shrink-0 border-t bg-background p-4">

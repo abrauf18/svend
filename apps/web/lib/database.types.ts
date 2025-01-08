@@ -287,30 +287,36 @@ export type Database = {
       budget_fin_account_transactions: {
         Row: {
           budget_id: string
+          created_at: string | null
           fin_account_transaction_id: string
           merchant_name: string | null
           notes: string | null
           payee: string | null
           svend_category_id: string
           tag_ids: string[] | null
+          updated_at: string | null
         }
         Insert: {
           budget_id: string
+          created_at?: string | null
           fin_account_transaction_id: string
           merchant_name?: string | null
           notes?: string | null
           payee?: string | null
           svend_category_id: string
           tag_ids?: string[] | null
+          updated_at?: string | null
         }
         Update: {
           budget_id?: string
+          created_at?: string | null
           fin_account_transaction_id?: string
           merchant_name?: string | null
           notes?: string | null
           payee?: string | null
           svend_category_id?: string
           tag_ids?: string[] | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -557,30 +563,36 @@ export type Database = {
       categories: {
         Row: {
           budget_id: string | null
+          composite_data: Json | null
           created_at: string | null
           description: string | null
           group_id: string
           id: string
+          is_composite: boolean
           is_discretionary: boolean
           name: string
           updated_at: string | null
         }
         Insert: {
           budget_id?: string | null
+          composite_data?: Json | null
           created_at?: string | null
           description?: string | null
           group_id: string
           id?: string
+          is_composite?: boolean
           is_discretionary?: boolean
           name: string
           updated_at?: string | null
         }
         Update: {
           budget_id?: string | null
+          composite_data?: Json | null
           created_at?: string | null
           description?: string | null
           group_id?: string
           id?: string
+          is_composite?: boolean
           is_discretionary?: boolean
           name?: string
           updated_at?: string | null
@@ -1950,6 +1962,8 @@ export type Database = {
           category_name: string
           category_description: string
           category_is_discretionary: boolean
+          category_is_composite: boolean
+          category_composite_data: Json
           category_created_at: string
           category_updated_at: string
         }[]
@@ -2028,6 +2042,8 @@ export type Database = {
           budget_fin_account_id: string
           tags: Json
           attachments_storage_names: string[]
+          is_composite: boolean
+          composite_data: Json
         }[]
       }
       get_budget_transactions_within_range_by_budget_id: {
@@ -2053,6 +2069,8 @@ export type Database = {
           budget_fin_account_id: string
           tags: Json
           attachments_storage_names: string[]
+          is_composite: boolean
+          composite_data: Json
         }[]
       }
       get_config: {

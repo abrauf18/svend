@@ -52,6 +52,7 @@ export function TransactionTable(props: TransactionTableProps) {
   const [searchValue, setSearchValue] = useState("");
   const debouncedSearch = useDebounce(searchValue, 500);
   const [scoredTransactionIds, setScoredTransactionIds] = useState<Set<string>>(new Set());
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
 
   const { workspace } = useBudgetWorkspace();
 
@@ -156,7 +157,7 @@ export function TransactionTable(props: TransactionTableProps) {
       accessorKey: 'date',
       header: 'Date',
       cell: ({ row }) => {
-        const formattedDate = formatDate(row.original.transaction.date as string);
+        const formattedDate = formatDate(row.original.transaction.date);
         return <div className="w-[120px]">{formattedDate}</div>;
       },
     },
@@ -164,29 +165,21 @@ export function TransactionTable(props: TransactionTableProps) {
       accessorKey: 'category',
       header: 'Category',
       cell: ({ row }) => {
-        // First try to use categoryId to get the current category
-        if (row.original.categoryId) {
-          const allCategories = Object.values(workspace?.budgetCategories ?? {}).flatMap(
-            (group) => group.categories
+        if (row.original.category.isComposite && row.original.category.compositeData) {
+          const percentages = row.original.category.compositeData
+            .map(comp => `${comp.categoryName} (${comp.weight}%)`)
+            .join(', ');
+          
+          return (
+            <div className="w-[350px] truncate">
+              <span className="font-medium">Split:</span> {percentages}
+            </div>
           );
-          const category = allCategories.find((cat) => cat.id === row.original.categoryId);
-          const group = Object.values(workspace?.budgetCategories ?? {}).find((group) =>
-            group.categories.some((cat) => cat.id === row.original.categoryId)
-          );
-
-          if (category && group) {
-            return (
-              <div className="w-[350px] truncate capitalize">
-                {`${group.name} > ${category.name}`}
-              </div>
-            );
-          }
         }
 
-        // Fallback to svend categories if no categoryId or category not found
         return (
           <div className="w-[350px] truncate capitalize">
-            {`${row.original.categoryGroup} > ${row.original.category}`}
+            {`${row.original.categoryGroup} > ${row.original.category.name}`}
           </div>
         );
       },
@@ -237,9 +230,9 @@ export function TransactionTable(props: TransactionTableProps) {
       accessorKey: 'notes',
       header: 'Notes',
       cell: ({ row }) => {
-        const notes = (row.getValue('notes') as string) || '';
+        const notes = (row.getValue('notes')) || '';
         const truncatedNotes =
-          notes.length > 50 ? `${notes.slice(0, 50)}...` : notes;
+          typeof notes === 'string' && notes.length > 50 ? `${notes.slice(0, 50)}...` : (typeof notes === 'string' ? notes : '');
         return <div className="w-[350px] truncate">{truncatedNotes}</div>;
       },
     },
@@ -345,6 +338,18 @@ export function TransactionTable(props: TransactionTableProps) {
       table.getFilteredRowModel().rows.length,
     ),
   };
+
+  useEffect(() => {
+    if (!selectedTransactionId || !workspace?.budgetTransactions) return;
+
+    const updatedTransaction = workspace.budgetTransactions.find(
+      t => t.transaction.id === selectedTransactionId
+    );
+
+    if (updatedTransaction) {
+      props.onSelectTransaction(updatedTransaction);
+    }
+  }, [workspace, selectedTransactionId, props.onSelectTransaction]);
 
   return (
     <div className="w-full">

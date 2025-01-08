@@ -162,7 +162,10 @@ export default function UpdateAccount({ account, institution }: Props) {
 
       accountManualAccountUpdateOne(account.id, institution.id, data);
 
-      toast.success('Account updated successfully');
+      toast.success('Account updated successfully', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
 
       reset({
         name: data.name,
@@ -173,7 +176,10 @@ export default function UpdateAccount({ account, institution }: Props) {
     } catch (err: any) {
       console.error('Unknown server error');
 
-      toast.error('Account could not be updated');
+      toast.error('Account could not be updated', {
+        position: 'bottom-center',
+        duration: 3000,
+      });
     } finally {
       setIsDialogOpened(false);
       setIsLoading(false);

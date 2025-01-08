@@ -2351,6 +2351,16 @@ begin
     values (team_account_id)
     returning id into new_budget_id;
 
+    -- Insert hidden category group with budget_id as name
+    insert into public.category_groups(
+        budget_id,
+        name
+    )
+    values (
+        new_budget_id,
+        new_budget_id::text
+    );
+
     -- Insert membership for the new team account
     insert into public.team_memberships(
         user_id,

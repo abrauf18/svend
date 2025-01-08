@@ -216,7 +216,7 @@ export const POST = enhanceRouteHandler(
               iso_currency_code: 'USD',
               plaid_category_detailed: null,
               plaid_category_confidence: null,
-              raw_data: null,
+              plaid_raw_data: null,
               user_tx_id: trans.TransactionId,
               plaid_tx_id: null,
             };

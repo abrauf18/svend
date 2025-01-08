@@ -168,7 +168,8 @@ export default function TransactionSideMenu() {
       accountManualTransactionUpdate(transactionId!, responseData);
 
       toast.success('Transaction updated successfully', {
-        position: 'bottom-left',
+        position: 'bottom-center',
+        duration: 3000,
       });
 
       setIsLoading(false);
@@ -176,7 +177,8 @@ export default function TransactionSideMenu() {
       console.error('Unknown server error');
 
       toast.error('Transaction could not be updated', {
-        position: 'bottom-left',
+        position: 'bottom-center',
+        duration: 3000,
       });
 
       setIsLoading(false);
@@ -269,6 +271,11 @@ export default function TransactionSideMenu() {
             <RenderError formState={formState} name="svend_category_id" />
           </div>
           <div className={`flex flex-col gap-4`}>
+            <Label>Merchant Name</Label>
+            <Input {...register('merchant_name')} placeholder="Enter merchant name" />
+            <RenderError formState={formState} name="merchant_name" />
+          </div>
+          <div className={`flex flex-col gap-4`}>
             <Label htmlFor="account">
               Account<span className="text-destructive">*</span>
             </Label>
@@ -279,7 +286,7 @@ export default function TransactionSideMenu() {
               <SelectTrigger>
                 <SelectValue placeholder="Select account" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[20vh]">
                 {Object.entries(accounts).map(([instName, accounts]) => (
                   <div key={instName} className={`flex flex-col gap-2 text-sm`}>
                     <p className={`pl-2 pt-2 text-muted-foreground`}>
@@ -297,11 +304,6 @@ export default function TransactionSideMenu() {
               </SelectContent>
             </Select>
             <RenderError formState={formState} name="manual_account_id" />
-          </div>
-          <div className={`flex flex-col gap-4`}>
-            <Label>Merchant Name</Label>
-            <Input {...register('merchant_name')} placeholder="Enter merchant name" />
-            <RenderError formState={formState} name="merchant_name" />
           </div>
           <div className="mt-auto flex border-t bg-background p-4">
             <div className="flex w-full flex-col gap-4 sm:flex-row sm:justify-end">
@@ -321,8 +323,8 @@ export default function TransactionSideMenu() {
               >
                 {isLoading ? (
                   <div className="flex items-center gap-2">
-                    Saving...
-                    <Spinner className={`fill-black dark:fill-white`} />
+                    <span>Saving...</span>
+                    <Spinner className={`h-4 w-4 fill-white dark:fill-black`} />
                   </div>
                 ) : (
                   'Save'

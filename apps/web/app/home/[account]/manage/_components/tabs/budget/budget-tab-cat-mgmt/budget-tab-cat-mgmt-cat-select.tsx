@@ -1,12 +1,17 @@
 'use client';
 
-import React, { useState, useRef, useEffect, FocusEvent, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { CaretSortIcon, LockClosedIcon } from '@radix-ui/react-icons';
 import { cn } from '@kit/ui/utils';
 import { Input } from '@kit/ui/input';
-import { Category } from '~/lib/model/fin.types';
+import { Switch } from '@kit/ui/switch';
+import { Label } from "@kit/ui/label";
+import { Button } from '@kit/ui/button';
+import { Category, CategoryCompositionData, CategoryGroup } from '~/lib/model/fin.types';
 import { toast } from 'sonner';
+import { ListTree, Plus } from 'lucide-react';
+import { CategoryComponentRow } from '../../_shared/category-component-row';
 
 interface CategoryManagementCatSelectProps {
   onValueChange: (value: string | undefined) => void;
@@ -18,6 +23,11 @@ interface CategoryManagementCatSelectProps {
   isBuiltIn?: boolean;
   budgetId?: string;
   groupId?: string;
+  onCompositionDataChange?: (data: { 
+    isCompositeMode: boolean;
+    selectedCategories: CategoryCompositionData[];
+  }) => void;
+  budgetCategories: Record<string, CategoryGroup>;
 }
 
 const filterAndSortCategories = (categories: Category[], query: string) => {
@@ -58,6 +68,8 @@ export function CategoryManagementCatSelect({
   isBuiltIn,
   budgetId,
   groupId,
+  onCompositionDataChange,
+  budgetCategories,
 }: CategoryManagementCatSelectProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
@@ -65,7 +77,19 @@ export function CategoryManagementCatSelect({
   const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [isCompositeMode, setIsCompositeMode] = useState(false);
+  const [componentRows, setComponentRows] = useState<CategoryCompositionData[]>([]);
 
+  const filteredCategoryGroups = Object.values(budgetCategories)
+  .filter(group => group.name !== budgetId)
+  .map(group => ({
+    id: group.id,
+    name: group.name,
+    categories: group.categories,
+    isEnabled: group.isEnabled,
+    createdAt: group.createdAt,
+    updatedAt: group.updatedAt
+  }));
   // Update filtered categories when search or categories change
   useEffect(() => {
     const filtered = filterAndSortCategories(categories, searchQuery);
@@ -77,6 +101,29 @@ export function CategoryManagementCatSelect({
       onValueChange(undefined);
       setSearchQuery('');
       return;
+    }
+    
+    const selectedCategory = categories.find(c => c.id === newValue);
+
+    if (selectedCategory?.isComposite && selectedCategory.compositeData) {
+      setIsCompositeMode(true);
+      setComponentRows(selectedCategory.compositeData.map(comp => ({
+        categoryName: comp.categoryName,
+        weight: comp.weight,
+        categoryId: comp.categoryId
+      })));
+      
+      onCompositionDataChange?.({
+        isCompositeMode: true,
+        selectedCategories: selectedCategory.compositeData
+      });
+    } else {
+      setIsCompositeMode(false);
+      setComponentRows([]);
+      onCompositionDataChange?.({
+        isCompositeMode: false,
+        selectedCategories: []
+      });
     }
     
     onValueChange(newValue);
@@ -112,6 +159,10 @@ export function CategoryManagementCatSelect({
   const createNewCategory = async (
     categoryName: string,
     description: string,
+    compositeData?: {
+      isComposite: boolean;
+      compositeData: CategoryCompositionData[];
+    }
   ): Promise<Category> => {
     try {
       const response = await fetch('/api/budget/transactions/create-category', {
@@ -121,7 +172,11 @@ export function CategoryManagementCatSelect({
           categoryName,
           description,
           budgetId,
-          groupId
+          groupId,
+          ...(compositeData && {
+            isComposite: compositeData.isComposite,
+            compositeData: compositeData.compositeData
+          })
         }),
       });
 
@@ -156,19 +211,88 @@ export function CategoryManagementCatSelect({
 
       const formattedName = searchQuery.charAt(0).toUpperCase() + searchQuery.slice(1);
 
-      setIsCreatingCategory(true);
-      const resCat = await createNewCategory(formattedName, '');
-      
-      if (!resCat?.id) {
-        throw new Error('Invalid category returned from server');
+      // if there is a category selected, we create a normal category
+      // independently of the isCompositeMode state
+      if (value) {
+        setIsCreatingCategory(true);
+        const resCat = await createNewCategory(
+          formattedName,
+          '',
+          undefined
+        );
+        
+        if (!resCat?.id) {
+          throw new Error('Invalid category returned from server');
+        }
+
+        onCreateCategory?.(resCat);
+        onValueChange(resCat.id);
+        setSearchQuery('');
+        setIsOpen(false);
+
+        toast.success('Category created successfully');
+      } else {
+        // if there is no category selected, then we consider isCompositeMode
+        if (isCompositeMode) {
+          const total = calculateTotal(componentRows.map(row => row.weight));
+          if (total !== 100) {
+            toast.error('Total distribution must equal 100%');
+            return;
+          }
+
+          const compositionDataArray = componentRows.map(row => {
+            if (!row.categoryId) {
+              console.error(`No categoryId found for: ${row.categoryName}`);
+              throw new Error(`No categoryId found for: ${row.categoryName}`);
+            }
+
+            return {
+              categoryId: row.categoryId,
+              categoryName: row.categoryName,
+              weight: row.weight
+            };
+          });
+
+          setIsCreatingCategory(true);
+          const resCat = await createNewCategory(
+            formattedName,
+            '',
+            {
+              isComposite: true,
+              compositeData: compositionDataArray
+            }
+          );
+          
+          if (!resCat?.id) {
+            throw new Error('Invalid category returned from server');
+          }
+
+          onCreateCategory?.(resCat);
+          onValueChange(resCat.id);
+          setSearchQuery('');
+          setIsOpen(false);
+
+          toast.success('Category created successfully');
+        } else {
+          setIsCreatingCategory(true);
+          const resCat = await createNewCategory(
+            formattedName,
+            '',
+            undefined
+          );
+          
+          if (!resCat?.id) {
+            throw new Error('Invalid category returned from server');
+          }
+
+          onCreateCategory?.(resCat);
+          onValueChange(resCat.id);
+          setSearchQuery('');
+          setIsOpen(false);
+
+          toast.success('Category created successfully');
+        }
       }
-
-      onCreateCategory?.(resCat);
-      onValueChange(resCat.id);
-      setSearchQuery('');
-      setIsOpen(false);
-
-      toast.success('Category created successfully');
     } catch (error: any) {
       console.error('Error creating new category:', error);
       const errorMessage = error?.message || '';
@@ -182,7 +306,7 @@ export function CategoryManagementCatSelect({
         toast.error('Unable to create category.', {
           className: "bg-destructive text-destructive-foreground",
           descriptionClassName: "text-destructive-foreground",
-          duration: 6000 // Increased duration for longer message
+          duration: 6000
         });
       }
     } finally {
@@ -190,7 +314,23 @@ export function CategoryManagementCatSelect({
     }
   };
 
+  const calculateTotal = (percentages: number[]): number => {
+    return percentages.reduce((sum, value) => sum + value, 0);
+  };
+
+  useEffect(() => {
+    onCompositionDataChange?.({
+      isCompositeMode,
+      selectedCategories: componentRows.map(row => ({
+        categoryId: row.categoryId,
+        categoryName: row.categoryName,
+        weight: row.weight
+      }))
+    });
+  }, [isCompositeMode, componentRows, onCompositionDataChange]);
+
   return (
+    <>
     <SelectPrimitive.Root
       value={value ?? undefined}
       onValueChange={handleValueChange}
@@ -204,9 +344,13 @@ export function CategoryManagementCatSelect({
         disabled={disabled}
       >
         <div className="flex items-center">
-          {isBuiltIn && <LockClosedIcon className="mr-2 h-3 w-3 opacity-70" />}
+          {isBuiltIn ? (
+            <LockClosedIcon className="mr-2 h-4 w-4 opacity-70" />
+          ) : categories.find(c => c.id === value)?.isComposite ? (
+            <ListTree className="mr-2 h-4 w-4 opacity-70" />
+          ) : null}
           <SelectPrimitive.Value placeholder={placeholder}>
-            {value && categories.find(c => c.id === value)?.name || placeholder}
+            {value && (categories.find(c => c.id === value)?.name ?? placeholder)}
           </SelectPrimitive.Value>
         </div>
         <SelectPrimitive.Icon>
@@ -287,9 +431,11 @@ export function CategoryManagementCatSelect({
                     value={category.id}
                     className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
                   >
-                    {isBuiltIn && (
-                      <LockClosedIcon className="mr-2 h-3 w-3 opacity-70" />
-                    )}
+                    {isBuiltIn ? (
+                      <LockClosedIcon className="mr-2 h-4 w-4 opacity-70" />
+                    ) : category.isComposite ? (
+                      <ListTree className="mr-2 h-4 w-4 opacity-70" />
+                    ) : null}
                     <SelectPrimitive.ItemText>
                       <span className={truncateText}>
                         {highlightMatch(category.name, searchQuery)}
@@ -303,5 +449,136 @@ export function CategoryManagementCatSelect({
         </SelectPrimitive.Content>
       </SelectPrimitive.Portal>
     </SelectPrimitive.Root>
+
+    {value && !isBuiltIn && (
+      <div className="flex items-center gap-2 py-4 my-4">
+        <Switch 
+          id="composite-mode" 
+          checked={isCompositeMode}
+          onCheckedChange={(checked) => {
+            setIsCompositeMode(checked);
+            if (checked) {
+              const selectedCategory = categories.find(c => c.id === value);
+              if (selectedCategory?.compositeData) {
+                setComponentRows(
+                  selectedCategory.compositeData.map(comp => ({
+                    categoryName: comp.categoryName,
+                    weight: comp.weight,
+                    categoryId: comp.categoryId
+                  }))
+                );
+              } else {
+                setComponentRows([
+                  { categoryName: '', weight: 0, categoryId: '' },
+                  { categoryName: '', weight: 0, categoryId: '' }
+                ]);
+              }
+            } else {
+              setComponentRows([]);
+            }
+          }}
+        />
+        <Label
+          htmlFor="composite-mode"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        >
+          Split
+        </Label>
+      </div>
+    )}
+
+    {isCompositeMode && (
+      <div className="mt-6 space-y-6">
+        <div className="rounded-lg border border-border p-4">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-medium">Components</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setComponentRows(prev => [
+                  ...prev,
+                  { categoryName: '', weight: 0, categoryId: '' }
+                ]);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Component
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="grid grid-cols-[minmax(200px,1fr)_80px_32px] gap-2 px-2">
+              <div>
+                <span className="text-sm font-medium text-muted-foreground truncate max-w-[200px] block">Category</span>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Weight</span>
+              </div>
+              <div /> {/* Spacer for delete button column */}
+            </div>
+
+            {/* Component Rows */}
+            {componentRows.map((row, index) => {
+              const selectedCategoriesExceptCurrent = componentRows
+                .filter((_, i) => i !== index)
+                .map(r => r.categoryName)
+                .filter(Boolean);
+
+              return (
+                <CategoryComponentRow
+                  key={index}
+                  canDelete={index >= 2}
+                  categoryName={categories.find(c => c.id === row.categoryId)?.name ?? ''}
+                  categoryGroups={filteredCategoryGroups}
+                  value={row}
+                  onChange={(newValue) => {
+                    setComponentRows(prev => {
+                      const newRows = [...prev];
+                      newRows[index] = {
+                        ...newValue,
+                        categoryId: newValue.categoryId ?? ''
+                      };
+                      return newRows;
+                    });
+                  }}
+                  onDelete={() => {
+                    if (index >= 2) {
+                      setComponentRows(prev => prev.filter((_, i) => i !== index));
+                    }
+                  }}
+                  selectedCategories={selectedCategoriesExceptCurrent}
+                  rowIndex={index}
+                  widthToTextEllipsis={240}
+                />
+              );
+            })}
+          </div>
+
+          {/* Total */}
+          <div className="mt-4 pt-4 border-t">
+            <div className="grid grid-cols-[minmax(200px,1fr)_60px_32px] gap-2 px-2">
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Total Distribution</span>
+              </div>
+              <div className="relative">
+                <span className={cn(
+                  "text-sm font-medium block text-right pr-3",
+                  componentRows.reduce((sum, row) => sum + row.weight, 0) === 100 
+                    ? "text-green-500" 
+                    : "text-red-500"
+                )}>
+                  {componentRows.reduce((sum, row) => sum + row.weight, 0)} %
+                </span>
+              </div>
+              <div /> {/* Spacer to match delete button column */}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 } 

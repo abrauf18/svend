@@ -11,7 +11,7 @@ import {
 import { User } from '@supabase/supabase-js';
 import { Database } from '~/lib/database.types';
 import { Budget, BudgetCategoryGroups, BudgetFinAccountRecurringTransaction, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag, BudgetSpendingTrackingsByMonth } from '~/lib/model/budget.types';
-import { Category, CategoryGroup } from '~/lib/model/fin.types';
+import { Category, CategoryCompositionData, CategoryGroup } from '~/lib/model/fin.types';
 
 interface BudgetWorkspace {
   accounts: Database['public']['Views']['user_accounts']['Row'][];
@@ -36,12 +36,12 @@ interface BudgetWorkspaceContextValue {
     groupId: string,
     description: string,
   ) => void;
-  updateCategoryDescription: (
+  updateBudgetSpending: (spendingTracking: BudgetSpendingTrackingsByMonth) => void;
+  updateCategory: (
     groupId: string,
     categoryId: string,
-    description: string,
+    updateData: CategoryUpdateData
   ) => void;
-  updateBudgetSpending: (spendingTracking: BudgetSpendingTrackingsByMonth) => void;
 }
 
 export const BudgetWorkspaceContext =
@@ -100,7 +100,15 @@ export function BudgetWorkspaceContextProvider(
   );
 
   const updateCategoryDescription = useCallback(
-    (groupId: string, categoryId: string, description: string) => {
+    (
+      groupId: string, 
+      categoryId: string, 
+      description: string,
+      compositeData?: {
+        isComposite: boolean;
+        compositionCategories: CategoryCompositionData[] | null;
+      }
+    ) => {
       setWorkspace((prev) => ({
         ...prev,
         budgetCategories: Object.fromEntries(
@@ -111,7 +119,14 @@ export function BudgetWorkspaceContextProvider(
                   ...group,
                   categories: group.categories.map((cat) =>
                     cat.id === categoryId
-                      ? { ...cat, description }
+                      ? { 
+                          ...cat, 
+                          description,
+                          ...(compositeData && {
+                            isComposite: compositeData.isComposite,
+                            compositeData: compositeData.compositionCategories
+                          })
+                        }
                       : cat
                   ),
                 }
@@ -125,7 +140,6 @@ export function BudgetWorkspaceContextProvider(
 
   const addBudgetCategory = useCallback((groupId: string, category: Category) => {
     setWorkspace((prev) => {
-      // Find the group by ID instead of name
       const group = Object.values(prev.budgetCategories).find(g => g.id === groupId);
       if (!group) {
         console.error(`Group with ID ${groupId} not found`);
@@ -138,7 +152,11 @@ export function BudgetWorkspaceContextProvider(
           ...prev.budgetCategories,
           [group.name]: {
             ...prev.budgetCategories[group.name]!,
-            categories: [...prev.budgetCategories[group.name]!.categories, category],
+            categories: [...prev.budgetCategories[group.name]!.categories, {
+              ...category,
+              isComposite: category.isComposite ?? false,
+              compositeData: category.compositeData ?? undefined,
+            }],
           },
         },
       };
@@ -180,6 +198,41 @@ export function BudgetWorkspaceContextProvider(
     }));
   }, []);
 
+  const updateCategory = useCallback(
+    (groupId: string, categoryId: string, updateData: CategoryUpdateData) => {
+      setWorkspace((prev) => ({
+        ...prev,
+        budgetCategories: Object.fromEntries(
+          Object.entries(prev.budgetCategories).map(([key, group]) => [
+            key,
+            group.id === groupId
+              ? {
+                  ...group,
+                  categories: group.categories.map((cat) =>
+                    cat.id === categoryId
+                      ? { 
+                          ...cat,
+                          ...(updateData.description !== undefined && { 
+                            description: updateData.description 
+                          }),
+                          ...(updateData.isComposite !== undefined && { 
+                            isComposite: updateData.isComposite 
+                          }),
+                          ...(updateData.compositeData !== undefined && { 
+                            compositeData: updateData.compositeData 
+                          })
+                        }
+                      : cat
+                  ),
+                }
+              : group
+          ])
+        ),
+      }));
+    },
+    []
+  );
+
   useEffect(() => {
     console.log('Budget workspace updated:', workspace);
   }, [workspace]);
@@ -192,14 +245,20 @@ export function BudgetWorkspaceContextProvider(
         addBudgetCategoryGroup,
         addBudgetCategory,
         updateCategoryGroupDescription,
-        updateCategoryDescription,
         updateTransaction,
         updateRecurringTransaction,
         addBudgetTag,
         updateBudgetSpending,
+        updateCategory,
       }}
     >
       {props.children}
     </BudgetWorkspaceContext.Provider>
   );
+}
+
+interface CategoryUpdateData {
+  description?: string;
+  isComposite?: boolean;
+  compositeData?: CategoryCompositionData[] | null;
 }
