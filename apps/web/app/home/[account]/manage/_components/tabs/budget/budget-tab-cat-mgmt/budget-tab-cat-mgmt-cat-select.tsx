@@ -102,13 +102,22 @@ export function CategoryManagementCatSelect({
     
     const filtered = filterAndSortCategories(categories, searchQuery);
     setFilteredCategories(filtered);
-  }, [categories, searchQuery]);
+  }, [categories, searchQuery, value]);
 
   const handleValueChange = (newValue: string) => {
+    console.log('handleValueChange:', { newValue, isCompositeMode, isSelectingComponent });
+    
     if (!newValue) {
       onValueChange(undefined);
       setSearchQuery('');
       setIsCompositeMode(false);
+      setIsSelectingComponent(false);
+      setComponentRows([]);
+      onCompositionDataChange?.({
+        isCompositeMode: false,
+        selectedCategories: []
+      });
+      console.log('After reset:', { isCompositeMode, isSelectingComponent });
       return;
     }
     
@@ -116,6 +125,7 @@ export function CategoryManagementCatSelect({
 
     if (selectedCategory?.isComposite && selectedCategory.compositeData) {
       setIsCompositeMode(true);
+      setIsSelectingComponent(true);
       setComponentRows(selectedCategory.compositeData.map(comp => ({
         categoryName: comp.categoryName,
         weight: comp.weight,
@@ -128,6 +138,7 @@ export function CategoryManagementCatSelect({
       });
     } else {
       setIsCompositeMode(false);
+      setIsSelectingComponent(false);
       setComponentRows([]);
       onCompositionDataChange?.({
         isCompositeMode: false,
@@ -338,6 +349,37 @@ export function CategoryManagementCatSelect({
     });
   }, [isCompositeMode, componentRows, onCompositionDataChange]);
 
+  // Add an effect to monitor state changes
+  useEffect(() => {
+    console.log('State changed:', { 
+      value, 
+      isCompositeMode, 
+      isSelectingComponent,
+      componentRows: componentRows.length 
+    });
+  }, [value, isCompositeMode, isSelectingComponent, componentRows]);
+
+  // Also log in the render to see what's being used for conditions
+  console.log('Render state:', { 
+    value, 
+    isBuiltIn, 
+    isCompositeMode, 
+    isSelectingComponent 
+  });
+
+  // Add this effect to watch for value changes
+  useEffect(() => {
+    if (!value) {
+      setIsCompositeMode(false);
+      setIsSelectingComponent(false);
+      setComponentRows([]);
+      onCompositionDataChange?.({
+        isCompositeMode: false,
+        selectedCategories: []
+      });
+    }
+  }, [value, onCompositionDataChange]);
+
   return (
     <>
     <SelectPrimitive.Root
@@ -505,7 +547,7 @@ export function CategoryManagementCatSelect({
       </div>
     )}
 
-    {isCompositeMode && (
+    {isCompositeMode && isSelectingComponent && (
       <div className="mt-6 space-y-6">
         <div className="rounded-lg border border-border p-4">
           <div className="flex items-center justify-between mb-4">

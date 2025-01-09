@@ -85,6 +85,12 @@ export function CategoryManagementModal({
       // Always reset category values when group changes
       setValue('categoryId', '');
       setValue('categoryDescription', '');
+      
+      // Reset composite data when group changes
+      setCompositionData({
+        isCompositeMode: false,
+        selectedCategories: []
+      });
     }
   }, [selectedGroupId, setValue]);
 
