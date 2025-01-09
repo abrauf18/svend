@@ -23,6 +23,7 @@ interface CategoryComponentRowProps {
   selectedCategories: string[];
   widthToTextEllipsis: number;
   className?: string;
+  currentCategoryId?: string;
 }
 
 export function CategoryComponentRow({
@@ -34,7 +35,8 @@ export function CategoryComponentRow({
   onDelete,
   selectedCategories,
   widthToTextEllipsis,
-  className
+  className,
+  currentCategoryId
 }: CategoryComponentRowProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -123,10 +125,12 @@ export function CategoryComponentRow({
                       const categories = group.categories.filter(cat => {
                         const isCurrentSelection = cat.name === value.categoryName;
                         const isSelectedInOtherRow = selectedCategories.includes(cat.name) && !isCurrentSelection;
+                        const isCurrentCategory = cat.id === currentCategoryId;
                         
                         return cat.name !== categoryName && 
                                !cat.isComposite && 
-                               !isSelectedInOtherRow;
+                               !isSelectedInOtherRow &&
+                               !isCurrentCategory;
                       });
 
                       const filteredCategories = filterCategories(categories, searchQuery);

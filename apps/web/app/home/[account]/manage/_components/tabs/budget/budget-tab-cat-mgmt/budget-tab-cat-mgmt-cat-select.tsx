@@ -79,6 +79,7 @@ export function CategoryManagementCatSelect({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isCompositeMode, setIsCompositeMode] = useState(false);
   const [componentRows, setComponentRows] = useState<CategoryCompositionData[]>([]);
+  const [isSelectingComponent, setIsSelectingComponent] = useState(false);
 
   const filteredCategoryGroups = Object.values(budgetCategories)
   .filter(group => group.name !== budgetId)
@@ -92,17 +93,22 @@ export function CategoryManagementCatSelect({
   }));
   // Update filtered categories when search or categories change
   useEffect(() => {
-    const filtered = filterAndSortCategories(
-      categories.filter(cat => !cat.isComposite && cat.id !== value),
-      searchQuery
-    );
+    console.log('Effect filter:', {
+      categories: categories.map(c => ({ id: c.id, name: c.name })),
+      value,
+      isCompositeMode,
+      isSelectingComponent
+    });
+    
+    const filtered = filterAndSortCategories(categories, searchQuery);
     setFilteredCategories(filtered);
-  }, [categories, searchQuery, value]);
+  }, [categories, searchQuery]);
 
   const handleValueChange = (newValue: string) => {
     if (!newValue) {
       onValueChange(undefined);
       setSearchQuery('');
+      setIsCompositeMode(false);
       return;
     }
     
@@ -428,9 +434,14 @@ export function CategoryManagementCatSelect({
 
             {categories && (
               <div className="space-y-1 p-2">
-                {filteredCategories
-                  .filter(category => !category.isComposite && category.id !== value)
-                  .map((category) => (
+                {<>
+                  {console.log('Rendering categories:', {
+                    filteredCategories: filteredCategories.map(c => ({ id: c.id, name: c.name })),
+                    value,
+                    isCompositeMode
+                  })}
+                </>}
+                {filteredCategories.map((category) => (
                   <SelectPrimitive.Item
                     key={`${category.id}-${category.name}`}
                     value={category.id}
@@ -462,6 +473,7 @@ export function CategoryManagementCatSelect({
           checked={isCompositeMode}
           onCheckedChange={(checked) => {
             setIsCompositeMode(checked);
+            setIsSelectingComponent(checked);
             if (checked) {
               const selectedCategory = categories.find(c => c.id === value);
               if (selectedCategory?.compositeData) {
@@ -480,6 +492,7 @@ export function CategoryManagementCatSelect({
               }
             } else {
               setComponentRows([]);
+              setIsSelectingComponent(false);
             }
           }}
         />
@@ -557,6 +570,7 @@ export function CategoryManagementCatSelect({
                   selectedCategories={selectedCategoriesExceptCurrent}
                   rowIndex={index}
                   widthToTextEllipsis={240}
+                  currentCategoryId={value}
                 />
               );
             })}
