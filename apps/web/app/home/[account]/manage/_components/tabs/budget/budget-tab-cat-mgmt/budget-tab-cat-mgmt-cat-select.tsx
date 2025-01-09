@@ -92,9 +92,12 @@ export function CategoryManagementCatSelect({
   }));
   // Update filtered categories when search or categories change
   useEffect(() => {
-    const filtered = filterAndSortCategories(categories, searchQuery);
+    const filtered = filterAndSortCategories(
+      categories.filter(cat => !cat.isComposite && cat.id !== value),
+      searchQuery
+    );
     setFilteredCategories(filtered);
-  }, [categories, searchQuery]);
+  }, [categories, searchQuery, value]);
 
   const handleValueChange = (newValue: string) => {
     if (!newValue) {
@@ -425,7 +428,9 @@ export function CategoryManagementCatSelect({
 
             {categories && (
               <div className="space-y-1 p-2">
-                {filteredCategories.map((category) => (
+                {filteredCategories
+                  .filter(category => !category.isComposite && category.id !== value)
+                  .map((category) => (
                   <SelectPrimitive.Item
                     key={`${category.id}-${category.name}`}
                     value={category.id}
