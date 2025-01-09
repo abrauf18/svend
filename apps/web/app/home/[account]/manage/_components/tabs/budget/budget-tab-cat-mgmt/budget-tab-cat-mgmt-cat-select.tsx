@@ -256,7 +256,7 @@ export function CategoryManagementCatSelect({
         if (isCompositeMode) {
           const total = calculateTotal(componentRows.map(row => row.weight));
           if (total !== 100) {
-            toast.error('Total distribution must equal 100%');
+            toast.error('Total weight must equal 100%');
             return;
           }
 
@@ -622,7 +622,7 @@ export function CategoryManagementCatSelect({
           <div className="mt-4 pt-4 border-t">
             <div className="grid grid-cols-[minmax(200px,1fr)_60px_32px] gap-2 px-2">
               <div>
-                <span className="text-sm font-medium text-muted-foreground">Total Distribution</span>
+                <span className="text-sm font-medium text-muted-foreground">Total Weight</span>
               </div>
               <div className="relative">
                 <span className={cn(

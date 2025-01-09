@@ -36,7 +36,7 @@ const schema = z.object({
     if (Math.abs(total - 100) > 0.01) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Total distribution must equal 100%"
+        message: "Total weight must equal 100%"
       });
       return false;
     }

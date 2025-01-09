@@ -305,7 +305,7 @@ export function TransactionCategorySelect({
             <div className="mt-4 pt-4 border-t border-border/50">
               <div className="grid grid-cols-12 gap-2 px-2">
                 <div className="col-span-7">
-                  <span className="text-sm font-medium text-muted-foreground">Total Distribution</span>
+                  <span className="text-sm font-medium text-muted-foreground">Total Weight</span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span className={cn(

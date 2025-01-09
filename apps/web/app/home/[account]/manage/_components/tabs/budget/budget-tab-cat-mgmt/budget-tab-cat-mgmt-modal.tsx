@@ -165,7 +165,7 @@ export function CategoryManagementModal({
 
         const total = validCategories.reduce((sum, category) => sum + category.weight, 0);
         if (total !== 100) {
-          throw new Error('The total distribution must equal 100%');
+          throw new Error('The total weight must equal 100%');
         }
 
         const payload = {
