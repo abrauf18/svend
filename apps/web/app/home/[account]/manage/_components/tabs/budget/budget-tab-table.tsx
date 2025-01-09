@@ -534,8 +534,14 @@ export const BudgetManageTable = forwardRef<HTMLFormElement, BudgetManageTablePr
                               <FormControl>
                                 <div className="flex items-center h-full w-full">
                                   <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}  
+                                    checked={!!form.watch(`categoryGroups.${groupIndex}.isTaxDeductible`)}
+                                    onCheckedChange={(checked) => {
+                                      form.setValue(
+                                        `categoryGroups.${groupIndex}.isTaxDeductible`,
+                                        !!checked,
+                                        { shouldDirty: true }
+                                      );
+                                    }}
                                     className="h-4 w-4 transition-none transform-none"
                                   />
                                 </div>
@@ -629,8 +635,14 @@ export const BudgetManageTable = forwardRef<HTMLFormElement, BudgetManageTablePr
                                 <FormControl>
                                   <div>
                                     <Checkbox
-                                      checked={field.value}
-                                      onCheckedChange={field.onChange}
+                                      checked={!!form.watch(`categoryGroups.${groupIndex}.categories.${childIndex}.isTaxDeductible`)}
+                                      onCheckedChange={(checked) => {
+                                        form.setValue(
+                                          `categoryGroups.${groupIndex}.categories.${childIndex}.isTaxDeductible`,
+                                          !!checked,
+                                          { shouldDirty: true }
+                                        );
+                                      }}
                                       className="h-4 w-4 transition-none transform-none"
                                     />
                                   </div>

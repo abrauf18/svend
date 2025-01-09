@@ -1,4 +1,4 @@
-import { CategoryCompositionData, FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from '../model/fin.types';
+import { FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from '../model/fin.types';
 import { BudgetFinAccountRecurringTransaction } from '../model/budget.types';
 import { Database } from '../database.types';
 import {
@@ -18,12 +18,16 @@ import {
 import { createCategoryService, ICategoryService } from './category.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Configuration, PlaidApi, TransactionsSyncRequest, TransactionStream, Transaction } from 'plaid';
+import { createSpendingService, ISpendingService } from './spending.service';
+import { createTransactionService, ITransactionService } from './transaction.service';
 /**
  * @name BudgetService
  * @description Service for budget-related operations
  */
 class BudgetService {
   private categoryService: ICategoryService;
+  private transactionService: ITransactionService;
+  private spendingService: ISpendingService;
   private supabase: SupabaseClient<Database>;
 
   constructor(
@@ -32,208 +36,8 @@ class BudgetService {
     this.supabase = supabaseClient;
     // Use provided categoryService or create new one
     this.categoryService = createCategoryService(supabaseClient);
-  }
-
-  /**
-   * @name saveBudgetTransactions
-   * @description Saves budget transactions to the database
-   */
-  async saveBudgetTransactions(transactions: BudgetFinAccountTransaction[], budgetId: string): Promise<ServiceResult<BudgetFinAccountTransaction[]>> {
-    try {
-      // Transform transactions into the expected input format
-      const transactionInputs = transactions.map(budgetTransaction => ({
-        budget_fin_account_id: budgetTransaction.budgetFinAccountId!,
-        user_tx_id: budgetTransaction.transaction.userTxId,
-        plaid_tx_id: budgetTransaction.transaction.plaidTxId ?? null,
-        amount: budgetTransaction.transaction.amount,
-        date: budgetTransaction.transaction.date,
-        svend_category_id: budgetTransaction.category?.id,
-        merchant_name: budgetTransaction.transaction.merchantName || '',
-        payee: budgetTransaction.transaction.payee || '',
-        iso_currency_code: budgetTransaction.transaction.isoCurrencyCode || 'USD',
-        plaid_category_detailed: budgetTransaction.transaction.plaidDetailedCategory ?? null,
-        plaid_category_confidence: budgetTransaction.transaction.plaidCategoryConfidence ?? null,
-        plaid_raw_data: budgetTransaction.transaction.plaidRawData as any
-      }));
-
-      // Call the RPC function with the array of inputs
-      const { data: transactionIds, error } = await this.supabase
-        .rpc('create_budget_fin_account_transactions', {
-          p_budget_id: budgetId,
-          p_transactions: transactionInputs
-        });
-
-      if (error) {
-        console.error(`Error inserting transactions:`, error);
-        return { data: null, error: `Failed to persist transactions: ${error.message}` };
-      }
-
-      // Update the original transactions with the new IDs
-      const savedTransactions = transactions.map((transaction, index) => ({
-        ...transaction,
-        transaction: {
-          ...transaction.transaction,
-          id: transactionIds[index]!
-        }
-      }));
-
-      return { data: savedTransactions, error: null };
-    } catch (error: any) {
-      console.error('Error in persistTransactions:', error);
-      return { data: null, error: `Failed to persist transactions: ${error.message}` };
-    }
-  }
-
-  /**
-   * @name saveBudgetRecurringTransactions
-   * @description Saves budget recurring transactions to the database
-   */
-  async saveBudgetRecurringTransactions(transactions: BudgetFinAccountRecurringTransaction[], budgetId: string): Promise<ServiceResult<BudgetFinAccountRecurringTransaction[]>> {
-    try {
-      // Transform transactions into the expected input format
-      const transactionInputs = transactions.map(budgetTransaction => ({
-        budget_fin_account_id: budgetTransaction.budgetFinAccountId!,
-        user_tx_id: budgetTransaction.transaction.userTxId,
-        plaid_tx_id: budgetTransaction.transaction.plaidTxId ?? null,
-        fin_account_transaction_ids: budgetTransaction.transaction.finAccountTransactionIds,
-        svend_category_id: budgetTransaction.categoryId!,
-        plaid_category_detailed: budgetTransaction.transaction.plaidDetailedCategory ?? null,
-        plaid_category_confidence: budgetTransaction.transaction.plaidCategoryConfidence ?? null,
-        plaid_raw_data: budgetTransaction.transaction.plaidRawData as any
-      }));
-
-      // Call the RPC function with the array of inputs
-      const { data: transactionIds, error } = await this.supabase
-        .rpc('create_budget_fin_account_recurring_transactions', {
-          p_budget_id: budgetId,
-          p_transactions: transactionInputs
-        });
-
-      if (error) {
-        console.error(`Error inserting recurring transactions:`, error);
-        // Debug log
-        console.error('Failed transactions params:', {
-          budgetId,
-          transactionCount: transactions.length,
-          firstTransaction: transactionInputs[0]
-        });
-        return { data: null, error: `Failed to persist recurring transactions: ${error.message}` };
-      }
-
-      // Verify we got back the expected number of IDs
-      if (transactionIds.length !== transactions.length) {
-        console.warn(
-          'Mismatch in returned recurring transaction IDs:',
-          {
-            expectedCount: transactions.length,
-            returnedCount: transactionIds.length
-          }
-        );
-      }
-
-      // Update the original transactions with the new IDs
-      const savedTransactions = transactions.map((transaction, index) => ({
-        ...transaction,
-        transaction: {
-          ...transaction.transaction,
-          id: transactionIds[index]!
-        }
-      }));
-
-      return { data: savedTransactions, error: null }; // success
-    } catch (error: any) {
-      console.error('Error in persistRecurringTransactions:', error);
-      return { data: null, error: `Failed to persist recurring transactions: ${error.message}` };
-    }
-  }
-
-  /**
-   * @name saveTransactions
-   * @description Saves transactions to the database, useful when adding a transaction to a fin account not associated with any budget
-   */
-  async saveTransactions(transactions: FinAccountTransaction[]): Promise<ServiceResult<FinAccountTransaction[]>> {
-    try {
-      // Transform transactions into the expected input format
-      const transactionsToInsert = transactions.map(tx => ({
-        plaid_account_id: tx.plaidAccountId,
-        user_tx_id: tx.userTxId,
-        plaid_tx_id: tx.plaidTxId,
-        amount: tx.amount,
-        date: tx.date,
-        svend_category_id: tx.svendCategoryId as string,
-        merchant_name: tx.merchantName || '',
-        payee: tx.payee || '',
-        iso_currency_code: tx.isoCurrencyCode || 'USD',
-        plaid_category_detailed: tx.plaidDetailedCategory ?? null,
-        plaid_category_confidence: tx.plaidCategoryConfidence ?? null,
-        plaid_raw_data: tx.plaidRawData as any
-      }));
-
-      // Insert transactions and return the IDs
-      const { data: transactionIds, error } = await this.supabase
-        .from('fin_account_transactions')
-        .insert(transactionsToInsert)
-        .select('id');
-
-      if (error) {
-        console.error('Error inserting transactions:', error);
-        return { data: null, error: `Failed to persist transactions: ${error.message}` };
-      }
-
-      // Update the original transactions with the new IDs
-      const savedTransactions = transactions.map((transaction, index) => ({
-        ...transaction,
-        id: transactionIds[index]!.id
-      }));
-
-      return { data: savedTransactions, error: null };
-    } catch (error: any) {
-      console.error('Error in persistTransactions:', error);
-      return { data: null, error: `Failed to persist transactions: ${error.message}` };
-    }
-  }
-
-  /**
-   * @name saveRecurringTransactions
-   * @description Saves recurring transactions to the database, useful when adding a recurring transaction to a fin account not associated with any budget
-   */
-  async saveRecurringTransactions(transactions: FinAccountRecurringTransaction[]): Promise<ServiceResult<BudgetFinAccountRecurringTransaction[]>> {
-    const BATCH_SIZE = 100;
-
-    try {
-      for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
-        const batch = transactions.slice(i, i + BATCH_SIZE);
-        const transactionsToInsert = batch.map((tx) => ({
-          user_tx_id: tx.userTxId,
-          plaid_tx_id: tx.plaidTxId,
-          fin_account_transaction_ids: tx.finAccountTransactionIds,
-          svend_category_id: tx.svendCategoryId as string,
-          plaid_account_id: tx.plaidAccountId,
-          plaid_category_detailed: tx.plaidDetailedCategory,
-          plaid_category_confidence: tx.plaidCategoryConfidence,
-          plaid_raw_data: tx.plaidRawData as any
-        }));
-
-        const { error } = await this.supabase
-          .from('fin_account_recurring_transactions')
-          .insert(transactionsToInsert);
-
-        if (error) {
-          console.error(`Error inserting batch ${i / BATCH_SIZE + 1}:`, error);
-          return { data: null, error: `Failed to persist transactions batch ${i / BATCH_SIZE + 1}: ${error.message}` };
-        }
-
-        // Add a small delay between batches to prevent overwhelming the database
-        if (i + BATCH_SIZE < transactions.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-
-      return { data: null, error: null }; // success
-    } catch (error: any) {
-      console.error('Error in persistTransactions:', error);
-      return { data: null, error: `Failed to persist transactions: ${error.message}` };
-    }
+    this.spendingService = createSpendingService(supabaseClient);
+    this.transactionService = createTransactionService(supabaseClient);
   }
 
   /**
@@ -700,165 +504,6 @@ class BudgetService {
   }
 
   /**
-   * Parses and validates raw budget transactions into strongly typed FinAccountTransaction objects
-   * @param raw The raw budget transactions from the get_budget_transactions_by_team_account_slug function
-   * @returns Array of validated FinAccountTransaction objects
-   * 
-   * Maps the following fields from database:
-   * - Basic: id, date, amount, merchantName, payee, isoCurrencyCode
-   * - Categories: plaidDetailedCategoryName, svendCategoryGroup, svendCategoryName, svendCategoryId
-   * - Budget: budgetFinAccountId, notes
-   * - Arrays: budgetTags (tags), budgetAttachmentsStorageNames (attachments_storage_names)
-   */
-  parseBudgetTransactions(raw: Database['public']['Functions']['get_budget_transactions_by_team_account_slug']['Returns']): BudgetFinAccountTransaction[] {
-    try {
-      if (!Array.isArray(raw)) {
-        console.error('Expected array of transactions, received:', typeof raw);
-        return [];
-      }
-
-      return raw.reduce((validTransactions: BudgetFinAccountTransaction[], budgetTransaction) => {
-        try {
-          // Validate required fields
-          if (!budgetTransaction.id || !budgetTransaction.date ||
-            typeof budgetTransaction.amount !== 'number' ||
-            !budgetTransaction.budget_fin_account_id) {
-            console.error('Missing required transaction fields:', budgetTransaction);
-            return validTransactions;
-          }
-
-          // Validate date
-          const transactionDate = new Date(budgetTransaction.date);
-          if (isNaN(transactionDate.getTime())) {
-            console.error('Invalid transaction date:', budgetTransaction.date);
-            return validTransactions;
-          }
-
-          // Create validated transaction object matching SQL function return values
-          const validTransaction: BudgetFinAccountTransaction = {
-            transaction: {
-              id: budgetTransaction.id,
-              userTxId: budgetTransaction.user_tx_id,
-              plaidTxId: budgetTransaction.plaid_tx_id,
-              date: budgetTransaction.date,
-              amount: budgetTransaction.amount,
-              merchantName: budgetTransaction.merchant_name,
-              payee: budgetTransaction.payee ?? undefined,
-              isoCurrencyCode: budgetTransaction.iso_currency_code ?? undefined,
-            } as FinAccountTransaction,
-            budgetFinAccountId: budgetTransaction.budget_fin_account_id ?? undefined,
-
-            // Category information
-            categoryGroupId: budgetTransaction.svend_category_group_id ?? undefined,
-            categoryGroup: budgetTransaction.svend_category_group ?? undefined,
-            category: {
-              id: budgetTransaction.svend_category_id ?? undefined,
-              name: budgetTransaction.svend_category ?? undefined,
-              isComposite: budgetTransaction.is_composite ?? false,
-              compositeData: Array.isArray(budgetTransaction.composite_data) 
-                ? (budgetTransaction.composite_data as unknown as CategoryCompositionData[])
-                : undefined,
-            } as any,
-
-            // Optional fields that match SQL return
-            merchantName: budgetTransaction.merchant_name ?? undefined,
-            payee: budgetTransaction.payee ?? undefined,
-            notes: budgetTransaction.notes ?? '',
-
-            // Arrays from SQL
-            budgetTags: (budgetTransaction.tags as any[] ?? []).map((tag: any) => ({
-              id: tag.id || tag,  // Handle both object and string formats
-              name: tag.name || tag
-            } as BudgetFinAccountTransactionTag)),
-            budgetAttachmentsStorageNames: budgetTransaction.attachments_storage_names ?? [],
-          };
-
-          validTransactions.push(validTransaction);
-          return validTransactions;
-
-        } catch (error) {
-          console.error('Error parsing individual transaction:', error);
-          return validTransactions;
-        }
-      }, []);
-
-    } catch (error) {
-      console.error('Error parsing budget transactions:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Parses and validates raw budget recurring transactions into strongly typed BudgetFinAccountRecurringTransaction objects
-   * @param raw The raw budget recurring transactions from the get_budget_recurring_transactions_by_team_account_slug function
-   * @returns Array of validated BudgetFinAccountRecurringTransaction objects
-   * 
-   * Maps the following fields from database:
-   * - Basic: id
-   * - Categories: plaidDetailedCategoryName, svendCategoryGroup, svendCategoryName, svendCategoryId
-   * - Budget: budgetFinAccountId, notes
-   * - Arrays: budgetTags (tags)
-   */
-  parseBudgetRecurringTransactions(raw: Database['public']['Functions']['get_budget_recurring_transactions_by_team_account_slug']['Returns']): BudgetFinAccountRecurringTransaction[] {
-    try {
-      if (!Array.isArray(raw)) {
-        console.error('Expected array of transactions, received:', typeof raw);
-        return [];
-      }
-
-      return raw.reduce((validTransactions: BudgetFinAccountRecurringTransaction[], budgetRecurringTransaction) => {
-        try {
-          // Validate required fields
-          if (!budgetRecurringTransaction.id) {
-            console.error('Missing required transaction fields:', budgetRecurringTransaction);
-            return validTransactions;
-          }
-
-          // Create validated transaction object matching SQL function return values
-          const validTransaction: BudgetFinAccountRecurringTransaction = {
-            transaction: {
-              id: budgetRecurringTransaction.id,
-              userTxId: budgetRecurringTransaction.user_tx_id,
-              plaidTxId: budgetRecurringTransaction.plaid_tx_id,
-              finAccountTransactionIds: budgetRecurringTransaction.fin_account_transaction_ids ?? [],
-              createdAt: budgetRecurringTransaction.created_at,
-              updatedAt: budgetRecurringTransaction.updated_at,
-              plaidRawData: budgetRecurringTransaction.plaid_raw_data as any ?? undefined,
-            },
-            budgetFinAccountId: budgetRecurringTransaction.budget_fin_account_id ?? undefined,
-
-            // Category information
-            categoryGroupId: budgetRecurringTransaction.svend_category_group_id ?? undefined,
-            categoryGroup: budgetRecurringTransaction.svend_category_group ?? undefined,
-            categoryId: budgetRecurringTransaction.svend_category_id ?? undefined,
-            category: budgetRecurringTransaction.svend_category ?? undefined,
-
-            // Optional fields that match SQL return
-            notes: budgetRecurringTransaction.notes ?? '',
-
-            // Arrays from SQL
-            budgetTags: (budgetRecurringTransaction.tags as any[] ?? []).map((tag: any) => ({
-              id: tag.id || tag,  // Handle both object and string formats
-              name: tag.name || tag
-            } as BudgetFinAccountTransactionTag)),
-          };
-
-          validTransactions.push(validTransaction);
-          return validTransactions;
-
-        } catch (error) {
-          console.error('Error parsing individual transaction:', error);
-          return validTransactions;
-        }
-      }, []);
-
-    } catch (error) {
-      console.error('Error parsing budget transactions:', error);
-      return [];
-    }
-  }
-
-  /**
    * Parses and validates raw budget tags into strongly typed FinAccountTransactionBudgetTag objects
    * @param raw The raw budget tags from the get_budget_tags_by_team_account_slug function
    * @returns Array of validated FinAccountTransactionBudgetTag objects
@@ -896,177 +541,6 @@ class BudgetService {
       }
 
       return { data: null, error: null };
-    } catch (error: any) {
-      return { data: null, error: error.message };
-    }
-  }
-
-  /**
-   * Updates budget recommendations in the database
-   * @param budgetId The ID of the budget to update
-   * @param months The months to recalculate (format: YYYY-MM)
-   */
-  /**
-   * Updates budget recommendations in the database
-   * @param budgetId The ID of the budget to update
-   * @param months The months to recalculate (format: YYYY-MM)
-   */
-  async updateRecalculateSpending(
-    budgetId: string,
-    months: string[]
-  ): Promise<ServiceResult<BudgetSpendingTrackingsByMonth>> {
-    try {
-      // Validate month format and values
-      const currentYear = new Date().getFullYear();
-      const validMonthRegex = /^\d{4}-(?:0[1-9]|1[0-2])$/;
-
-      for (const month of months) {
-        // Check format
-        if (!validMonthRegex.test(month)) {
-          return {
-            data: null,
-            error: `Invalid month format: ${month}. Expected format: YYYY-MM`
-          };
-        }
-
-        // Extract and validate year
-        const year = parseInt(month.substring(0, 4));
-        if (Math.abs(year - currentYear) > 100) {
-          return {
-            data: null,
-            error: `Year ${year} is too far from current year`
-          };
-        }
-      }
-
-      // Get current budget tracking
-      const { data: dbBudget, error: budgetError } = await this.supabase
-        .from('budgets')
-        .select('spending_tracking')
-        .eq('id', budgetId)
-        .single();
-
-      if (budgetError) {
-        return { data: null, error: `Failed to fetch budget: ${budgetError.message}` };
-      }
-
-      const dbTracking = dbBudget.spending_tracking as BudgetSpendingTrackingsByMonth;
-
-      // Get category groups for the budget
-      const categoryService = createCategoryService(this.supabase);
-      const categoryGroups = await categoryService.getBudgetCategoryGroups(budgetId);
-      console.log('Category groups loaded:', {
-        budgetId,
-        groupNames: Object.keys(categoryGroups),
-        groups: Object.entries(categoryGroups).map(([name, group]) => ({
-          name,
-          budgetId: group.budgetId,
-          categories: group.categories.map(c => ({
-            name: c.name,
-            budgetId: c.budgetId
-          }))
-        }))
-      });
-
-      // Process each month
-      for (const month of months) {
-        // Validate month exists in tracking
-        if (!dbTracking[month]) {
-          console.warn(`budgetService:updateRecalculateSpending: Month ${month} not found in budget tracking - skipping`);
-          continue;
-        }
-
-        // Fetch transactions for this month
-        const { data: dbTransactions, error: txError } = await this.supabase
-          .rpc('get_budget_transactions_within_range_by_budget_id', {
-            p_budget_id: budgetId,
-            p_start_date: `${month}-01`, // Already in YYYY-MM-DD format
-            p_end_date: new Date(
-              parseInt(month.substring(0, 4)), // year
-              parseInt(month.substring(5, 7)), // month (0-based, so next month)
-              0  // last day of current month
-            ).toISOString().split('T')[0]! // Formats as YYYY-MM-DD
-          });
-
-        if (txError) {
-          return { data: null, error: `Failed to fetch transactions: ${txError.message}` };
-        }
-
-        // Parse transactions into BudgetFinAccountTransaction[]
-        const parsedTransactions = this.parseBudgetTransactions(dbTransactions);
-
-        // Handle composite transactions by expanding them based on their composition data
-        const expandedTransactions = parsedTransactions.flatMap(tx => {
-          if (tx.category?.isComposite && tx.category?.compositeData) {
-            return tx.category.compositeData.map(component => ({
-              ...tx,
-              transaction: {
-                ...tx.transaction,
-                amount: tx.transaction.amount * (component.weight / 100)
-              },
-              categoryGroup: tx.categoryGroup,  // Preserve the category group
-              category: {                       // Set the component category
-                id: component.categoryId,
-                name: component.categoryName,
-                isComposite: true,
-                compositeData: tx.category?.compositeData,
-                isDiscretionary: tx.category?.isDiscretionary,
-                createdAt: tx.category?.createdAt,
-                updatedAt: tx.category?.updatedAt
-              }
-            }));
-          }
-          return [tx];
-        });
-
-        // Calculate spending tracking for this month using expanded transactions
-        const { spendingTrackingsByMonth } = this.calculateSpendingTrackings(
-          expandedTransactions,
-          categoryGroups,
-          budgetId
-        );
-
-        // Update tracking with new month data
-        if (spendingTrackingsByMonth[month]) {
-          // Round spendingActual values only
-          Object.values(spendingTrackingsByMonth[month]).forEach(groupTracking => {
-            groupTracking.spendingActual = Math.round(groupTracking.spendingActual * 100) / 100;
-            groupTracking.categories.forEach(categoryTracking => {
-              categoryTracking.spendingActual = Math.round(categoryTracking.spendingActual * 100) / 100;
-            });
-          });
-
-          // Copy spendingTarget values from dbTracking
-          Object.entries(spendingTrackingsByMonth[month]).forEach(([groupName, groupTracking]) => {
-            if (groupTracking && dbTracking[month]?.[groupName]) {  // Add null check here
-              groupTracking.spendingTarget = dbTracking[month]![groupName]!.spendingTarget;
-              groupTracking.categories.forEach(categoryTracking => {
-                if (categoryTracking && dbTracking[month]?.[groupName]?.categories) {  // Add null check here
-                  const matchingCategory = dbTracking[month]![groupName]!.categories
-                    .find(cat => cat.categoryName === categoryTracking.categoryName);
-                  if (matchingCategory?.spendingTarget !== undefined) {  // Add null check here
-                    categoryTracking.spendingTarget = matchingCategory.spendingTarget;
-                  }
-                }
-              });
-            }
-          });
-
-          dbTracking[month] = spendingTrackingsByMonth[month];
-        }
-      }
-
-      // Update budget with recalculated tracking
-      const { error: updateError } = await this.supabase
-        .from('budgets')
-        .update({ spending_tracking: dbTracking })
-        .eq('id', budgetId);
-
-      if (updateError) {
-        return { data: null, error: `Failed to update budget: ${updateError.message}` };
-      }
-
-      return { data: dbTracking, error: null };
     } catch (error: any) {
       return { data: null, error: error.message };
     }
@@ -2179,12 +1653,12 @@ class BudgetService {
       console.log(`budget service > onboarding analysis > persisting ${transactionData.newTransactions.length} budget transactions and ${transactionData.newUnlinkedTransactions.length} unlinked transactions..`);
 
       // Save budget transactions
-      const { data: savedBudgetTransactions, error } = await this.saveBudgetTransactions(transactionData.newTransactions, budgetId);
+      const { data: savedBudgetTransactions, error } = await this.transactionService.saveBudgetTransactions(transactionData.newTransactions, budgetId);
       if (error) throw new Error(error);
       if (!savedBudgetTransactions) throw new Error('No budget transactions were saved');
 
       // Save unlinked transactions
-      const { data: savedTransactions, error: unlinkedError } = await this.saveTransactions(transactionData.newUnlinkedTransactions);
+      const { data: savedTransactions, error: unlinkedError } = await this.transactionService.saveTransactions(transactionData.newUnlinkedTransactions);
       if (unlinkedError) throw new Error(unlinkedError);
 
       // Get all Plaid transaction IDs from recurring transactions
@@ -2262,10 +1736,10 @@ class BudgetService {
       // Now save recurring transactions with the mapped IDs
       console.log(`budget service > onboarding analysis > persisting ${transactionData.newRecurringTransactions.length} budget recurring transactions and ${transactionData.newUnlinkedRecurringTransactions.length} unlinked recurring transactions..`);
 
-      const { error: recurringError } = await this.saveBudgetRecurringTransactions(transactionData.newRecurringTransactions, budgetId);
+      const { error: recurringError } = await this.transactionService.saveBudgetRecurringTransactions(transactionData.newRecurringTransactions, budgetId);
       if (recurringError) throw new Error(recurringError);
 
-      const { error: unlinkedRecurringError } = await this.saveRecurringTransactions(transactionData.newUnlinkedRecurringTransactions);
+      const { error: unlinkedRecurringError } = await this.transactionService.saveRecurringTransactions(transactionData.newUnlinkedRecurringTransactions);
       if (unlinkedRecurringError) throw new Error(unlinkedRecurringError);
 
       return { error: undefined };
@@ -2948,209 +2422,6 @@ class BudgetService {
   }
 
   /**
-   * 6. Calculates monthly spending records
-   * @param budgetTransactions - Array of sorted transactions
-   * @param categoryGroups - Record of category groups
-   * @param categoryToGroupMap - Mapping of categories to their groups
-   * @returns Object containing monthly spending tracking data
-   */
-  private calculateSpendingTrackings(
-    budgetTransactions: BudgetFinAccountTransaction[],
-    categoryGroups: BudgetCategoryGroups,
-    budgetId: string
-  ): {
-    spendingTrackingsByMonth: BudgetSpendingTrackingsByMonth
-  } {
-    // Find date range
-    const earliestTransactionDate = new Date(budgetTransactions[budgetTransactions.length - 1]!.transaction.date);
-
-    // Initialize spending tracking data structure for all months in range
-    const spendingTrackingsByMonth: BudgetSpendingTrackingsByMonth = {};
-    const currentDate = new Date(earliestTransactionDate);
-    const endDate = new Date();
-
-    // Set both dates to the first of their respective months
-    currentDate.setDate(1);
-    endDate.setDate(2);
-
-    // Initialize all months in range with all possible groups
-    while (currentDate <= endDate) {
-      const monthKey = currentDate.toISOString().substring(0, 7);
-
-      spendingTrackingsByMonth[monthKey] = {};
-
-      // Initialize all possible groups for this month
-      Object.values(categoryGroups).forEach(group => {
-        spendingTrackingsByMonth[monthKey]![group.name] = {
-          groupName: group.name,
-          targetSource: 'group',
-          spendingActual: 0,
-          spendingTarget: 0,
-          categories: [],
-          isTaxDeductible: false
-        };
-      });
-
-      // Add "Other" group initialization with "Other" category
-      spendingTrackingsByMonth[monthKey]!['Other'] = {
-        groupName: 'Other',
-        targetSource: 'group',
-        spendingActual: 0,
-        spendingTarget: 0,
-        categories: [{
-          categoryName: 'Other',
-          spendingActual: 0,
-          spendingTarget: 0,
-          isTaxDeductible: false
-        }],
-        isTaxDeductible: false
-      };
-
-      currentDate.setMonth(currentDate.getMonth() + 1);
-    }
-
-    // Group transactions by month
-    const monthlyTransactions: Record<string, BudgetFinAccountTransaction[]> = {};
-    budgetTransactions.forEach(budgetTransaction => {
-      const monthKey = budgetTransaction.transaction.date.substring(0, 7);
-      if (!monthlyTransactions[monthKey]) {
-        monthlyTransactions[monthKey] = [];
-      }
-      monthlyTransactions[monthKey].push(budgetTransaction);
-    });
-
-    // generate categoryToGroupMap - skip groups that match the budget ID
-    const categoryToGroupMap = Object.values(categoryGroups).reduce((acc, group) => {
-      // Skip the group if its name matches any budget ID
-      if (group.budgetId && group.name === group.budgetId) {
-        return acc;
-      }
-      
-      group.categories.forEach(category => {
-        acc[category.name] = group.name;
-      });
-      return acc;
-    }, {} as Record<string, string>);
-
-    // Process each month's transactions
-    Object.entries(monthlyTransactions)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .forEach(([monthKey, monthTransactions]) => {
-        let groupName = 'Other';
-        let categoryName = 'Other';
-        
-        // Process each transaction for this month
-        monthTransactions.forEach(budgetTransaction => {
-          // Check if the transaction's category is composite
-          if (budgetTransaction.category?.isComposite && budgetTransaction.category.compositeData) {
-            // First ensure all needed groups are initialized for this composite transaction
-            budgetTransaction.category.compositeData.forEach(component => {
-              const componentGroupName = categoryToGroupMap[component.categoryName];
-              if (componentGroupName && !spendingTrackingsByMonth[monthKey]![componentGroupName]) {
-                spendingTrackingsByMonth[monthKey]![componentGroupName] = {
-                  groupName: componentGroupName,
-                  targetSource: 'group',
-                  spendingActual: 0,
-                  spendingTarget: 0,
-                  categories: [],
-                  isTaxDeductible: false
-                };
-              }
-            });
-
-            // Then process the components
-            budgetTransaction.category.compositeData.forEach(component => {
-              const componentCategory = Object.values(categoryGroups)
-                .flatMap(g => g.categories)
-                .find(c => c.name === component.categoryName);
-              
-              if (componentCategory) {
-                const groupName = categoryToGroupMap[component.categoryName];
-                const amount = budgetTransaction.transaction.amount * (component.weight / 100);
-                
-                // Add defensive checks
-                if (!groupName) {
-                  console.error('No group found for category:', {
-                    categoryName: component.categoryName,
-                    availableGroups: Object.keys(categoryToGroupMap)
-                  });
-                  return;
-                }
-
-                if (!spendingTrackingsByMonth[monthKey]) {
-                  console.error('No tracking found for month:', monthKey);
-                  return;
-                }
-
-                if (!spendingTrackingsByMonth[monthKey]![groupName]) {
-                  console.error('No group tracking found:', {
-                    month: monthKey,
-                    groupName,
-                    availableGroups: Object.keys(spendingTrackingsByMonth[monthKey] || {})
-                  });
-                  return;
-                }
-
-                const group = spendingTrackingsByMonth[monthKey]![groupName]!;
-                
-                // Initialize if needed
-                if (!group.categories) {
-                  group.categories = [];
-                }
-
-                let categoryTracking = group.categories.find(cat => cat.categoryName === component.categoryName);
-                if (!categoryTracking) {
-                  categoryTracking = {
-                    categoryName: component.categoryName,
-                    spendingActual: amount,
-                    spendingTarget: amount,
-                    isTaxDeductible: false
-                  };
-                  group.categories.push(categoryTracking);
-                } else {
-                  categoryTracking.spendingActual += amount;
-                  categoryTracking.spendingTarget += amount;
-                }
-              }
-            });
-          } else {
-            // Existing logic for non-composite transactions
-            if (budgetTransaction.category?.name && categoryToGroupMap[budgetTransaction.category.name]) {
-              groupName = categoryToGroupMap[budgetTransaction.category.name]!;
-              categoryName = budgetTransaction.category.name!;
-            }
-
-            const isIncomeGroup = groupName.toLowerCase() === 'income';
-            const amount = isIncomeGroup ? -Math.abs(budgetTransaction.transaction.amount) : budgetTransaction.transaction.amount;
-
-            const group = spendingTrackingsByMonth[monthKey]![groupName]!;
-
-            // Update group totals
-            group.spendingActual += amount;
-            group.spendingTarget += amount;
-
-            // Find or create category tracking
-            let categoryTracking = group.categories.find(cat => cat.categoryName === categoryName);
-            if (!categoryTracking) {
-              categoryTracking = {
-                categoryName: categoryName,
-                spendingActual: amount,
-                spendingTarget: amount,
-                isTaxDeductible: false
-              };
-              group.categories.push(categoryTracking);
-            } else {
-              categoryTracking.spendingActual += amount;
-              categoryTracking.spendingTarget += amount;
-            }
-          }
-        });
-      });
-
-    return { spendingTrackingsByMonth };
-  }
-
-  /**
    * 7. Analyzes spending patterns and totals
    * @param latestRollingMonthTransactions - Array of transactions from latest month
    * @param discretionaryCategories - List of discretionary category names
@@ -3539,10 +2810,9 @@ class BudgetService {
       // 3. Calculate spending records
       const {
         spendingTrackingsByMonth
-      } = this.calculateSpendingTrackings(
+      } = this.spendingService.calculateSpendingTrackings(
         sortedTransactions,
-        categoryGroups,
-        budgetId
+        categoryGroups
       );
 
       // 4. Calculate spending totals and check essentials coverage
@@ -3654,8 +2924,6 @@ export function createBudgetService(
 
 export interface IBudgetService {
   createGoalTrackings: (goal: BudgetGoal, trackingStartingBalance: number) => ServiceResult<BudgetGoalSpendingTrackingsByMonth>;
-  saveBudgetTransactions: (transactions: BudgetFinAccountTransaction[], budgetId: string) => Promise<ServiceResult<BudgetFinAccountTransaction[]>>;
-  saveBudgetRecurringTransactions: (transactions: BudgetFinAccountRecurringTransaction[], budgetId: string) => Promise<ServiceResult<BudgetFinAccountRecurringTransaction[]>>;
   saveBudgetGoalWithTracking: (goal: BudgetGoal, trackingStartingBalance: number) => Promise<ServiceResult<BudgetGoal>>;
   getPlaidConnectionItemSummaries: (budgetId: string) => Promise<ServiceResult<PlaidConnectionItemSummary[]>>;
   getManualInstitutionIds: (budgetId: string) => Promise<ServiceResult<string[]>>;
@@ -3669,8 +2937,6 @@ export interface IBudgetService {
   validateBudgetReadyForOnboardingUserSetup: (budgetId: string) => Promise<ServiceResult<null>>;
   parseBudget: (budget: Database['public']['Functions']['get_budget_by_team_account_slug']['Returns'][number]) => Budget | null;
   parseBudgetGoal: (raw: Database['public']['Tables']['budget_goals']['Row']) => BudgetGoal | null;
-  parseBudgetTransactions: (transactions: Database['public']['Functions']['get_budget_transactions_by_team_account_slug']['Returns']) => BudgetFinAccountTransaction[];
-  parseBudgetRecurringTransactions: (transactions: Database['public']['Functions']['get_budget_recurring_transactions_by_team_account_slug']['Returns']) => BudgetFinAccountRecurringTransaction[];
   parseBudgetTags: (tags: Database['public']['Functions']['get_budget_tags_by_team_account_slug']['Returns']) => BudgetFinAccountTransactionTag[];
   onboardingAnalysis: (
     budgetId: string,
@@ -3689,10 +2955,6 @@ export interface IBudgetService {
     recommendations: BudgetSpendingRecommendations,
     tracking: BudgetSpendingTrackingsByMonth
   ) => Promise<ServiceResult<null>>;
-  updateRecalculateSpending: (
-    budgetId: string,
-    months: string[]
-  ) => Promise<ServiceResult<BudgetSpendingTrackingsByMonth>>;
   updateGoalSpending: (
     budgetId: string,
     recommendations: BudgetGoalMultiRecommendations,

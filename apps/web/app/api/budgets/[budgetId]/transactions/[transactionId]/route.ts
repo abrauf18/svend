@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { CategoryCompositionData } from '~/lib/model/fin.types';
 import { createBudgetService } from '~/lib/server/budget.service';
+import { createSpendingService } from '~/lib/server/spending.service';
 
 const schema = z.object({
   categoryId: z.string().uuid().optional(),
@@ -217,9 +218,10 @@ export const PUT = enhanceRouteHandler(
     const transactionDate = dbTransactionData.fin_account_transactions!.date;
     const formattedDate = new Date(transactionDate).toISOString().slice(0, 7);
 
+    const spendingService = createSpendingService(supabaseAdmin);
     try {
       const { data: updatedSpendingTracking, error: recalculateSpendingError } = 
-        await budgetService.updateRecalculateSpending(params.budgetId, [formattedDate]);
+        await spendingService.updateRecalculateSpending(params.budgetId, [formattedDate]);
       
       if (recalculateSpendingError) {
         console.error('Spending recalculation error:', recalculateSpendingError);

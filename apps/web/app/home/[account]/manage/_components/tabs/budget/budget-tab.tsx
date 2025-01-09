@@ -102,13 +102,47 @@ function BudgetTab({ onDirtyStateChange }: BudgetTabProps) {
       }
 
       const data = await response.json();
-      updateBudgetSpending(data.spendingTracking);
-      setIsFormDirty(false);
       
-      toast.success("Budget saved successfully");
+      // Create a deep copy of the current spending tracking
+      const updatedSpendingTracking = {
+        ...workspace.budget.spendingTracking
+      };
+
+      // Update the specific month's data with a proper deep merge
+      const monthKey = formReqData.date;
+      updatedSpendingTracking[monthKey] = Object.keys(data.spendingTracking[monthKey]).reduce(
+        (acc, groupName) => {
+          acc[groupName] = {
+            ...updatedSpendingTracking[monthKey]?.[groupName],
+            ...data.spendingTracking[monthKey][groupName],
+            categories: data.spendingTracking[monthKey][groupName].categories?.map(
+              (newCat: any) => ({
+                ...updatedSpendingTracking[monthKey]?.[groupName]?.categories?.find(
+                  (c: any) => c.categoryName === newCat.categoryName
+                ),
+                ...newCat,
+              })
+            ),
+          };
+          return acc;
+        },
+        {} as Record<string, any>
+      );
+
+      // Update the context with the properly merged data
+      updateBudgetSpending(updatedSpendingTracking);
+      
+      setIsFormDirty(false);
+      toast.success("Budget saved successfully", {
+        duration: 3000,
+        position: 'bottom-center',
+      });
     } catch (error) {
       console.error('Error saving budget:', error);
-      toast.error("Failed to save budget. Please try again.");
+      toast.error("Failed to save budget. Please try again.", {
+        duration: 3000,
+        position: 'bottom-center',
+      });
     } finally {
       setIsSaving(false);
     }
