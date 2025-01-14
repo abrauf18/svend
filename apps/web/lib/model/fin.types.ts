@@ -25,6 +25,7 @@ export interface FinAccountTransaction {
   plaidCategoryConfidence?: string; // Confidence level for the category from Plaid
   merchantName: string; // Name of the merchant involved in the transaction
   payee?: string; // Name of the payee for the transaction
+  status: 'pending' | 'posted';
   isoCurrencyCode?: string; // ISO currency code for the transaction
   recurrenceDetails?: any;
   isRecurring?: boolean;

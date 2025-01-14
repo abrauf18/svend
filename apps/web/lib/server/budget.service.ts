@@ -1433,6 +1433,10 @@ class BudgetService {
 
             return {
               ...transaction,
+              transaction: {
+                ...transaction.transaction,
+                svendCategoryId: mappedCategory.category.id,
+              },
               categoryId: mappedCategory.category.id,
               category: mappedCategory.category.name,
               categoryGroup: mappedCategory.groupName,
@@ -1454,6 +1458,10 @@ class BudgetService {
 
           return {
             ...transaction,
+            transaction: {
+              ...transaction.transaction,
+              svendCategoryId: mappedCategory.category.id,
+            },
             categoryId: mappedCategory.category.id,
             category: mappedCategory.category.name,
             categoryGroup: mappedCategory.groupName,

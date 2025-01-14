@@ -2,6 +2,10 @@ import { SupabaseClient } from '@supabase/supabase-js';
 
 import { Database } from '@kit/supabase/database';
 import { createCategoryService } from '~/lib/server/category.service';
+import { createPlaidClient } from '~/lib/server/plaid.service';
+import { createTransactionService, PlaidSyncTransactionsResponse } from '~/lib/server/transaction.service';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+import { createSpendingService } from '~/lib/server/spending.service';
 
 /**
  * Class representing an API for interacting with team accounts.
@@ -9,9 +13,11 @@ import { createCategoryService } from '~/lib/server/category.service';
  * @param {SupabaseClient<Database>} client - The Supabase client instance.
  */
 export class TeamBudgetsApi {
-  constructor(private readonly client: SupabaseClient<Database>) {}
+  constructor(private readonly client: SupabaseClient<Database>) { }
 
   private categoryService = createCategoryService(this.client);
+  private transactionService = createTransactionService(this.client);
+  private plaidClient = createPlaidClient();
 
   /**
    * @name getBudgetWorkspace
@@ -19,10 +25,28 @@ export class TeamBudgetsApi {
    * @param slug
    */
   async getBudgetWorkspace(slug: string) {
+    // First sync Plaid transactions and await the result
+    const supabaseAdmin = getSupabaseServerAdminClient();
+    const adminTransactionService = createTransactionService(supabaseAdmin);
+
+    const { error: plaidSyncError, data: syncData } = await adminTransactionService.syncPlaidTransactionsByTeamAccountSlug(
+      slug,
+      this.plaidClient
+    );
+
+    if (plaidSyncError) {
+      return { error: plaidSyncError, data: null };
+    }
+
+    const spendingError = await this.updateSpendingForTransactions(syncData, supabaseAdmin);
+    if (spendingError) {
+      return { error: spendingError, data: null };
+    }
+
     const accountPromise = this.client.rpc('team_account_workspace', {
       account_slug: slug,
     }).single();
-    
+
     const accountsPromise = this.client.from('user_accounts').select('*');
 
     const budgetPromise = this.client.rpc('get_budget_by_team_account_slug', {
@@ -43,14 +67,23 @@ export class TeamBudgetsApi {
       p_team_account_slug: slug,
     });
 
-    const [accountResult, accountsResult, budgetResult, budgetTransactionsResult, budgetRecurringTransactionsResult, budgetCategoriesResult, budgetTagsResult] = await Promise.all([
+    // Then fetch all other data in parallel
+    const [
+      accountResult,
+      accountsResult,
+      budgetResult,
+      budgetTransactionsResult,
+      budgetRecurringTransactionsResult,
+      budgetCategoriesResult,
+      budgetTagsResult
+    ] = await Promise.all([
       accountPromise,
       accountsPromise,
       budgetPromise,
       budgetTransactionsPromise,
       budgetRecurringTransactionsPromise,
       budgetCategoriesPromise,
-      budgetTagsPromise,
+      budgetTagsPromise
     ]);
 
     if (accountResult.error) {
@@ -70,10 +103,10 @@ export class TeamBudgetsApi {
     }
 
     if (accountsResult.error) {
-        return {
+      return {
         error: accountsResult.error,
         data: null,
-        };
+      };
     }
 
     if (budgetResult.error) {
@@ -138,6 +171,30 @@ export class TeamBudgetsApi {
     }
 
     return data;
+  }
+  
+  private async updateSpendingForTransactions(
+    syncData: PlaidSyncTransactionsResponse | null,
+    supabaseAdmin: SupabaseClient<Database>
+  ): Promise<string | null> {
+    if (!syncData?.budgetId || !syncData?.newTransactions.length && !syncData?.modifiedTransactions.length) {
+      return null;
+    }
+  
+    const spendingService = createSpendingService(supabaseAdmin);
+    const months = [...new Set([
+      ...syncData.newTransactions.map(tx => tx.transaction.date.substring(0, 7)),
+      ...syncData.modifiedTransactions.map(tx => tx.transaction.date.substring(0, 7))
+    ])];
+    
+    const { error: spendingError } = await spendingService.updateRecalculateSpending(syncData.budgetId, months);
+  
+    if (spendingError) {
+      console.error('[TeamBudgetsApi] Failed to update spending:', spendingError);
+      return spendingError;
+    }
+  
+    return null;
   }
 
   /**

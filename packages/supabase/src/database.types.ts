@@ -234,24 +234,30 @@ export type Database = {
       budget_fin_account_recurring_transactions: {
         Row: {
           budget_id: string
+          created_at: string | null
           fin_account_recurring_transaction_id: string
           notes: string | null
           svend_category_id: string | null
           tag_ids: string[] | null
+          updated_at: string | null
         }
         Insert: {
           budget_id: string
+          created_at?: string | null
           fin_account_recurring_transaction_id: string
           notes?: string | null
           svend_category_id?: string | null
           tag_ids?: string[] | null
+          updated_at?: string | null
         }
         Update: {
           budget_id?: string
+          created_at?: string | null
           fin_account_recurring_transaction_id?: string
           notes?: string | null
           svend_category_id?: string | null
           tag_ids?: string[] | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -819,6 +825,7 @@ export type Database = {
           plaid_raw_data: Json | null
           plaid_tx_id: string | null
           svend_category_id: string
+          tx_status: Database["public"]["Enums"]["transaction_status_enum"]
           updated_at: string | null
           user_tx_id: string
         }
@@ -837,6 +844,7 @@ export type Database = {
           plaid_raw_data?: Json | null
           plaid_tx_id?: string | null
           svend_category_id: string
+          tx_status?: Database["public"]["Enums"]["transaction_status_enum"]
           updated_at?: string | null
           user_tx_id: string
         }
@@ -855,6 +863,7 @@ export type Database = {
           plaid_raw_data?: Json | null
           plaid_tx_id?: string | null
           svend_category_id?: string
+          tx_status?: Database["public"]["Enums"]["transaction_status_enum"]
           updated_at?: string | null
           user_tx_id?: string
         }
@@ -1968,6 +1977,18 @@ export type Database = {
           category_updated_at: string
         }[]
       }
+      get_budget_plaid_items: {
+        Args: {
+          p_team_account_slug: string
+        }
+        Returns: {
+          id: string
+          budget_id: string
+          access_token: string
+          next_cursor: string
+          plaid_accounts: Json
+        }[]
+      }
       get_budget_recurring_transactions_by_budget_id: {
         Args: {
           p_budget_id: string
@@ -2366,6 +2387,7 @@ export type Database = {
         | "incomplete"
         | "incomplete_expired"
         | "paused"
+      transaction_status_enum: "pending" | "posted"
     }
     CompositeTypes: {
       budget_plaid_account_result: {

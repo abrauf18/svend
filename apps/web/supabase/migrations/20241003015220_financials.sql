@@ -46,6 +46,11 @@ create type fin_account_type_enum as enum (
     'other'
 );
 
+create type transaction_status_enum as enum (
+    'pending',
+    'posted'
+);
+
 -- Function "public.has_budget_permission"
 -- Create a function to check if a user has a permission
 create or replace function public.has_budget_permission(
@@ -187,6 +192,45 @@ $$ language plpgsql;
 create trigger check_institution_logo_storage_name
 before insert or update on public.plaid_connection_items
 for each row execute function validate_institution_logo_storage_name();
+
+
+-- Function to get Plaid items and their accounts for a team account
+CREATE OR REPLACE FUNCTION get_budget_plaid_items(p_team_account_slug TEXT)
+RETURNS TABLE (
+  id uuid,
+  budget_id uuid,
+  access_token text,
+  next_cursor text,
+  plaid_accounts jsonb
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT 
+    pci.id,
+    b.id as budget_id,
+    pci.access_token,
+    pci.next_cursor,
+    jsonb_agg(
+      jsonb_build_object(
+        'id', pa.id,
+        'plaid_account_id', pa.plaid_account_id,
+        'budget_fin_account_id', bfa.id
+      )
+    ) as plaid_accounts
+  FROM accounts a
+  JOIN budgets b ON b.team_account_id = a.id
+  JOIN budget_fin_accounts bfa ON bfa.budget_id = b.id
+  JOIN plaid_accounts pa ON bfa.plaid_account_id = pa.id
+  JOIN plaid_connection_items pci ON pa.plaid_conn_item_id = pci.id
+  WHERE a.slug = p_team_account_slug
+  GROUP BY pci.id, b.id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Grant execute to authenticated users (following pattern from original schema)
+GRANT EXECUTE ON FUNCTION get_budget_plaid_items(TEXT) TO authenticated;
+
+COMMENT ON FUNCTION get_budget_plaid_items IS 'Get Plaid items and their accounts for a team account, respecting team membership permissions';
 
 -- Revoke all permissions
 revoke all on public.plaid_connection_items from public, authenticated;
@@ -1057,6 +1101,7 @@ create table if not exists public.fin_account_transactions (
   plaid_category_confidence text,
   merchant_name text,
   payee text,
+  tx_status transaction_status_enum not null default 'pending',
   -- category_id text,
   -- counterparties jsonb,
   -- datetime timestamp with time zone,
@@ -1363,6 +1408,8 @@ CREATE TABLE if not exists public.budget_fin_account_recurring_transactions (
     svend_category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
     notes TEXT,
     tag_ids UUID[] default '{}',
+    created_at timestamp with time zone default current_timestamp,
+    updated_at timestamp with time zone default current_timestamp,
     PRIMARY KEY (budget_id, fin_account_recurring_transaction_id)
 );
 
@@ -2107,7 +2154,17 @@ FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
 
 CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.fin_account_recurring_transactions
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
 BEFORE INSERT OR UPDATE ON public.budget_fin_account_transactions
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.budget_fin_account_recurring_transactions
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_set_timestamps();
 
