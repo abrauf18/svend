@@ -2415,6 +2415,7 @@ export type Database = {
         svend_category_id: string | null
         merchant_name: string | null
         payee: string | null
+        tx_status: Database["public"]["Enums"]["transaction_status_enum"] | null
         iso_currency_code: string | null
         plaid_category_detailed: string | null
         plaid_category_confidence: string | null
