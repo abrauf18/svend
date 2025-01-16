@@ -216,6 +216,7 @@ export const POST = enhanceRouteHandler(
               iso_currency_code: 'USD',
               plaid_category_detailed: null,
               plaid_category_confidence: null,
+              tx_status: 'posted' as 'pending' | 'posted',
               plaid_raw_data: null,
               user_tx_id: trans.TransactionId,
               plaid_tx_id: null,
