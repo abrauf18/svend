@@ -1,47 +1,29 @@
 import { enhanceRouteHandler } from '@kit/next/routes';
-import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { NextResponse } from 'next/server';
-import papa from 'papaparse';
-import parseCSVResponse from './_utils/parse-csv-response';
+import { z } from 'zod';
+import {
+  CSVProcessingError,
+  CSVType,
+  normalizeCategory,
+} from '../[filename]/route';
+import insertInstitutions from '../[filename]/_handlers/insert-institutions';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
-import insertInstitutions from './_handlers/insert-institutions';
-import insertAccounts from './_handlers/insert-accounts';
-import checkCSVValidity from './_utils/check-csv-validity';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import insertAccounts from '../[filename]/_handlers/insert-accounts';
+import parseCSVResponse from '../[filename]/_utils/parse-csv-response';
 
-const csvValidProps = {
-  TransactionId: true,
-  Date: true,
-  Amount: true,
-  Merchant: true,
-  Category: true,
-  BankName: true,
-  BankSymbol: true,
-  AccountName: true,
-  AccountType: true,
-  AccountMask: true,
-};
+// POST /api/onboarding/account/manual/csv/mapped
+// Insert the mapped CSV data into the database
 
-export type CSVType = Record<keyof typeof csvValidProps, string>;
-
-// POST /api/onboarding/account/manual/csv/[filename]
-// Process a CSV file and insert the data into the database
-export class CSVProcessingError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CSVProcessingError';
-  }
-}
+const postSchema = z.object({
+  mappedCsv: z.array(z.record(z.string(), z.string())),
+});
 
 export const POST = enhanceRouteHandler(
-  async ({ params }) => {
-    if (!params.filename) {
-      return NextResponse.json(
-        { error: 'Filename is required' },
-        { status: 400 },
-      );
-    }
-
+  async ({ body }) => {
     try {
+      const parsedText = body.mappedCsv as CSVType[];
+
       const supabaseAdmin = getSupabaseServerAdminClient();
       const supabaseClient = getSupabaseServerClient();
 
@@ -65,29 +47,6 @@ export const POST = enhanceRouteHandler(
           .single();
 
       if (fetchOnboardingError) throw fetchOnboardingError;
-
-      const { data } = await supabaseAdmin.storage
-        .from('onboarding_attachments')
-        .download(`user/${user.id}/${params.filename}`);
-
-      if (!data) throw new Error('File not found');
-
-      const text = await data.text();
-
-      const { data: parsedText } = papa.parse<CSVType>(text, { header: true });
-
-      const validityCheck = checkCSVValidity({
-        csv: parsedText,
-        csvValidProps,
-      });
-
-      if (!validityCheck.isValid) {
-        if (validityCheck.error) console.error(validityCheck.error.message);
-        return NextResponse.json(
-          { ...validityCheck, csvData: parsedText },
-          { status: 400 },
-        );
-      }
 
       const { data: insertedInstitutions, error: institutionsError } =
         await insertInstitutions({
@@ -299,27 +258,22 @@ export const POST = enhanceRouteHandler(
       });
 
       return NextResponse.json({ institutions: parsedInstitutions });
-    } catch (error: any) {
-      console.error('[CSV Processing] Unexpected error:', {
-        error: error,
-        message: error.message,
-        details: error.details,
-        stack: error.stack,
+    } catch (err: any) {
+      console.error('[Mapped CSV Processing] Unexpected error:', {
+        error: err,
+        message: err.message,
+        details: err.details,
+        stack: err.stack,
       });
 
       return NextResponse.json(
-        { error: 'An unexpected error occurred while processing the CSV file' },
+        {
+          error:
+            'An unexpected error occurred while processing the mapped CSV file',
+        },
         { status: 500 },
       );
     }
   },
-  { auth: false },
+  { auth: false, schema: postSchema },
 );
-
-export const normalizeCategory = (category: string): string => {
-  return category
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ');
-};

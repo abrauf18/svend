@@ -15,24 +15,36 @@ import TransactionsRender from './transactions/transactions-render';
 import { Button } from '@kit/ui/button';
 import { FileUp } from 'lucide-react';
 import { Trans } from 'react-i18next';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@kit/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@kit/ui/accordion';
 import CSVGuideDialog from '../dialogs/institutions/upload-csv-guide';
 import { toast } from 'sonner';
+import CsvColumnsMapperModal from './modals/csv-columns-mapper.modal';
 
 export default function InstitutionsLayout() {
-  
   const { state } = useOnboardingContext();
-  
+
   const categoryGroups = state.account.svendCategoryGroups!;
-  
+
   const supabase = getSupabaseBrowserClient();
   const { accountManualInstitutionsAddMany } = useOnboardingContext();
-  
+
   const [isImportingFile, setIsImportingFile] = useState(false);
   const [isLearnMoreOpen, setIsLearnMoreOpen] = useState(false);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [isCreatingInstitution, setIsCreatingInstitution] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [csvModalInfo, setCsvModalInfo] = useState<{
+    open: boolean;
+    csvResult: Record<string, any> | null;
+  }>({
+    open: false,
+    csvResult: null,
+  });
 
   const form = useForm<z.infer<typeof manualAccountFormSchema>>({
     resolver: zodResolver(manualAccountFormSchema),
@@ -105,15 +117,26 @@ export default function InstitutionsLayout() {
       setValue('attachments', [...currentAttachments, newFile]);
       await uploadFilesToStorage([newFile]);
 
-      const { institutions, error } = await fetch(
+      const res = await fetch(
         `/api/onboarding/account/manual/csv/${uniqueName}`,
         {
           method: 'POST',
         },
-      ).then<{
+      );
+
+      if (!res.ok) {
+        const error = await res.json();
+
+        if ('isValid' in error)
+          setCsvModalInfo({ open: true, csvResult: error });
+
+        return;
+      }
+
+      const { institutions, error } = (await res.json()) as {
         institutions?: ReturnType<typeof parseCSVResponse>;
         error?: string;
-      }>((res) => res.json());
+      };
 
       if (error) {
         console.error('financial data import error:', error);
@@ -130,12 +153,12 @@ export default function InstitutionsLayout() {
       }
 
       accountManualInstitutionsAddMany(institutions!);
-      
+
       toast.success('Financial data imported successfully', {
         position: 'bottom-center',
         duration: 3000,
       });
-      
+
       setIsImportingFile(false);
     } catch (err: any) {
       console.error('financial data import error:', err);
@@ -151,22 +174,30 @@ export default function InstitutionsLayout() {
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
     const isAtTop = target.scrollTop <= 1;
-    const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
-    
+    const distanceFromBottom =
+      target.scrollHeight - target.scrollTop - target.clientHeight;
+
     requestAnimationFrame(() => {
       target.style.setProperty('--mask-top', isAtTop ? '0' : '20px');
-      target.style.setProperty('--mask-bottom', distanceFromBottom <= 1 ? '0' : '20px');
+      target.style.setProperty(
+        '--mask-bottom',
+        distanceFromBottom <= 1 ? '0' : '20px',
+      );
     });
   };
 
   useEffect(() => {
-    const container = document.querySelector('.institutions-scroll-container') as HTMLElement;
+    const container = document.querySelector(
+      '.institutions-scroll-container',
+    ) as HTMLElement;
     if (container) {
       container.style.setProperty('--mask-top', '0');
       container.style.setProperty('--mask-bottom', '20px');
-      
+
       // Trigger initial scroll handler to set up masks correctly
-      handleScroll({ currentTarget: container } as React.UIEvent<HTMLDivElement>);
+      handleScroll({
+        currentTarget: container,
+      } as React.UIEvent<HTMLDivElement>);
     }
   }, []);
 
@@ -175,19 +206,20 @@ export default function InstitutionsLayout() {
   useEffect(() => {
     const input = ref.current;
     const handleCancel = () => setIsImportingFile(false);
-    
+
     input?.addEventListener('cancel', handleCancel);
     return () => input?.removeEventListener('cancel', handleCancel);
   }, []);
 
   const handleDownloadSample = () => {
-    const sampleData = 'TransactionId,Date,Amount,Merchant,Category,BankName,BankSymbol,AccountName,AccountType,AccountMask\n' +
-                      'BOA202401010002,01/01/2024,-1000.00,Starting Balance,Income,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
-                      'BOA202401010001,01/02/2024,-3500.00,ABC Company,Income,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
-                      'BOA202401010003,01/03/2024,2000.00,Rent Payment,Rent,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
-                      'BOA202401010004,01/02/2024,89.99,Whole Foods,Groceries,Bank of America,BOA,Svend Credit,CREDIT,5678\n' +
-                      'BOA202401010005,01/05/2024,14.99,Netflix,TV & Movies,Bank of America,BOA,Svend Credit,CREDIT,5678';
-    
+    const sampleData =
+      'TransactionId,Date,Amount,Merchant,Category,BankName,BankSymbol,AccountName,AccountType,AccountMask\n' +
+      'BOA202401010002,01/01/2024,-1000.00,Starting Balance,Income,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
+      'BOA202401010001,01/02/2024,-3500.00,ABC Company,Income,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
+      'BOA202401010003,01/03/2024,2000.00,Rent Payment,Rent,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
+      'BOA202401010004,01/02/2024,89.99,Whole Foods,Groceries,Bank of America,BOA,Svend Credit,CREDIT,5678\n' +
+      'BOA202401010005,01/05/2024,14.99,Netflix,TV & Movies,Bank of America,BOA,Svend Credit,CREDIT,5678';
+
     const blob = new Blob([sampleData], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -203,11 +235,13 @@ export default function InstitutionsLayout() {
       requestAnimationFrame(() => {
         // Add a small delay for smoother transition
         setTimeout(() => {
-          const skeletonElement = document.querySelector('.plaid-connection-skeleton');
+          const skeletonElement = document.querySelector(
+            '.plaid-connection-skeleton',
+          );
           if (skeletonElement) {
-            skeletonElement.scrollIntoView({ 
+            skeletonElement.scrollIntoView({
               behavior: 'smooth',
-              block: 'end'
+              block: 'end',
             });
           }
         }, 100);
@@ -233,31 +267,33 @@ export default function InstitutionsLayout() {
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
-    const csvFile = files.find(file => file.type === 'text/csv' || file.name.endsWith('.csv'));
+    const csvFile = files.find(
+      (file) => file.type === 'text/csv' || file.name.endsWith('.csv'),
+    );
 
     if (csvFile) {
       setIsImportingFile(true);
       const event = {
         target: {
           files: [csvFile],
-          value: ''
-        }
+          value: '',
+        },
       } as unknown as ChangeEvent<HTMLInputElement>;
-      
+
       await handleFileUpload(event);
     }
   };
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="h-full w-full flex">
+    <div className="flex h-full flex-col">
+      <div className="flex h-full w-full">
         {/* Left side - Institutions */}
-        <div className="h-full w-[432px] flex-shrink-0 flex flex-col">
+        <div className="flex h-full w-[432px] flex-shrink-0 flex-col">
           {/* Scrollable Content including Accordion */}
           <div className="flex-1 overflow-y-auto">
-            <div 
+            <div
               onScroll={handleScroll}
-              className="institutions-scroll-container h-[calc(99vh-480px)] overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 pr-4 [mask-image:linear-gradient(to_bottom,transparent,black_var(--mask-top,20px),black_calc(100%-20px),transparent)]"
+              className="institutions-scroll-container scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 h-[calc(99vh-480px)] overflow-y-auto pr-4 [mask-image:linear-gradient(to_bottom,transparent,black_var(--mask-top,20px),black_calc(100%-20px),transparent)]"
             >
               <div className="flex flex-col gap-2 pb-6">
                 {/* Accordion moved inside scroll container */}
@@ -265,32 +301,55 @@ export default function InstitutionsLayout() {
                   <AccordionItem value="manual">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex-shrink-0 px-2">
-                        <AccordionTrigger className="flex h-10 items-center justify-center rounded-md border border-primary border-[2px] bg-background pl-6 pr-5 py-2 text-sm font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50">
-                          <Trans i18nKey={'onboarding:connectManualAccountsSetupOptionsTitleText'} />&nbsp;&nbsp;
+                        <AccordionTrigger className="flex h-10 items-center justify-center rounded-md border-[2px] border-primary bg-background py-2 pl-6 pr-5 text-sm font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50">
+                          <Trans
+                            i18nKey={
+                              'onboarding:connectManualAccountsSetupOptionsTitleText'
+                            }
+                          />
+                          &nbsp;&nbsp;
                         </AccordionTrigger>
                       </div>
-                      <div className="text-xs text-muted-foreground flex-1">
-                        <Trans i18nKey={'onboarding:connectManualAccountsInstructionText'} />
+                      <div className="flex-1 text-xs text-muted-foreground">
+                        <Trans
+                          i18nKey={
+                            'onboarding:connectManualAccountsInstructionText'
+                          }
+                        />
                       </div>
                     </div>
-                    <div className="flex-shrink-0 my-4">
-                      <AccordionContent 
-                        className={`border border-primary border-[2px] rounded-lg p-2 ${
-                          isDragging ? 'bg-primary/5 border-dashed' : ''
+                    <div className="my-4 flex-shrink-0">
+                      <AccordionContent
+                        className={`rounded-lg border-[2px] border-primary p-2 ${
+                          isDragging ? 'border-dashed bg-primary/5' : ''
                         }`}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                       >
                         <div className="px-4">
-                          <div className="flex flex-col gap-2 my-2">
-                            <div className="text-sm text-foreground font-medium">
-                              <Trans i18nKey={'onboarding:connectManualAccountsUploadCSVTitleText'} />
+                          <div className="my-2 flex flex-col gap-2">
+                            <div className="text-sm font-medium text-foreground">
+                              <Trans
+                                i18nKey={
+                                  'onboarding:connectManualAccountsUploadCSVTitleText'
+                                }
+                              />
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              <Trans i18nKey={'onboarding:connectManualAccountsUploadCSVInstructionText'} />{'. '}
-                              <Trans i18nKey={'onboarding:connectManualAccountsUploadCSVSeeOurText'} />&nbsp;
-                              <CSVGuideDialog 
+                              <Trans
+                                i18nKey={
+                                  'onboarding:connectManualAccountsUploadCSVInstructionText'
+                                }
+                              />
+                              {'. '}
+                              <Trans
+                                i18nKey={
+                                  'onboarding:connectManualAccountsUploadCSVSeeOurText'
+                                }
+                              />
+                              &nbsp;
+                              <CSVGuideDialog
                                 isOpen={isLearnMoreOpen}
                                 onOpenChange={setIsLearnMoreOpen}
                                 isCategoriesOpen={isCategoriesOpen}
@@ -299,10 +358,17 @@ export default function InstitutionsLayout() {
                                 handleDownloadSample={handleDownloadSample}
                               />
                             </div>
-                            <div className="flex gap-2 p-2 mb-4">
-                              <Button className="w-fit" onClick={() => ref.current?.click()}>
-                                <FileUp className="size-5 mr-2" />
-                                <Trans i18nKey={'onboarding:connectManualUploadCSVButtonLabel'} />
+                            <div className="mb-4 flex gap-2 p-2">
+                              <Button
+                                className="w-fit"
+                                onClick={() => ref.current?.click()}
+                              >
+                                <FileUp className="mr-2 size-5" />
+                                <Trans
+                                  i18nKey={
+                                    'onboarding:connectManualUploadCSVButtonLabel'
+                                  }
+                                />
                               </Button>
                               <input
                                 type="file"
@@ -312,26 +378,39 @@ export default function InstitutionsLayout() {
                                 onClick={() => setIsImportingFile(true)}
                                 className="hidden"
                               />
-                              <div className={`
-                                text-xs text-muted-foreground flex items-center
-                                px-3 py-2 rounded-md border border-dashed border-muted-foreground/50
-                                ${isDragging ? 'bg-primary/5 border-primary' : 'hover:bg-muted/50 hover:border-muted-foreground'}
-                                transition-colors duration-200
-                              `}>
-                                <Trans i18nKey={'onboarding:connectManualUploadCSVDragLabel'} />
+                              <div
+                                className={`flex items-center rounded-md border border-dashed border-muted-foreground/50 px-3 py-2 text-xs text-muted-foreground ${isDragging ? 'border-primary bg-primary/5' : 'hover:border-muted-foreground hover:bg-muted/50'} transition-colors duration-200`}
+                              >
+                                <Trans
+                                  i18nKey={
+                                    'onboarding:connectManualUploadCSVDragLabel'
+                                  }
+                                />
                               </div>
                             </div>
                           </div>
 
                           <div className="flex flex-col gap-2">
-                            <div className="text-sm text-foreground font-medium">
-                              <Trans i18nKey={'onboarding:connectManualAccountsEditorTitleText'} />
+                            <div className="text-sm font-medium text-foreground">
+                              <Trans
+                                i18nKey={
+                                  'onboarding:connectManualAccountsEditorTitleText'
+                                }
+                              />
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              <Trans i18nKey={'onboarding:connectManualAccountsEditorInstructionText'} />
+                              <Trans
+                                i18nKey={
+                                  'onboarding:connectManualAccountsEditorInstructionText'
+                                }
+                              />
                             </div>
                             <div className="flex gap-2 p-2">
-                              <CreateInstitution setIsCreatingInstitution={setIsCreatingInstitution} />
+                              <CreateInstitution
+                                setIsCreatingInstitution={
+                                  setIsCreatingInstitution
+                                }
+                              />
                             </div>
                           </div>
                         </div>
@@ -341,9 +420,9 @@ export default function InstitutionsLayout() {
                 </Accordion>
 
                 {/* Institutions Render */}
-                <InstitutionsRender 
-                  isImportingFile={isImportingFile} 
-                  isCreatingInstitution={isCreatingInstitution} 
+                <InstitutionsRender
+                  isImportingFile={isImportingFile}
+                  isCreatingInstitution={isCreatingInstitution}
                 />
               </div>
             </div>
@@ -356,6 +435,10 @@ export default function InstitutionsLayout() {
           <TransactionSideMenu />
         </div>
       </div>
+      <CsvColumnsMapperModal
+        csvModalInfo={csvModalInfo}
+        setCsvModalInfo={setCsvModalInfo}
+      />
     </div>
   );
 }
