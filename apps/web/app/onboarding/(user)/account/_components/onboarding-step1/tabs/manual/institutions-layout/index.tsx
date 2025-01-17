@@ -127,8 +127,14 @@ export default function InstitutionsLayout() {
       if (!res.ok) {
         const error = await res.json();
 
-        if ('isValid' in error)
+        if ('isValid' in error) {
+          if (!error.extraProps || error.extraProps.length === 0)
+            return toast.error(
+              `No columns to satisfy missing column(s): ${error.missingProps.join(', ')}`,
+            );
+
           setCsvModalInfo({ open: true, csvResult: error });
+        }
 
         return;
       }

@@ -18,16 +18,19 @@ import {
   SelectValue,
 } from '@kit/ui/select';
 import { cn } from '@kit/ui/utils';
-import { Loader2 } from 'lucide-react';
+import { Loader2, StarIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import parseCSVResponse from '~/api/onboarding/account/manual/csv/[filename]/_utils/parse-csv-response';
 import { useOnboardingContext } from '~/components/onboarding-context';
+import { generateTransactionIdFromCSV } from '../../dialogs/transactions/create-transaction/utils/generate-transaction-id';
 
 type Props = {
   csvModalInfo: { open: boolean; csvResult: Record<string, any> | null };
   setCsvModalInfo: React.Dispatch<React.SetStateAction<Props['csvModalInfo']>>;
 };
+
+const propsWithDefaults = ['TransactionId'];
 
 export default function CsvColumnsMapperModal({
   csvModalInfo,
@@ -57,13 +60,27 @@ export default function CsvColumnsMapperModal({
 
     const csvData = csvModalInfo.csvResult!.csvData as Record<string, any>[];
 
-    const newCsvData = csvData.map((row) => {
+    const newCsvData = csvData.map((row, index) => {
       const newRow = structuredClone(row);
 
       Object.entries(selectedColumns).forEach(
         ([missingColumn, extraColumn]) => {
-          newRow[missingColumn] = row[extraColumn];
-          delete newRow[extraColumn];
+          if (extraColumn === 'auto-generate') {
+            //TODO: Should be dynamic for each type of column
+            const transactionId = generateTransactionIdFromCSV({
+              bankSymbol: row.BankSymbol,
+              bankMask: row.AccountMask,
+              index,
+            });
+
+            if (!transactionId) return;
+
+            newRow[missingColumn] = transactionId;
+            delete newRow[extraColumn];
+          } else {
+            newRow[missingColumn] = row[extraColumn];
+            delete newRow[extraColumn];
+          }
         },
       );
 
@@ -139,6 +156,13 @@ export default function CsvColumnsMapperModal({
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    {propsWithDefaults.includes(mp) ? (
+                      <SelectItem value={'auto-generate'}>
+                        <span className="flex items-center gap-2 text-sm">
+                          <StarIcon size={12} /> Auto generate
+                        </span>
+                      </SelectItem>
+                    ) : null}
                     {(csvModalInfo.csvResult!.extraProps ?? []).map(
                       (col: string) => (
                         <SelectItem

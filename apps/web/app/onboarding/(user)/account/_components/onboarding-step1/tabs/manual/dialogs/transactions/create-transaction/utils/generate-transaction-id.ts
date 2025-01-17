@@ -34,3 +34,27 @@ export default function generateTransactionId({ state, accountId }: Props) {
 
   return transactionId;
 }
+
+export function generateTransactionIdFromCSV({
+  bankSymbol,
+  bankMask,
+  index,
+}: {
+  bankSymbol: string;
+  bankMask: string;
+  index: number;
+}) {
+  try {
+    let currentNum = index;
+    let transactionId: string;
+
+    const randomNum = String(currentNum).padStart(8, '0');
+    transactionId = `${bankSymbol}${bankMask}${randomNum}`;
+
+    return transactionId;
+  } catch (err: any) {
+    console.error(err);
+
+    return null;
+  }
+}
