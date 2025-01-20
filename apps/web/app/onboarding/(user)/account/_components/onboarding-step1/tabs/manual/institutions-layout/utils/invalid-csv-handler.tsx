@@ -19,9 +19,29 @@ export default async function invalidCsvHandler({
   try {
     console.log(error);
 
-    const missingHaveDefaults = error.missingProps.every((prop: string) =>
-      constants.propsWithDefaults.includes(prop),
-    );
+    const missingHaveDefaults =
+      error.missingProps.length > 0
+        ? error.missingProps.every((prop: string) =>
+            constants.propsWithDefaults.includes(prop),
+          )
+        : false;
+
+    if (
+      (!error.missingProps ||
+        error.missingProps.length === 0 ||
+        missingHaveDefaults) &&
+      error.invalidRows &&
+      error.invalidRows.length > 0
+    ) {
+      setCsvModalInfo((prev) => ({
+        ...prev,
+        invalidRows: error.invalidRows,
+        rowsModalOpen: true,
+        csvResult: error,
+      }));
+
+      return { result: null, error: null };
+    }
 
     if (missingHaveDefaults) {
       const parsedCsvData = [];
@@ -63,34 +83,13 @@ export default async function invalidCsvHandler({
         );
 
         return { result: result.institutions, error: null };
-      } else {
-        //If mapped response is not ok, that could mean that there are invalid rows
-        const isJson = res.headers.get('content-type') === 'application/json';
-
-        if (!isJson) {
-          toast.error('A server error has ocurred');
-
-          return { result: null, error: null };
-        }
-
-        const { invalidRows } = await res.json();
-
-        if (invalidRows)
-          setCsvModalInfo((prev) => ({
-            ...prev,
-            invalidRows,
-            rowsModalOpen: true,
-            csvResult: error,
-          }));
-
-        return { result: null, error: null };
       }
     }
 
     if (!error.extraProps || error.extraProps.length === 0) {
       toast.error(
         <div className={`flex w-full flex-col gap-2`}>
-          <p>{`No columns to satisfy missing column(s): ${error.missingProps.join(', ')}`}</p>
+          <p>{`No columns were found to satisfy missing column(s): ${error.missingProps.filter((mp: string) => !constants.propsWithDefaults.includes(mp)).join(', ')}`}</p>
           <Button
             variant={'ghost'}
             onClick={() => setIsLearnMoreOpen(true)}
