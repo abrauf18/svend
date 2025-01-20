@@ -24,13 +24,12 @@ import { toast } from 'sonner';
 import parseCSVResponse from '~/api/onboarding/account/manual/csv/[filename]/_utils/parse-csv-response';
 import { useOnboardingContext } from '~/components/onboarding-context';
 import { generateTransactionIdFromCSV } from '../../dialogs/transactions/create-transaction/utils/generate-transaction-id';
+import { constants } from '../lib/constants';
 
 type Props = {
   csvModalInfo: { open: boolean; csvResult: Record<string, any> | null };
   setCsvModalInfo: React.Dispatch<React.SetStateAction<Props['csvModalInfo']>>;
 };
-
-const propsWithDefaults = ['TransactionId'];
 
 export default function CsvColumnsMapperModal({
   csvModalInfo,
@@ -156,7 +155,7 @@ export default function CsvColumnsMapperModal({
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {propsWithDefaults.includes(mp) ? (
+                    {constants.propsWithDefaults.includes(mp) ? (
                       <SelectItem value={'auto-generate'}>
                         <span className="flex items-center gap-2 text-sm">
                           <StarIcon size={12} /> Auto generate

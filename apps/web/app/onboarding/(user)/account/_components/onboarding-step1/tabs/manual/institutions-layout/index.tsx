@@ -24,6 +24,7 @@ import {
 import CSVGuideDialog from '../dialogs/institutions/upload-csv-guide';
 import { toast } from 'sonner';
 import CsvColumnsMapperModal from './modals/csv-columns-mapper.modal';
+import invalidCsvHandler from './utils/invalid-csv-handler';
 
 export default function InstitutionsLayout() {
   const { state } = useOnboardingContext();
@@ -128,12 +129,19 @@ export default function InstitutionsLayout() {
         const error = await res.json();
 
         if ('isValid' in error) {
-          if (!error.extraProps || error.extraProps.length === 0)
-            return toast.error(
-              `No columns to satisfy missing column(s): ${error.missingProps.join(', ')}`,
-            );
+          const { result, error: err } = await invalidCsvHandler({
+            error,
+            setIsLearnMoreOpen,
+            setCsvModalInfo,
+          });
 
-          setCsvModalInfo({ open: true, csvResult: error });
+          if (err) {
+            throw err;
+          }
+
+          if (!result) return;
+
+          return accountManualInstitutionsAddMany(result);
         }
 
         return;
