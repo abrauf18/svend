@@ -3,16 +3,12 @@ import { toast } from 'sonner';
 import { constants } from '../lib/constants';
 import { generateTransactionIdFromCSV } from '../../dialogs/transactions/create-transaction/utils/generate-transaction-id';
 import parseCSVResponse from '~/api/onboarding/account/manual/csv/[filename]/_utils/parse-csv-response';
+import { CSVModalInfoState } from '../types/states.types';
 
 type Props = {
   error: any;
   setIsLearnMoreOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setCsvModalInfo: React.Dispatch<
-    React.SetStateAction<{
-      open: boolean;
-      csvResult: any;
-    }>
-  >;
+  setCsvModalInfo: React.Dispatch<React.SetStateAction<CSVModalInfoState>>;
 };
 
 export default async function invalidCsvHandler({
@@ -21,6 +17,8 @@ export default async function invalidCsvHandler({
   setCsvModalInfo,
 }: Props) {
   try {
+    console.log(error);
+
     const missingHaveDefaults = error.missingProps.every((prop: string) =>
       constants.propsWithDefaults.includes(prop),
     );
@@ -43,12 +41,14 @@ export default async function invalidCsvHandler({
         parsedCsvData.push(parsedItem);
       }
 
+      //If there are missing columns with defaults, it sends the request again with the defaults
       const res = await fetch('/api/onboarding/account/manual/csv/mapped', {
         method: 'POST',
         body: JSON.stringify({ mappedCsv: parsedCsvData }),
       });
 
       if (res.ok) {
+        //If mapped response is ok, is because there are not invalid rows
         const result = (await res.json()) as {
           institutions?: ReturnType<typeof parseCSVResponse>;
           error?: string;
@@ -63,6 +63,27 @@ export default async function invalidCsvHandler({
         );
 
         return { result: result.institutions, error: null };
+      } else {
+        //If mapped response is not ok, that could mean that there are invalid rows
+        const isJson = res.headers.get('content-type') === 'application/json';
+
+        if (!isJson) {
+          toast.error('A server error has ocurred');
+
+          return { result: null, error: null };
+        }
+
+        const { invalidRows } = await res.json();
+
+        if (invalidRows)
+          setCsvModalInfo((prev) => ({
+            ...prev,
+            invalidRows,
+            rowsModalOpen: true,
+            csvResult: error,
+          }));
+
+        return { result: null, error: null };
       }
     }
 
@@ -84,7 +105,12 @@ export default async function invalidCsvHandler({
       return { result: null, error: null };
     }
 
-    setCsvModalInfo({ open: true, csvResult: error });
+    //If there are extra columns, it opens the modal to map the columns
+    setCsvModalInfo((prev) => ({
+      ...prev,
+      open: true,
+      csvResult: error,
+    }));
 
     return { result: null, error: null };
   } catch (err: any) {

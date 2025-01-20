@@ -11,6 +11,7 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import insertAccounts from '../[filename]/_handlers/insert-accounts';
 import parseCSVResponse from '../[filename]/_utils/parse-csv-response';
+import checkCSVRowValidity from '../[filename]/_utils/check-csv-row-validity';
 
 // POST /api/onboarding/account/manual/csv/mapped
 // Insert the mapped CSV data into the database
@@ -36,6 +37,31 @@ export const POST = enhanceRouteHandler(
         return NextResponse.json(
           { error: 'Authentication required' },
           { status: 401 },
+        );
+      }
+
+      //Check if the csv's rows are valid
+      const invalidRows = [];
+
+      for (let i = 0; i < parsedText.length; i++) {
+        const row = parsedText[i]!;
+
+        const result = checkCSVRowValidity({ row, index: i });
+
+        if (!result.isValid) {
+          invalidRows.push(result);
+        }
+      }
+
+      if (invalidRows.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Invalid rows found',
+            invalidRows,
+            isValid: false,
+            csvData: parsedText,
+          },
+          { status: 400 },
         );
       }
 

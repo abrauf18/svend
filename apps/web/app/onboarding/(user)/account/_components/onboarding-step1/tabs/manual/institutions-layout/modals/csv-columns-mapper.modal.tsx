@@ -25,9 +25,10 @@ import parseCSVResponse from '~/api/onboarding/account/manual/csv/[filename]/_ut
 import { useOnboardingContext } from '~/components/onboarding-context';
 import { generateTransactionIdFromCSV } from '../../dialogs/transactions/create-transaction/utils/generate-transaction-id';
 import { constants } from '../lib/constants';
+import { CSVModalInfoState } from '../types/states.types';
 
 type Props = {
-  csvModalInfo: { open: boolean; csvResult: Record<string, any> | null };
+  csvModalInfo: CSVModalInfoState;
   setCsvModalInfo: React.Dispatch<React.SetStateAction<Props['csvModalInfo']>>;
 };
 
@@ -44,7 +45,8 @@ export default function CsvColumnsMapperModal({
   const [loading, setLoading] = useState(false);
 
   function handleOpen(open: boolean) {
-    if (!open) setCsvModalInfo({ open: false, csvResult: null });
+    if (!open)
+      setCsvModalInfo((prev) => ({ ...prev, open: false, csvResult: null }));
   }
 
   function handleSelect(extraColumn: string, missingColumn: string) {
@@ -92,7 +94,7 @@ export default function CsvColumnsMapperModal({
     });
 
     if (res.ok) {
-      setCsvModalInfo({ csvResult: null, open: false });
+      setCsvModalInfo((prev) => ({ ...prev, csvResult: null, open: false }));
       const { institutions, error } = (await res.json()) as {
         institutions?: ReturnType<typeof parseCSVResponse>;
         error?: string;
@@ -113,6 +115,29 @@ export default function CsvColumnsMapperModal({
       }
 
       accountManualInstitutionsAddMany(institutions!);
+    } else {
+      const isJson = res.headers.get('content-type') === 'application/json';
+
+      if (!isJson) {
+        toast.error('A server error has ocurred');
+
+        return setLoading(false);
+      }
+
+      const { invalidRows, csvData } = await res.json();
+
+      if (invalidRows)
+        setCsvModalInfo((prev) => ({
+          ...prev,
+          invalidRows,
+          open: false,
+          rowsModalOpen: true,
+          csvResult: {
+            csvData,
+            missingProps: [],
+            extraProps: [],
+          },
+        }));
     }
 
     setLoading(false);

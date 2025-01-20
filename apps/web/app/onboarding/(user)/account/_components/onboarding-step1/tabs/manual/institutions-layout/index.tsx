@@ -25,6 +25,8 @@ import CSVGuideDialog from '../dialogs/institutions/upload-csv-guide';
 import { toast } from 'sonner';
 import CsvColumnsMapperModal from './modals/csv-columns-mapper.modal';
 import invalidCsvHandler from './utils/invalid-csv-handler';
+import { CSVModalInfoState } from './types/states.types';
+import CSVInvalidRowsModal from './modals/csv-invalid-rows-modal';
 
 export default function InstitutionsLayout() {
   const { state } = useOnboardingContext();
@@ -39,12 +41,11 @@ export default function InstitutionsLayout() {
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [isCreatingInstitution, setIsCreatingInstitution] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [csvModalInfo, setCsvModalInfo] = useState<{
-    open: boolean;
-    csvResult: Record<string, any> | null;
-  }>({
+  const [csvModalInfo, setCsvModalInfo] = useState<CSVModalInfoState>({
     open: false,
     csvResult: null,
+    rowsModalOpen: false,
+    invalidRows: null,
   });
 
   const form = useForm<z.infer<typeof manualAccountFormSchema>>({
@@ -118,6 +119,7 @@ export default function InstitutionsLayout() {
       setValue('attachments', [...currentAttachments, newFile]);
       await uploadFilesToStorage([newFile]);
 
+      //Uploads csv for the very first time
       const res = await fetch(
         `/api/onboarding/account/manual/csv/${uniqueName}`,
         {
@@ -126,6 +128,7 @@ export default function InstitutionsLayout() {
       );
 
       if (!res.ok) {
+        //If response is not ok, that could mean that there are missing columns or invalid rows
         const error = await res.json();
 
         if ('isValid' in error) {
@@ -450,6 +453,10 @@ export default function InstitutionsLayout() {
         </div>
       </div>
       <CsvColumnsMapperModal
+        csvModalInfo={csvModalInfo}
+        setCsvModalInfo={setCsvModalInfo}
+      />
+      <CSVInvalidRowsModal
         csvModalInfo={csvModalInfo}
         setCsvModalInfo={setCsvModalInfo}
       />
