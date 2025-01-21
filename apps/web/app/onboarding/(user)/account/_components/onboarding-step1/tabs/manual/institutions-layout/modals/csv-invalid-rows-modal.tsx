@@ -17,7 +17,7 @@ import {
   TableRow,
 } from '@kit/ui/table';
 import { cn } from '@kit/ui/utils';
-import React, { useState } from 'react';
+import React from 'react';
 import { CSVModalInfoState } from '../types/states.types';
 
 type Props = {
@@ -29,8 +29,6 @@ export default function CSVInvalidRowsModal({
   csvModalInfo,
   setCsvModalInfo,
 }: Props) {
-  const [loading, setLoading] = useState(false);
-
   function handleOpen(open: boolean) {
     if (!open) setCsvModalInfo((prev) => ({ ...prev, open: false }));
   }
@@ -52,42 +50,45 @@ export default function CSVInvalidRowsModal({
             that are compatible with Svend.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Row No.</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Bank Symbol</TableHead>
-              <TableHead>Bank Mask</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {csvModalInfo.invalidRows.map((invalidRow) => {
-              const csvRow = csvModalInfo.csvResult!.csvData[invalidRow.index!];
+        <div className="max-h-[400px] overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Row No.</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Bank Symbol</TableHead>
+                <TableHead>Bank Mask</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {csvModalInfo.invalidRows.map((invalidRow) => {
+                const csvRow =
+                  csvModalInfo.csvResult!.csvData[invalidRow.index!];
 
-              return (
-                <TableRow key={invalidRow.index!}>
-                  <TableCell>{invalidRow.index! + 1}</TableCell>
-                  <TableCell
-                    className={`${!invalidRow.isValidDate ? 'bg-red-500/5 text-destructive' : ''}`}
-                  >
-                    {csvRow.Date}
-                  </TableCell>
-                  <TableCell
-                    className={`${!invalidRow.isValidSymbol ? 'bg-red-500/5 text-destructive' : ''}`}
-                  >
-                    {csvRow.BankSymbol}
-                  </TableCell>
-                  <TableCell
-                    className={`${!invalidRow.isValidMask ? 'bg-red-500/5 text-destructive' : ''}`}
-                  >
-                    {csvRow.AccountMask}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                return (
+                  <TableRow key={invalidRow.index!}>
+                    <TableCell>{invalidRow.index! + 1}</TableCell>
+                    <TableCell
+                      className={`${!invalidRow.isValidDate ? 'bg-red-500/5 text-destructive' : ''}`}
+                    >
+                      {csvRow.Date}
+                    </TableCell>
+                    <TableCell
+                      className={`${!invalidRow.isValidSymbol ? 'bg-red-500/5 text-destructive' : ''}`}
+                    >
+                      {csvRow.BankSymbol}
+                    </TableCell>
+                    <TableCell
+                      className={`${!invalidRow.isValidMask ? 'bg-red-500/5 text-destructive' : ''}`}
+                    >
+                      {csvRow.AccountMask}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
         <AlertDialogFooter>
           <AlertDialogAction
             className={cn(buttonVariants({ variant: 'default' }))}

@@ -17,14 +17,34 @@ export default async function invalidCsvHandler({
   setCsvModalInfo,
 }: Props) {
   try {
-    console.log(error);
-
     const missingHaveDefaults =
       error.missingProps.length > 0
         ? error.missingProps.every((prop: string) =>
             constants.propsWithDefaults.includes(prop),
           )
         : false;
+
+    const withoutDefaultMissingProps = error.missingProps.filter(
+      (mp: string) => !constants.propsWithDefaults.includes(mp),
+    );
+
+    if (withoutDefaultMissingProps.length > error.extraProps.length) {
+      toast.error(
+        <div className={`flex w-full flex-col gap-2`}>
+          <p>{`There aren't sufficient unknown columns to cover the missing ones: ${withoutDefaultMissingProps.join(', ')}`}</p>
+          <Button
+            variant={'ghost'}
+            onClick={() => setIsLearnMoreOpen(true)}
+            className="outline outline-1 outline-red-400"
+          >
+            CSV Import Guide
+          </Button>
+        </div>,
+        { duration: 5000 },
+      );
+
+      return { result: null, error: null };
+    }
 
     if (
       (!error.missingProps ||

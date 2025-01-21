@@ -69,8 +69,8 @@ export default function CsvColumnsMapperModal({
           if (extraColumn === 'auto-generate') {
             //TODO: Should be dynamic for each type of column
             const transactionId = generateTransactionIdFromCSV({
-              bankSymbol: row.BankSymbol,
-              bankMask: row.AccountMask,
+              bankSymbol: row.BankSymbol ?? row[selectedColumns['BankSymbol']!],
+              bankMask: row.AccountMask ?? row[selectedColumns['AccountMask']!],
               index,
             });
 
@@ -87,6 +87,8 @@ export default function CsvColumnsMapperModal({
 
       return newRow;
     });
+
+    console.log(newCsvData);
 
     const res = await fetch('/api/onboarding/account/manual/csv/mapped', {
       method: 'POST',

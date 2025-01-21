@@ -1,0 +1,37 @@
+TransactionId,Date,Amount,Merchant,Category,BankName,BankSymbol,AccountName,Type
+T2022120329,12/30/2024,156.78,Trader Joe's,Groceries,Citibank,CITI,Joint Checking,DEPOSITORY
+T2022120328,12/29/2024,65.00,Urgent Care,Other Medical,Bank of America,BOA,Credit Card Main,CREDIT
+T2022120327,12/28/2024,14.99,HBO Max,TV & Movies,Bank of America,BOA,Credit Card Main,CREDIT
+T2022120326,12/27/2024,899.99,Apple Store,Shopping,Bank of America,BOA,Credit Card Main,CREDIT
+T2022120325,12/26/2024,158.92,Safeway,Groceries,Bank of America,BOA,Checking Primary,DEPOSITORY
+T2022120324,12/23/2024,178.90,Trader Joe's,Groceries,Citibank,CITI,Joint Checking,DEPOSITORY
+T2022120323,12/22/2024,42.50,Local Pharmacy,Pharmacies & Supplements,Bank of America,BOA,Credit Card Main,CREDIT
+T2022120322,12/21/2024,89.99,Spotify Annual,Music & Audio,Bank of America,BOA,Credit Card Main,CREDIT
+T2022120321,12/20/2024,534.67,Best Buy,Shopping,Bank of America,BOA,Credit Card Main,CREDIT
+T2022120320,12/19/2024,162.34,Safeway,Groceries,Bank of America,BOA,Checking Primary,DEPOSITORY
+T2022120319,12/16/2024,167.89,Trader Joe's,Groceries,Citibank,CITI,Joint Checking,DEPOSITORY
+T2022120318,12/15/2024,78.50,CVS Pharmacy,Pharmacies & Supplements,Bank of America,BOA,Credit Card Main,CREDIT
+T2022120317,12/14/2024,45.99,Netflix,TV & Movies,Bank of America,BOA,Credit Card Main,CREDIT
+T2022120316,12/13/2024,198.45,Target,Superstores,Bank of America,BOA,Credit Card Main,CREDIT
+T2022120315,12/12/2024,145.67,Safeway,Groceries,Bank of America,BOA,Checking Primary,DEPOSITORY
+T2022090314,12/05/2024,65.50,Uber,Transportation,Chase,CHASE,Travel Rewards,CREDIT
+T2022080313,12/04/2024,100.00,Casino Royale,Gambling,Chase,CHASE,Travel Rewards,CREDIT
+T2022070312,12/03/2024,85.75,Total Wine,Alcohol,Chase,CHASE,Travel Rewards,CREDIT
+T2022070304,12/03/2024,189.99,Verizon Wireless,Telephone,Bank of America,BOA,Credit Card Main,CREDIT
+T2022110308,12/07/2024,1299.99,University of Phoenix,Education,Bank of America,BOA,Credit Card Main,CREDIT
+T2022100307,12/06/2024,456.78,Walmart,Superstores,Bank of America,BOA,Credit Card Main,CREDIT
+T2022090306,12/05/2024,175.00,LensCrafters,Eye Care,Bank of America,BOA,Credit Card Main,CREDIT
+T2022080305,12/04/2024,225.50,Universal Studios,Events & Amusement,Bank of America,BOA,Credit Card Main,CREDIT
+T2022060309,12/02/2024,285.00,VCA Animal Hospital,Veterinary Services,Bank of America,BOA,Savings Emergency,DEPOSITORY
+T2022060310,12/02/2024,125.00,Urgent Care,Other Medical,Bank of America,BOA,Savings Emergency,DEPOSITORY
+T2022060311,12/02/2024,85.00,Great Clips,Hair & Beauty,Bank of America,BOA,Savings Emergency,DEPOSITORY
+T2022060303,12/02/2024,35.00,Bank of America,Bank Fees,Bank of America,BOA,Credit Card Main,CREDIT
+BOA123400000003,12/02/2024,89.75,Albertsons,Groceries,Bank of America,BOA,Cash,DEPOSITORY
+T2022050302,12/01/2024,479.99,Target,Superstores,Bank of America,BOA,Credit Card Main,CREDIT
+BOA123400000002,12/01/2024,12.99,McDonald's,Fast Food,Bank of America,BOA,Cash,DEPOSITORY
+BOA123400000001,12/01/2024,-4000,Direct Deposit,Income,Bank of America,BOA,Cash,DEPOSITORY
+T2022040301,11/26/2024,156.78,Safeway,Groceries,Bank of America,BOA,Checking Primary,DEPOSITORY
+T2022040331,11/26/2024,189.45,Whole Foods,Groceries,Bank of America,BOA,Checking Primary,DEPOSITORY
+T2022040333,11/26/2024,167.89,Kroger,Groceries,Citibank,CITI,Joint Checking,DEPOSITORY
+T2022040351,11/26/2024,143.56,Trader Joe's,Groceries,Citibank,CITI,Joint Checking,DEPOSITORY
+T2022040361,11/26/2024,198.45,Costco,Groceries,Citibank,CITI,Joint Savings,DEPOSITORY

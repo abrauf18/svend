@@ -60,6 +60,7 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER create_feature_usage_row
 AFTER INSERT ON public.accounts
 FOR EACH ROW
+WHEN (NEW.is_personal_account = true)
 EXECUTE FUNCTION public.create_feature_usage_row();
 
 -- Function to check if an account can use a feature
