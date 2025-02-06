@@ -1,11 +1,11 @@
 import { SupabaseClient, User } from '@supabase/supabase-js';
-import { CSVType } from '../route';
 import { Database } from '~/lib/database.types';
+import { CSVRow } from '~/lib/model/onboarding.types';
 
 type Props = {
   supabaseAdmin: SupabaseClient;
-  parsedText: CSVType[];
-  user: User;
+  parsedText: CSVRow[];
+  userId: string;
 };
 
 type Institution =
@@ -14,14 +14,14 @@ type Institution =
 export default async function insertInstitutions({
   supabaseAdmin,
   parsedText,
-  user,
+  userId,
 }: Props) {
   try {
     const { data: currentInstitutions, error: currentInstitutionsError } =
       await supabaseAdmin
         .from('manual_fin_institutions')
         .select('*')
-        .eq('owner_account_id', user.id);
+        .eq('owner_account_id', userId);
 
     if (currentInstitutionsError) {
       console.error('[Insert Institutions] Current institutions error:', {
@@ -51,7 +51,7 @@ export default async function insertInstitutions({
     }
 
     const repeatedInstitutions = new Map<string, Institution>();
-    const nonRepeatedInstitutions = new Map<string, CSVType>();
+    const nonRepeatedInstitutions = new Map<string, CSVRow>();
 
     for (const trans of validRows) {
       const parsedInstitutionName = trans.BankName.trim().toLowerCase();
@@ -108,7 +108,7 @@ export default async function insertInstitutions({
         .from('manual_fin_institutions')
         .insert([
           ...Array.from(nonRepeatedInstitutions.values()).map((inst) => ({
-            owner_account_id: user.id,
+            owner_account_id: userId,
             name: inst.BankName,
             symbol: inst.BankSymbol,
           })),

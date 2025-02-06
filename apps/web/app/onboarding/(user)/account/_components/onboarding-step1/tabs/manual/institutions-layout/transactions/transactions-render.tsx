@@ -57,7 +57,9 @@ export default function TransactionsRender() {
               : account.name}
           </p>
           <span>&nbsp;&middot;&nbsp;</span>
-          <p className={`text-sm capitalize`}>****{account?.mask}</p>
+          <p className={`text-sm capitalize`}>{account.type}</p>
+          <span>&nbsp;&middot;&nbsp;</span>
+          <p className={`text-sm`}>****{account?.mask}</p>
         </div>
         <CreateTransaction
           manualAccount={account}

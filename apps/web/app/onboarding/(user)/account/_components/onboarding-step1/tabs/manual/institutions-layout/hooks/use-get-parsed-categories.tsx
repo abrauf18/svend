@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useOnboardingContext } from '~/components/onboarding-context';
-import { Database } from '~/lib/database.types';
+import { FinAccountTransaction } from '~/lib/model/fin.types';
 
 type Props = {
-  transactions: Database['public']['Tables']['fin_account_transactions']['Row'][];
+  transactions: FinAccountTransaction[];
 };
 
 export default function useGetParsedCategories({ transactions }: Props) {
@@ -18,20 +18,25 @@ export default function useGetParsedCategories({ transactions }: Props) {
     > = {};
 
     for (const transaction of transactions) {
+      if (!transaction.svendCategoryId) continue;
+      
       const categoryGroup = Object.values(categories).find((cg) =>
-        cg.categories.some((c) => c.id === transaction.svend_category_id),
+        cg.categories.some((c) => c.id === transaction.svendCategoryId),
       );
       const category = categoryGroup?.categories.find(
-        (c) => c.id === transaction.svend_category_id,
+        (c) => c.id === transaction.svendCategoryId,
       );
-      categoriesMap[transaction.svend_category_id] = {
-        category: category?.name!,
-        categoryGroup: categoryGroup?.name!,
-      };
+
+      if (categoryGroup && category) {
+        categoriesMap[transaction.svendCategoryId] = {
+          category: category.name,
+          categoryGroup: categoryGroup.name,
+        };
+      }
     }
 
     return categoriesMap;
-  }, [transactions]);
+  }, [transactions, categories]);
 
   return parsedCategories;
 }

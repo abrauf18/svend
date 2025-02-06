@@ -9,18 +9,20 @@ import {
 import { useState } from 'react';
 import { useOnboardingContext } from '~/components/onboarding-context';
 import { DeleteDialog } from '~/components/ui/dialogs/delete-dialog';
-import { Database } from '~/lib/database.types';
 import getUTCDate from '~/utils/get-utc-date';
 import useGetParsedCategories from '../hooks/use-get-parsed-categories';
+import { FinAccountTransaction } from '~/lib/model/fin.types';
+import { toast } from 'sonner';
 
 type Props = {
-  transactions: Database['public']['Tables']['fin_account_transactions']['Row'][];
+  transactions: FinAccountTransaction[];
 };
 
 export default function TransactionsTable({ transactions }: Props) {
   const [isLoading, setIsLoading] = useState<string | null>(null);
 
   const parsedCategories = useGetParsedCategories({ transactions });
+
   const {
     accountManualTransactionDeleteOne,
     accountTransactionsSideMenuSetSelectedTransaction,
@@ -45,23 +47,27 @@ export default function TransactionsTable({ transactions }: Props) {
         { method: 'DELETE' },
       );
 
+      if (res.status === 404) {
+        toast.error('Transaction not found');
+        accountManualTransactionDeleteOne(transactionId);
+        return;
+      }
+
       if (!res.ok)
         throw new Error('[Side Menu] Transaction could not be deleted');
 
-      const { data } = (await res.json()) as {
-        data: {
-          deleted_transaction_id: string;
-        }[];
-      };
+      const { data } = await res.json();
 
-      if (data.length === 0)
+      if (!data || !data[0]) {
         throw new Error(
           "[TransactionSideMenu] No data was returned from handleDeleteTransacion's query",
         );
+      }
 
-      accountManualTransactionDeleteOne(data[0]!.deleted_transaction_id);
+      accountManualTransactionDeleteOne(transactionId);
     } catch (err: any) {
       console.error(err);
+      toast.error('Failed to delete transaction');
     } finally {
       setIsLoading(null);
     }
@@ -82,7 +88,7 @@ export default function TransactionsTable({ transactions }: Props) {
           .sort((a, b) => b.date.localeCompare(a.date))
           .map((transaction) => {
             const { category, categoryGroup } =
-              parsedCategories[transaction.svend_category_id]!;
+              parsedCategories[transaction.svendCategoryId!]!;
 
             return (
               <TableRow
@@ -94,7 +100,7 @@ export default function TransactionsTable({ transactions }: Props) {
                 <TableCell>
                   {Intl.NumberFormat('en-US', {
                     style: 'currency',
-                    currency: transaction.iso_currency_code ?? 'USD',
+                    currency: transaction.isoCurrencyCode ?? 'USD',
                   }).format(transaction.amount)}
                 </TableCell>
                 <TableCell>

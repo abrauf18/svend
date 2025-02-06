@@ -1880,26 +1880,6 @@ export type Database = {
           updated_by: string | null
         }
       }
-      delete_manual_accounts_and_transactions: {
-        Args: {
-          p_manual_account_ids: string[]
-        }
-        Returns: undefined
-      }
-      delete_manual_institutions_accounts_and_transactions: {
-        Args: {
-          p_manual_institution_ids: string[]
-        }
-        Returns: undefined
-      }
-      delete_transactions: {
-        Args: {
-          p_transaction_ids: string[]
-        }
-        Returns: {
-          deleted_transaction_id: string
-        }[]
-      }
       get_account_invitations: {
         Args: {
           account_slug: string
@@ -2231,12 +2211,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      update_onboarding_transaction: {
-        Args: {
-          p_transaction_input: Database["public"]["CompositeTypes"]["onboarding_transaction_input"]
-        }
-        Returns: string[]
-      }
       upsert_order: {
         Args: {
           target_account_id: string
@@ -2424,15 +2398,6 @@ export type Database = {
       invitation: {
         email: string | null
         role: string | null
-      }
-      onboarding_transaction_input: {
-        amount: number | null
-        date: string | null
-        svend_category_id: string | null
-        manual_account_id: string | null
-        id: string | null
-        user_tx_id: string | null
-        merchant_name: string | null
       }
     }
   }

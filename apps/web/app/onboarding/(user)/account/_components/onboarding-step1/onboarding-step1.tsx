@@ -164,6 +164,60 @@ function OnboardingStep1ConnectPlaidAccounts() {
       });
   }, []);
 
+  async function syncManualTransactions(state: AccountOnboardingState) {
+    // Get manual accounts that are linked to budget
+    const manualAccounts = state?.manualInstitutions?.flatMap(inst =>
+      inst.accounts
+        .filter(account => account.budgetFinAccountId)
+        .map(account => ({
+          id: account.id,
+          budgetFinAccountId: account.budgetFinAccountId
+        }))
+    ) ?? [];
+
+    // If no manual accounts are linked, skip sync
+    if (!manualAccounts.length) return;
+
+    // Sync transactions for each manual account
+    for (const account of manualAccounts) {
+      try {
+        await fetch('/api/onboarding/account/manual/transactions', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            budgetId: state.budget.id,
+            manualAccountId: account.id
+          }),
+        });
+      } catch (error) {
+        console.error('Error syncing transactions for account:', account.id, error);
+      }
+    }
+  }
+
+  async function handleNext() {
+    if (!state.account.budget.id) return;
+
+    try {
+      // First sync any manual transactions if needed
+      await syncManualTransactions(state.account);
+    } catch (error) {
+      console.error('Error syncing transactions:', error);
+    }
+
+    try {
+      await updateContextKey('profile_goals', [state.account.contextKey as string, 'profile_goals']);
+    } catch (error) {
+      console.error('Error updating context:', error);
+      setIsNavigating(false);
+      return;
+    }
+
+    accountNextStep();
+  }
+
   return (
     <div className="mx-auto h-[calc(100vh-6rem)] w-full max-w-6xl">
       <Card className="flex h-full w-full flex-col">
@@ -251,16 +305,7 @@ function OnboardingStep1ConnectPlaidAccounts() {
               disabled={!isFormValid || isNavigating || loadingPlaidOAuth}
               onClick={async () => {
                 setIsNavigating(true);
-
-                try {
-                  await updateContextKey('profile_goals', [state.account.contextKey as string, 'profile_goals']);
-                } catch (error) {
-                  console.error('Error updating context:', error);
-                  setIsNavigating(false);
-                  return;
-                }
-
-                accountNextStep();
+                handleNext();
               }}
             >
               {isNavigating ? (

@@ -11,49 +11,61 @@ const patchSchema = z.object({
 // PATCH /api/onboarding/account/manual/accounts/[accountId]
 // Link or unlink a manual account to the onboarding budget
 export const PATCH = enhanceRouteHandler(
-  async ({ params, body }) => {
+  async ({ params, body, user }) => {
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     try {
       const { accountId } = params;
-
-      if (!accountId) throw new Error('Account ID is required');
-
+      const supabase = getSupabaseServerClient();
       const supabaseAdmin = getSupabaseServerAdminClient();
-      const supabaseClient = getSupabaseServerClient();
 
-      const {
-        data: { user },
-        error: getUserError,
-      } = await supabaseClient.auth.getUser();
+      // Check if user is in onboarding
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from('user_onboarding')
+        .select('state->account')
+        .eq('user_id', user.id)
+        .single();
 
-      if (!user || getUserError)
-        throw new Error(
-          '[PATCH -> manual/accounts/[accountId]] User not found',
-        );
+      if (onboardingError) {
+        throw new Error(`Failed to fetch onboarding state: ${onboardingError.message}`);
+      }
 
-      const { data: dbAccountOnboardingData, error: fetchOnboardingError } =
-        await supabaseAdmin
-          .from('user_onboarding')
-          .select('state->account')
-          .eq('user_id', user.id)
-          .single();
+      const onboardingState = onboardingData?.account as any;
+      if (!['start', 'plaid', 'manual'].includes(onboardingState.contextKey)) {
+        return NextResponse.json({ error: 'User not in onboarding' }, { status: 403 });
+      }
 
-      if (!dbAccountOnboardingData || fetchOnboardingError)
-        throw new Error(
-          '[PATCH -> manual/accounts/[accountId]] Failed to fetch onboarding state',
-        );
+      // Verify account belongs to user
+      const { data: account, error: accountError } = await supabase
+        .from('manual_fin_accounts')
+        .select(`
+          id,
+          manual_fin_institutions!inner (
+            owner_account_id
+          )
+        `)
+        .eq('id', accountId!)
+        .single();
 
-      const dbAccountOnboardingState = dbAccountOnboardingData.account as any;
+      if (accountError || !account) {
+        throw new Error('Failed to fetch account');
+      }
 
+      if (account.manual_fin_institutions.owner_account_id !== user.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      }
+
+      // Proceed with link/unlink
       if (body.action === 'unlink_account') {
         const { error } = await supabaseAdmin
           .from('budget_fin_accounts')
           .delete()
-          .eq('manual_account_id', accountId);
+          .eq('manual_account_id', accountId!);
 
         if (error) throw error;
 
         return NextResponse.json(
-          { data: 'ok', budgetId: dbAccountOnboardingState.budgetId },
+          { data: 'ok', budgetId: onboardingState.budgetId },
           { status: 200 },
         );
       }
@@ -62,52 +74,91 @@ export const PATCH = enhanceRouteHandler(
         const { error } = await supabaseAdmin
           .from('budget_fin_accounts')
           .insert({
-            budget_id: dbAccountOnboardingState.budgetId,
+            budget_id: onboardingState.budgetId,
             manual_account_id: accountId,
           });
 
         if (error) throw error;
 
         return NextResponse.json(
-          { data: 'ok', budgetId: dbAccountOnboardingState.budgetId },
+          { data: 'ok', budgetId: onboardingState.budgetId },
           { status: 200 },
         );
       }
 
       return NextResponse.json({ error: 'Wrong action' }, { status: 400 });
     } catch (err: any) {
-      console.error(err);
-
-      return NextResponse.json({ error: err.message }, { status: 500 });
+      console.error('Account link/unlink failed:', err.message);
+      return NextResponse.json({ error: 'Unknown error' }, { status: 500 });
     }
   },
-  { auth: false, schema: patchSchema },
+  { schema: patchSchema },
 );
 
 // DELETE /api/onboarding/account/manual/accounts/[accountId]
 // Delete the account in onboarding account
 export const DELETE = enhanceRouteHandler(
-  async ({ params }) => {
+  async ({ params, user }) => {
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     try {
       const { accountId } = params;
-
-      if (!accountId) throw new Error('Account ID is required');
-
+      const supabase = getSupabaseServerClient();
       const supabaseAdmin = getSupabaseServerAdminClient();
 
-      const { error } = await supabaseAdmin.rpc(
-        'delete_manual_accounts_and_transactions',
-        { p_manual_account_ids: [accountId] },
-      );
+      // Check if user is in onboarding
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from('user_onboarding')
+        .select('state->account')
+        .eq('user_id', user.id)
+        .single();
 
-      if (error) throw error;
+      if (onboardingError) {
+        throw new Error(`Failed to fetch onboarding state: ${onboardingError.message}`);
+      }
+
+      const onboardingState = onboardingData?.account as any;
+      if (!['start', 'plaid', 'manual'].includes(onboardingState.contextKey)) {
+        return NextResponse.json({ error: 'User not in onboarding' }, { status: 403 });
+      }
+
+      // Verify account belongs to user
+      const { data: account, error: accountError } = await supabase
+        .from('manual_fin_accounts')
+        .select(`
+          id,
+          manual_fin_institutions!inner (
+            owner_account_id
+          )
+        `)
+        .eq('id', accountId!)
+        .single();
+
+      if (accountError || !account) {
+        throw new Error('Failed to fetch account');
+      }
+
+      if (account.manual_fin_institutions.owner_account_id !== user.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      }
+
+      // Delete the account - this will cascade to:
+      // - fin_account_transactions (via ON DELETE CASCADE)
+      // - budget_fin_accounts (via ON DELETE CASCADE)
+      const { error: deleteError } = await supabaseAdmin
+        .from('manual_fin_accounts')
+        .delete()
+        .eq('id', accountId!);
+
+      if (deleteError) throw deleteError;
 
       return NextResponse.json({ data: 'ok' }, { status: 200 });
     } catch (err: any) {
-      return NextResponse.json({ error: err.message }, { status: 500 });
+      console.error('Account deletion failed:', err.message);
+      return NextResponse.json({ error: 'Unknown error' }, { status: 500 });
     }
   },
-  { auth: false },
+  {},
 );
 
 // PUT /api/onboarding/account/manual/accounts/[accountId]
@@ -130,18 +181,57 @@ const putSchema = z.object({
 });
 
 export const PUT = enhanceRouteHandler(
-  async ({ body, params }) => {
+  async ({ body, params, user }) => {
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     try {
       const { accountId } = params;
       const { name, type, mask, balanceCurrent } = body;
-
+      const supabase = getSupabaseServerClient();
       const supabaseAdmin = getSupabaseServerAdminClient();
 
+      // Check if user is in onboarding
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from('user_onboarding')
+        .select('state->account')
+        .eq('user_id', user.id)
+        .single();
+
+      if (onboardingError) {
+        throw new Error(`Failed to fetch onboarding state: ${onboardingError.message}`);
+      }
+
+      const onboardingState = onboardingData?.account as any;
+      if (!['start', 'plaid', 'manual'].includes(onboardingState.contextKey)) {
+        return NextResponse.json({ error: 'User not in onboarding' }, { status: 403 });
+      }
+
+      // Verify account belongs to user
+      const { data: account, error: accountError } = await supabase
+        .from('manual_fin_accounts')
+        .select(`
+          id,
+          manual_fin_institutions!inner (
+            owner_account_id
+          )
+        `)
+        .eq('id', accountId!)
+        .single();
+
+      if (accountError || !account) {
+        throw new Error('Failed to fetch account');
+      }
+
+      if (account.manual_fin_institutions.owner_account_id !== user.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      }
+
+      // Proceed with update
       const { error } = await supabaseAdmin
         .from('manual_fin_accounts')
         .update({
           name,
-          type: type as 'investment' | 'depository' | 'credit' | 'loan' | 'other',
+          type,
           mask,
           balance_current: balanceCurrent,
         })
@@ -151,10 +241,9 @@ export const PUT = enhanceRouteHandler(
 
       return NextResponse.json({ data: 'ok' }, { status: 200 });
     } catch (err: any) {
-      console.error(err);
-
-      return NextResponse.json({ error: err.message }, { status: 500 });
+      console.error('Account update failed:', err.message);
+      return NextResponse.json({ error: 'Unknown error' }, { status: 500 });
     }
   },
-  { auth: false, schema: putSchema },
+  { schema: putSchema },
 );

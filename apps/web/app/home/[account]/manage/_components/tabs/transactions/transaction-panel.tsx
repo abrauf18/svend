@@ -28,9 +28,7 @@ import * as z from 'zod';
 import { TransactionCategorySelect } from '../_shared/transaction-category-select';
 import { ResizableTextarea } from '@kit/ui/resizable-textarea';
 import { Switch } from '@kit/ui/switch';
-import { sanitizeFileName } from '~/utils/sanitize-filename';
-import { getUniqueFileName } from '~/utils/get-unique-filename';
-import { getFileNameFromUrl } from '~/utils/get-filename-from-url';
+import { sanitizeFileName, getFileNameFromUrl } from '~/lib/utils/csv-naming';
 import { toast } from 'sonner';
 
 interface DisabledFields {
@@ -488,14 +486,33 @@ export function TransactionPanel(props: TransactionPanelProps) {
     }
   };
 
+  // Add this helper function to handle duplicate filenames
+  const getUniqueAttachmentName = (fileName: string, existingNames: (string | File)[]) => {
+    const extension = fileName.includes('.') ? fileName.split('.').pop()! : '';
+    const baseName = fileName.includes('.') ? fileName.slice(0, fileName.lastIndexOf('.')) : fileName;
+    let counter = 0;
+    let uniqueName = fileName;
+
+    while (existingNames.some(att => {
+      const name = att instanceof File ? att.name : getFileNameFromUrl(att);
+      return name === uniqueName;
+    })) {
+      counter++;
+      uniqueName = `${baseName}-${String(counter).padStart(2, '0')}${extension ? `.${extension}` : ''}`;
+    }
+
+    return uniqueName;
+  };
+
   // Update the handleFileUpload function
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const currentAttachments = watch('attachments');
       const newFiles = Array.from(event.target.files).map((file) => {
-        // Always create a new File with a sanitized name
+        // First sanitize the name
         const sanitizedName = sanitizeFileName(file.name);
-        const uniqueName = getUniqueFileName(sanitizedName, currentAttachments);
+        // Then ensure uniqueness among existing attachments
+        const uniqueName = getUniqueAttachmentName(sanitizedName, currentAttachments);
         return new File([file], uniqueName, { type: file.type });
       });
 

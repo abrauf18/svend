@@ -1,5 +1,5 @@
 import { SupabaseClient, User } from '@supabase/supabase-js';
-import { CSVType } from '../route';
+import { CSVRow } from '~/lib/model/onboarding.types';
 import { Database } from '~/lib/database.types';
 
 // Add enum type for account types
@@ -15,8 +15,8 @@ type AccountType = typeof VALID_ACCOUNT_TYPES[number];
 
 type Props = {
   supabaseAdmin: SupabaseClient;
-  parsedText: CSVType[];
-  user: User;
+  parsedText: CSVRow[];
+  userId: string;
   insertedInstitutions: any[];
   budgetId: string;
 };
@@ -36,7 +36,7 @@ function validateAccountType(type: string): AccountType {
 export default async function insertAccounts({
   supabaseAdmin,
   parsedText,
-  user,
+  userId,
   insertedInstitutions,
   budgetId,
 }: Props) {
@@ -44,8 +44,8 @@ export default async function insertAccounts({
     const { data: currentAccounts, error: currentAccountsError } =
       await supabaseAdmin
         .from('manual_fin_accounts')
-        .select('*')
-        .eq('owner_account_id', user.id);
+        .select('*, budget_fin_accounts(*)')
+        .eq('owner_account_id', userId);
 
     if (currentAccountsError) throw currentAccountsError;
 
@@ -58,7 +58,7 @@ export default async function insertAccounts({
     if (currentBudgetAccountsError) throw currentBudgetAccountsError;
 
     const repeatedAccounts = new Map<string, Account>();
-    const nonRepeatedAccounts = new Map<string, CSVType>();
+    const nonRepeatedAccounts = new Map<string, CSVRow>();
 
     const validRows = parsedText.filter(row => 
       row.AccountName && row.BankName && row.AccountName.trim() !== '' && row.BankName.trim() !== ''
@@ -108,7 +108,7 @@ export default async function insertAccounts({
         .from('manual_fin_accounts')
         .insert([
           ...Array.from(nonRepeatedAccounts.values()).map((acc) => ({
-            owner_account_id: user.id,
+            owner_account_id: userId,
             institution_id: insertedInstitutions.find(
               (inst) =>
                 inst.name.trim().toLowerCase() === acc.BankName.trim().toLowerCase() &&
@@ -126,25 +126,26 @@ export default async function insertAccounts({
     const { data: insertedBudgetAccounts, error: budgetAccountsError } =
       await supabaseAdmin
         .from('budget_fin_accounts')
-        .insert([
-          ...insertedAccounts.map((acc) => ({
+        .insert(
+          Array.from(nonRepeatedAccounts.values()).map(csvRow => ({
             budget_id: budgetId,
-            manual_account_id: acc.id,
-          })),
-        ])
+            manual_account_id: insertedAccounts.find(
+              acc => acc.name === csvRow.AccountName
+            )?.id
+          }))
+        )
         .select();
 
     if (budgetAccountsError) throw budgetAccountsError;
 
     return {
-      insertedAccounts: [
-        ...insertedAccounts,
-        ...Array.from(repeatedAccounts.values()),
-      ],
-      insertedBudgetAccounts: [
-        ...currentBudgetAccounts,
-        ...insertedBudgetAccounts,
-      ],
+      data: {
+        accounts: [...Array.from(repeatedAccounts.values()), ...insertedAccounts],
+        budgetAccounts: [
+          ...currentBudgetAccounts,
+          ...(insertedBudgetAccounts || [])
+        ]
+      }
     };
   } catch (err: any) {
     console.error(err);

@@ -35,6 +35,72 @@ class TransactionService {
  * - Budget: budgetFinAccountId, notes
  * - Arrays: budgetTags (tags), budgetAttachmentsStorageNames (attachments_storage_names)
  */
+  parseTransactions(raw: Database['public']['Tables']['fin_account_transactions']['Row'][]): FinAccountTransaction[] {
+    try {
+      if (!Array.isArray(raw)) {
+        console.error('Expected array of transactions, received:', typeof raw);
+        return [];
+      }
+
+      return raw.reduce((validTransactions: FinAccountTransaction[], transaction) => {
+        try {
+          // Validate required fields
+          if (!transaction.id || !transaction.date || typeof transaction.amount !== 'number') {
+            console.error('Missing required transaction fields:', transaction);
+            return validTransactions;
+          }
+
+          // Validate date
+          const transactionDate = new Date(transaction.date);
+          if (isNaN(transactionDate.getTime())) {
+            console.error('Invalid transaction date:', transaction.date);
+            return validTransactions;
+          }
+
+          // Create validated transaction object matching database schema
+          const validTransaction: FinAccountTransaction = {
+            id: transaction.id,
+            userTxId: transaction.user_tx_id,
+            plaidTxId: transaction.plaid_tx_id || undefined,
+            date: transaction.date,
+            amount: transaction.amount,
+            merchantName: transaction.merchant_name || '',
+            payee: transaction.payee || '',
+            isoCurrencyCode: transaction.iso_currency_code || undefined,
+            manualAccountId: transaction.manual_account_id || undefined,
+            plaidAccountId: transaction.plaid_account_id || undefined,
+            svendCategoryId: transaction.svend_category_id || undefined,
+            status: transaction.tx_status || 'posted',
+            createdAt: transaction.created_at || undefined,
+            updatedAt: transaction.updated_at || undefined
+          };
+
+          validTransactions.push(validTransaction);
+          return validTransactions;
+
+        } catch (error) {
+          console.error('Error parsing individual transaction:', error);
+          return validTransactions;
+        }
+      }, []);
+
+    } catch (error) {
+      console.error('Error parsing transactions:', error);
+      return [];
+    }
+  }
+
+  /**
+ * Parses and validates raw budget transactions into strongly typed FinAccountTransaction objects
+ * @param raw The raw budget transactions from the get_budget_transactions_by_team_account_slug function
+ * @returns Array of validated FinAccountTransaction objects
+ * 
+ * Maps the following fields from database:
+ * - Basic: id, date, amount, merchantName, payee, isoCurrencyCode
+ * - Categories: plaidDetailedCategoryName, svendCategoryGroup, svendCategoryName, svendCategoryId
+ * - Budget: budgetFinAccountId, notes
+ * - Arrays: budgetTags (tags), budgetAttachmentsStorageNames (attachments_storage_names)
+ */
   parseBudgetTransactions(raw: Database['public']['Functions']['get_budget_transactions_by_team_account_slug']['Returns']): BudgetFinAccountTransaction[] {
     try {
       if (!Array.isArray(raw)) {
@@ -1165,6 +1231,9 @@ export function createTransactionService(
 }
 
 export interface ITransactionService {
+  parseTransactions: (
+    raw: Database['public']['Tables']['fin_account_transactions']['Row'][]
+  ) => FinAccountTransaction[];
   parseBudgetTransactions: (
     raw: Database['public']['Functions']['get_budget_transactions_by_team_account_slug']['Returns']
   ) => BudgetFinAccountTransaction[];

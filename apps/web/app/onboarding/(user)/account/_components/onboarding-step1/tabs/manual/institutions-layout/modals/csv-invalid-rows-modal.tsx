@@ -18,11 +18,11 @@ import {
 } from '@kit/ui/table';
 import { cn } from '@kit/ui/utils';
 import React from 'react';
-import { CSVModalInfoState } from '../types/states.types';
+import { CSVState } from '~/lib/model/onboarding.types';
 
 type Props = {
-  csvModalInfo: CSVModalInfoState;
-  setCsvModalInfo: React.Dispatch<React.SetStateAction<Props['csvModalInfo']>>;
+  csvModalInfo: CSVState;
+  setCsvModalInfo: React.Dispatch<React.SetStateAction<CSVState>>;
 };
 
 export default function CSVInvalidRowsModal({
@@ -30,24 +30,25 @@ export default function CSVInvalidRowsModal({
   setCsvModalInfo,
 }: Props) {
   function handleOpen(open: boolean) {
-    if (!open) setCsvModalInfo((prev) => ({ ...prev, open: false }));
+    if (!open) setCsvModalInfo((prev) => ({ ...prev, isRowsModalOpen: false }));
   }
 
-  if (!csvModalInfo.invalidRows || !csvModalInfo.csvResult) return null;
+  if (!csvModalInfo.invalidRows) return null;
 
   return (
     <AlertDialog
-      open={csvModalInfo.rowsModalOpen && !!csvModalInfo.invalidRows.length}
+      open={csvModalInfo.isRowsModalOpen && !!csvModalInfo.invalidRows.length}
       onOpenChange={handleOpen}
     >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            Oops, there are invalid rows&apos; fields
+            CSV Error: Invalid rows
           </AlertDialogTitle>
           <AlertDialogDescription>
-            There are invalid rows&apos; fields that could be mapped to the ones
-            that are compatible with Svend.
+            The CSV you uploaded contains one or more rows with invalid data. 
+            For some of the fields, we require a specific format. 
+            Please review the problematic rows below, update your CSV, and re-upload.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="max-h-[400px] overflow-y-auto">
@@ -61,31 +62,32 @@ export default function CSVInvalidRowsModal({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {csvModalInfo.invalidRows.map((invalidRow) => {
-                const csvRow =
-                  csvModalInfo.csvResult!.csvData[invalidRow.index!];
-
-                return (
-                  <TableRow key={invalidRow.index!}>
-                    <TableCell>{invalidRow.index! + 1}</TableCell>
-                    <TableCell
-                      className={`${!invalidRow.isValidDate ? 'bg-red-500/5 text-destructive' : ''}`}
-                    >
-                      {csvRow.Date}
-                    </TableCell>
-                    <TableCell
-                      className={`${!invalidRow.isValidSymbol ? 'bg-red-500/5 text-destructive' : ''}`}
-                    >
-                      {csvRow.BankSymbol}
-                    </TableCell>
-                    <TableCell
-                      className={`${!invalidRow.isValidMask ? 'bg-red-500/5 text-destructive' : ''}`}
-                    >
-                      {csvRow.AccountMask}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {csvModalInfo.invalidRows.map((invalidRow) => (
+                <TableRow key={invalidRow.index}>
+                  <TableCell>{invalidRow.index + 1}</TableCell>
+                  <TableCell
+                    className={cn({
+                      'bg-red-500/5 text-destructive': !invalidRow.isValidDate
+                    })}
+                  >
+                    {invalidRow.row.TransactionDate}
+                  </TableCell>
+                  <TableCell
+                    className={cn({
+                      'bg-red-500/5 text-destructive': !invalidRow.isValidSymbol
+                    })}
+                  >
+                    {invalidRow.row.BankSymbol}
+                  </TableCell>
+                  <TableCell
+                    className={cn({
+                      'bg-red-500/5 text-destructive': !invalidRow.isValidMask
+                    })}
+                  >
+                    {invalidRow.row.AccountMask}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
@@ -97,11 +99,11 @@ export default function CSVInvalidRowsModal({
               e.stopPropagation();
               setCsvModalInfo((prev) => ({
                 ...prev,
-                rowsModalOpen: false,
+                isRowsModalOpen: false,
               }));
             }}
           >
-            Accept
+            Dismiss
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

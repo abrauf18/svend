@@ -332,7 +332,7 @@ create table if not exists public.manual_fin_accounts (
   id uuid primary key default uuid_generate_v4(),
   owner_account_id uuid references public.accounts(id) not null,
   constraint chk_account_is_personal check (not kit.check_team_account_by_id(owner_account_id)),
-  institution_id uuid references public.manual_fin_institutions(id) not null,
+  institution_id uuid references public.manual_fin_institutions(id) on delete cascade not null,
   name text not null,
   official_name text,
   type fin_account_type_enum not null,
@@ -1249,39 +1249,46 @@ BEGIN
             RAISE EXCEPTION 'Invalid budget_fin_account_id';
         END IF;
 
-        -- Insert into fin_account_transactions
-        INSERT INTO fin_account_transactions (
-            plaid_account_id,
-            manual_account_id,
-            amount,
-            date,
-            merchant_name,
-            payee,
-            tx_status,
-            iso_currency_code,
-            plaid_category_detailed,
-            plaid_category_confidence,
-            plaid_raw_data,
-            svend_category_id,
-            user_tx_id,
-            plaid_tx_id
-        ) VALUES (
-            v_plaid_account_id,
-            v_manual_account_id,
-            v_transaction.amount,
-            v_transaction.date,
-            v_transaction.merchant_name,
-            v_transaction.payee,
-            v_transaction.tx_status,
-            COALESCE(v_transaction.iso_currency_code, 'USD'),
-            v_transaction.plaid_category_detailed,
-            v_transaction.plaid_category_confidence,
-            v_transaction.plaid_raw_data,
-            v_transaction.svend_category_id,
-            v_transaction.user_tx_id,
-            v_transaction.plaid_tx_id
-        )
-        RETURNING id INTO v_fin_transaction_id;
+        -- First try to find existing transaction
+        SELECT id INTO v_fin_transaction_id
+        FROM fin_account_transactions
+        WHERE user_tx_id = v_transaction.user_tx_id;
+
+        -- If not found, insert new one
+        IF v_fin_transaction_id IS NULL THEN
+            INSERT INTO fin_account_transactions (
+                plaid_account_id,
+                manual_account_id,
+                amount,
+                date,
+                merchant_name,
+                payee,
+                tx_status,
+                iso_currency_code,
+                plaid_category_detailed,
+                plaid_category_confidence,
+                plaid_raw_data,
+                svend_category_id,
+                user_tx_id,
+                plaid_tx_id
+            ) VALUES (
+                v_plaid_account_id,
+                v_manual_account_id,
+                v_transaction.amount,
+                v_transaction.date,
+                v_transaction.merchant_name,
+                v_transaction.payee,
+                v_transaction.tx_status,
+                COALESCE(v_transaction.iso_currency_code, 'USD'),
+                v_transaction.plaid_category_detailed,
+                v_transaction.plaid_category_confidence,
+                v_transaction.plaid_raw_data,
+                v_transaction.svend_category_id,
+                v_transaction.user_tx_id,
+                v_transaction.plaid_tx_id
+            )
+            RETURNING id INTO v_fin_transaction_id;
+        END IF;
 
         -- Insert into budget_fin_account_transactions
         IF v_fin_transaction_id IS NOT NULL THEN
@@ -1407,7 +1414,7 @@ grant execute on function update_fin_account_transaction(UUID, UUID, TEXT, TEXT)
 -- ============================================================
 CREATE TABLE if not exists public.budget_fin_account_recurring_transactions (
     budget_id UUID NOT NULL REFERENCES public.budgets(id),
-    fin_account_recurring_transaction_id UUID NOT NULL REFERENCES public.fin_account_recurring_transactions(id),
+    fin_account_recurring_transaction_id UUID NOT NULL REFERENCES public.fin_account_recurring_transactions(id) ON DELETE CASCADE,
     svend_category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
     notes TEXT,
     tag_ids UUID[] default '{}',
@@ -1662,7 +1669,7 @@ grant execute on function get_budget_recurring_transactions_by_budget_id(UUID) t
 
 CREATE TABLE if not exists public.budget_tags (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    budget_id UUID NOT NULL REFERENCES public.budgets(id),
+    budget_id UUID NOT NULL REFERENCES public.budgets(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     UNIQUE (name, budget_id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -1748,8 +1755,8 @@ grant execute on function get_budget_tags_by_team_account_slug(TEXT) to authenti
 -- Junction table for budget-transaction relationships
 -- ============================================================
 CREATE TABLE if not exists public.budget_fin_account_transactions (
-    budget_id UUID NOT NULL REFERENCES public.budgets(id),
-    fin_account_transaction_id UUID NOT NULL REFERENCES public.fin_account_transactions(id),
+    budget_id UUID NOT NULL REFERENCES public.budgets(id) ON DELETE CASCADE,
+    fin_account_transaction_id UUID NOT NULL REFERENCES public.fin_account_transactions(id) ON DELETE CASCADE,
     PRIMARY KEY (budget_id, fin_account_transaction_id),
     svend_category_id UUID NOT NULL REFERENCES public.categories(id),
     merchant_name TEXT,

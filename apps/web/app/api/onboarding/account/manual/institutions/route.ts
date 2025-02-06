@@ -4,9 +4,6 @@ import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-// POST /api/onboarding/account/manual/institutions
-// Create a new institution
-
 const institutionSchema = z.object({
   name: z
     .string()
@@ -21,43 +18,57 @@ const institutionSchema = z.object({
     .max(5),
 });
 
+// POST /api/onboarding/account/manual/institutions
+// Create a new institution
 export const POST = enhanceRouteHandler(
-  async ({ body }) => {
+  async ({ body, user }) => {
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     try {
       const { name, symbol } = body;
+      const supabase = getSupabaseServerClient();
+      const supabaseAdmin = getSupabaseServerAdminClient();
 
-      const supabaseClient = getSupabaseServerClient();
-      const {
-        data: { user },
-      } = await supabaseClient.auth.getUser();
+      // Check if user is in onboarding
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from('user_onboarding')
+        .select('state->account')
+        .eq('user_id', user.id)
+        .single();
 
-      if (!user) throw new Error('User not found');
+      if (onboardingError) {
+        throw new Error(`Failed to fetch onboarding state: ${onboardingError.message}`);
+      }
 
-      const supabaseAdminClient = getSupabaseServerAdminClient();
+      const onboardingState = onboardingData?.account as any;
+      if (!['start', 'plaid', 'manual'].includes(onboardingState.contextKey)) {
+        return NextResponse.json({ error: 'User not in onboarding' }, { status: 403 });
+      }
 
-      const { data, error } = await supabaseAdminClient
+      // Create the institution
+      const { data, error } = await supabaseAdmin
         .from('manual_fin_institutions')
-        .insert({ name, owner_account_id: user.id, symbol })
+        .insert({ 
+          name, 
+          owner_account_id: user.id, 
+          symbol 
+        })
         .select('id');
 
-      if (error) throw new Error(error.message);
-      if (!data) throw new Error('No data was returned from the database');
+      if (error) throw error;
+      if (!data?.length) throw new Error('No data was returned from the database');
 
       return NextResponse.json(
         {
-          message:
-            '[Create Institution Endpoint] Institution created successfully',
+          message: 'Institution created successfully',
           institutionId: data[0]?.id,
         },
         { status: 200 },
       );
     } catch (err: any) {
-      console.error(
-        `[Create Institution Endpoint] Error while creating institution: ${err.message}`,
-      );
-
-      return NextResponse.json({ error: err.message }, { status: 500 });
+      console.error('Institution creation failed:', err.message);
+      return NextResponse.json({ error: 'Unknown error' }, { status: 500 });
     }
   },
-  { auth: false, schema: institutionSchema },
+  { schema: institutionSchema },
 );

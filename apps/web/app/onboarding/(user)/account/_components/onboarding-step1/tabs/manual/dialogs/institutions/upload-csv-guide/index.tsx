@@ -41,10 +41,11 @@ export default function CSVGuideDialog({
         <div className="space-y-4 text-sm text-muted-foreground">
           <ul className="list-disc pl-4 space-y-2">
             <li><span className="font-bold">TransactionId</span> (globally unique identifier)</li>
-            <li><span className="font-bold">Date</span> (MM/DD/YYYY format)</li>
-            <li><span className="font-bold">Amount</span> (positive for expenses, negative for income/credits)</li>
-            <li><span className="font-bold">Merchant</span> (name of the merchant/payee)</li>
-            <li><span className="font-bold">Category</span> (a supported category name)
+            <li><span className="font-bold">TransactionStatus</span> (PENDING or POSTED)</li>
+            <li><span className="font-bold">TransactionDate</span> (MM/DD/YYYY format)</li>
+            <li><span className="font-bold">TransactionAmount</span> (positive for expenses, negative for income/credits)</li>
+            <li><span className="font-bold">TransactionMerchant</span> (name of the merchant/payee)</li>
+            <li><span className="font-bold">TransactionCategory</span> (a supported category name)
               <Dialog open={isCategoriesOpen} onOpenChange={setIsCategoriesOpen}>
                 <DialogTrigger asChild>
                   <button className="rounded-full bg-muted p-1 text-muted-foreground hover:bg-muted/80 translate-y-[3px] mx-1">
@@ -63,7 +64,7 @@ export default function CSVGuideDialog({
                     onWheel={(e) => e.stopPropagation()}
                   >
                     <div className="select-none">
-                      {Object.entries(categoryGroups).map(([groupId, group]) => (
+                      {categoryGroups && Object.entries(categoryGroups).map(([groupId, group]) => (
                         <div key={groupId} className="mb-2">
                           <div className="px-2 text-sm text-muted-foreground pointer-events-none">
                             {group.name}
@@ -90,8 +91,8 @@ export default function CSVGuideDialog({
             <li><span className="font-bold">BankName</span> (name of the financial institution)</li>
             <li><span className="font-bold">BankSymbol</span> (unique 3-5 letter code, e.g., BOA)</li>
             <li><span className="font-bold">AccountName</span> (name of the account)</li>
-            <li><span className="font-bold">AccountType</span> (DEPOSITORY or CREDIT)</li>
-            <li><span className="font-bold">AccountMask</span> (last 4 digits of account)</li>
+            <li><span className="font-bold">AccountType</span> (DEPOSITORY, CREDIT, LOAN, INVESTMENT, or OTHER)</li>
+            <li><span className="font-bold">AccountMask</span> (last 4 digits of account number)</li>
           </ul>
           <Button 
             variant="outline" 

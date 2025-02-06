@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { useOnboardingContext } from '~/components/onboarding-context';
 import RenderError from '~/components/ui/forms/render-error';
 import Tooltip from '~/components/ui/tooltip';
-import { AccountOnboardingInstitution } from '~/lib/model/onboarding.types';
+import { AccountOnboardingManualInstitution } from '~/lib/model/onboarding.types';
 import {
   Select,
   SelectContent,
@@ -56,7 +56,7 @@ const accountSchema = z.object({
 
 type Props = {
   setIsAddingAccount: React.Dispatch<React.SetStateAction<boolean>>;
-  institution: AccountOnboardingInstitution;
+  institution: AccountOnboardingManualInstitution;
 };
 
 export default function CreateAccount({

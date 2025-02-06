@@ -15,11 +15,10 @@ import {
   BudgetSpendingRecommendations,
   BudgetSpendingTrackingsByMonth,
 } from '../lib/model/budget.types';
-import { FinAccount, ProfileData } from '../lib/model/fin.types';
+import { FinAccount, FinAccountTransaction, ProfileData } from '../lib/model/fin.types';
 import {
-  AccountOnboardingInstitution,
-  AccountOnboardingInstitutionAccount,
-  AccountOnboardingInstitutionTransaction,
+  AccountOnboardingManualInstitution,
+  AccountOnboardingManualInstitutionAccount,
   AccountOnboardingPlaidConnectionItem,
   AccountOnboardingPlaidItemAccount,
   AccountOnboardingState,
@@ -51,18 +50,18 @@ export type OnboardingContextType = {
   accountManualAccountDeleteOne: (accountId: string) => void;
   accountManualAccountAddOne: (
     institutionId: string,
-    account: AccountOnboardingInstitutionAccount,
+    account: AccountOnboardingManualInstitutionAccount,
   ) => void;
   accountManualAccountUpdateOne: (
     accountId: string,
     institutionId: string,
-    data: { name: string; type: string; mask: string },
+    data: { name: string; type: string; mask: string; balanceCurrent: number },
   ) => void;
   accountManualInstitutionsAddOne: (
-    institution: AccountOnboardingInstitution,
+    institution: AccountOnboardingManualInstitution,
   ) => void;
   accountManualInstitutionsAddMany: (
-    institutions: AccountOnboardingInstitution[],
+    institutions: AccountOnboardingManualInstitution[],
   ) => void;
   accountManualInstitutionsDeleteOne: (institutionId: string) => void;
   accountManualInstitutionsLinkAccount: (
@@ -81,11 +80,14 @@ export type OnboardingContextType = {
       amount: string;
       svend_category_id: string;
       manual_account_id: string;
+      user_tx_id: string;
+      merchant_name?: string;
+      tx_status?: 'pending' | 'posted';
     },
   ) => void;
   accountManualTransactionCreateOne: (
     accountId: string,
-    data: AccountOnboardingInstitutionTransaction,
+    data: FinAccountTransaction,
   ) => void;
   accountManualTransactionDeleteOne: (transactionId: string) => void;
   accountProfileDataUpdate: (profileData: ProfileData) => void;
@@ -451,7 +453,7 @@ export function OnboardingContextProvider({
   };
 
   const accountManualInstitutionsAddOne = (
-    institution: AccountOnboardingInstitution,
+    institution: AccountOnboardingManualInstitution,
   ) => {
     setState((prevState: OnboardingState) => ({
       ...prevState,
@@ -466,7 +468,7 @@ export function OnboardingContextProvider({
   };
 
   const accountManualInstitutionsAddMany = (
-    institutions: AccountOnboardingInstitution[],
+    institutions: AccountOnboardingManualInstitution[],
   ) => {
     console.log('accountManualInstitutionsAddMany called with:', institutions);
     
@@ -508,7 +510,7 @@ export function OnboardingContextProvider({
                   ...existingAcc.transactions,
                   ...newAcc.transactions.filter(newTrans => 
                     !existingAcc.transactions.some(existingTrans => 
-                      existingTrans.user_tx_id === newTrans.user_tx_id
+                      existingTrans.userTxId === newTrans.userTxId
                     )
                   )
                 ]
@@ -545,7 +547,7 @@ export function OnboardingContextProvider({
       account: {
         ...prevState.account,
         manualInstitutions: (prevState.account.manualInstitutions ?? []).filter(
-          (institution: AccountOnboardingInstitution) =>
+          (institution: AccountOnboardingManualInstitution) =>
             institution.id !== institutionId,
         ),
       },
@@ -602,6 +604,9 @@ export function OnboardingContextProvider({
       amount: string;
       svend_category_id: string;
       manual_account_id: string;
+      user_tx_id: string;
+      merchant_name?: string;
+      tx_status?: 'pending' | 'posted';
     },
   ) => {
     const transactionsState = (state.account.manualInstitutions ?? []).flatMap(
@@ -613,7 +618,7 @@ export function OnboardingContextProvider({
     if (!transaction)
       throw new Error('[Onboarding State] Transaction not found');
 
-    if (transaction.manual_account_id !== data.manual_account_id) {
+    if (transaction.manualAccountId !== data.manual_account_id) {
       setState((prev) => ({
         ...prev,
         account: {
@@ -629,8 +634,14 @@ export function OnboardingContextProvider({
                         ...acc.transactions,
                         {
                           ...transaction,
-                          ...data,
+                          date: data.date,
                           amount: parseFloat(data.amount),
+                          svendCategoryId: data.svend_category_id,
+                          manualAccountId: data.manual_account_id,
+                          userTxId: data.user_tx_id,
+                          merchantName: data.merchant_name || '',
+                          status: (data.tx_status || 'posted').toLowerCase() as 'pending' | 'posted',
+                          isoCurrencyCode: 'USD',
                         },
                       ]
                     : acc.transactions.filter(
@@ -653,7 +664,17 @@ export function OnboardingContextProvider({
                 ...acc,
                 transactions: acc.transactions.map((trans) =>
                   trans.id === transactionId
-                    ? { ...trans, ...data, amount: parseFloat(data.amount) }
+                    ? {
+                        ...trans,
+                        date: data.date,
+                        amount: parseFloat(data.amount),
+                        svendCategoryId: data.svend_category_id,
+                        manualAccountId: data.manual_account_id,
+                        userTxId: data.user_tx_id,
+                        merchantName: data.merchant_name || '',
+                        status: (data.tx_status || 'posted').toLowerCase() as 'pending' | 'posted',
+                        isoCurrencyCode: 'USD',
+                      }
                     : trans,
                 ),
               })),
@@ -701,7 +722,7 @@ export function OnboardingContextProvider({
 
   const accountManualAccountAddOne = (
     institutionId: string,
-    account: AccountOnboardingInstitutionAccount,
+    account: AccountOnboardingManualInstitutionAccount,
   ) => {
     setState((prev) => ({
       ...prev,
@@ -719,25 +740,36 @@ export function OnboardingContextProvider({
 
   const accountManualTransactionCreateOne = (
     accountId: string,
-    transaction: AccountOnboardingInstitutionTransaction,
+    data: FinAccountTransaction,
   ) => {
     setState((prev) => ({
       ...prev,
       account: {
         ...prev.account,
-        manualInstitutions: (prev.account.manualInstitutions ?? []).map(
-          (inst) => ({
-            ...inst,
-            accounts: inst.accounts.map((acc) =>
-              acc.id === accountId
-                ? {
-                    ...acc,
-                    transactions: [...(acc.transactions ?? []), transaction],
-                  }
-                : acc,
-            ),
-          }),
-        ),
+        manualInstitutions: (prev.account.manualInstitutions ?? []).map((inst) => ({
+          ...inst,
+          accounts: inst.accounts.map((acc) =>
+            acc.id === accountId
+              ? {
+                  ...acc,
+                  transactions: [
+                    ...acc.transactions,
+                    {
+                      id: data.id,
+                      date: data.date,
+                      amount: parseFloat(data.amount.toString()),
+                      svendCategoryId: data.svendCategoryId,
+                      manualAccountId: data.manualAccountId,
+                      userTxId: data.userTxId,
+                      merchantName: data.merchantName || '',
+                      status: (data.status || 'posted').toLowerCase() as 'pending' | 'posted',
+                      isoCurrencyCode: 'USD',
+                    },
+                  ],
+                }
+              : acc
+          ),
+        })),
       },
     }));
   };
@@ -794,7 +826,7 @@ export function OnboardingContextProvider({
   const accountManualAccountUpdateOne = (
     accountId: string,
     institutionId: string,
-    data: { name: string; type: string; mask: string },
+    data: { name: string; type: string; mask: string; balanceCurrent: number },
   ) => {
     setState((prev) => ({
       ...prev,
@@ -806,11 +838,16 @@ export function OnboardingContextProvider({
               return {
                 ...inst,
                 accounts: inst.accounts.map((acc) =>
-                  acc.id === accountId ? { ...acc, ...data } : acc,
+                  acc.id === accountId 
+                    ? { 
+                        ...acc, 
+                        ...data,
+                        balanceCurrent: data.balanceCurrent 
+                      } 
+                    : acc,
                 ),
               };
             }
-
             return inst;
           },
         ),

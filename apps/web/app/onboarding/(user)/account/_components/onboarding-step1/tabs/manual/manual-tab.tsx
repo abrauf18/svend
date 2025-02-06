@@ -1,4 +1,3 @@
-import { useOnboardingContext } from '@kit/accounts/components';
 import InstitutionsLayout from './institutions-layout';
 
 export function ManualTab() {

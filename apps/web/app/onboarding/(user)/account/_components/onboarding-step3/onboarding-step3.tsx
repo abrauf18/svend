@@ -128,20 +128,23 @@ function OnboardingStep3CreateBudget() {
     setIsLoading(true);
 
     const formReqData = {
-      categorySpending: budgetData.categoryGroups.reduce<Record<string, any>>((acc, group) => {
-        acc[group.groupName!] = {
-          groupName: group.groupName,
-          target: Number(group.target),
-          isTaxDeductible: group.isTaxDeductible,
-          targetSource: group.targetSource,
-          categories: group.categories.map(cat => ({
-            categoryName: cat.categoryName,
-            target: Number(cat.target),
-            isTaxDeductible: cat.isTaxDeductible
-          }))
-        };
-        return acc;
-      }, {})
+      categorySpending: budgetData.categoryGroups
+        // Filter out the group that matches the budget ID
+        .filter(group => group.groupName !== state.account.budget?.id)
+        .reduce<Record<string, any>>((acc, group) => {
+          acc[group.groupName!] = {
+            groupName: group.groupName,
+            target: Number(group.target),
+            isTaxDeductible: group.isTaxDeductible,
+            targetSource: group.targetSource,
+            categories: group.categories.map(cat => ({
+              categoryName: cat.categoryName,
+              target: Number(cat.target),
+              isTaxDeductible: cat.isTaxDeductible
+            }))
+          };
+          return acc;
+        }, {})
     };
 
     try {

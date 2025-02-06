@@ -159,7 +159,9 @@ export const BudgetTable = forwardRef<HTMLFormElement, BudgetTableProps>((props,
                 return spendingDiff;
             });
 
-            form.reset({ categoryGroups: sortedSpendings });
+            form.reset({ 
+                categoryGroups: sortedSpendings.filter(group => group.groupName !== state.account.budget?.id) 
+            });
         }
         initializeCategories();
     }, []);

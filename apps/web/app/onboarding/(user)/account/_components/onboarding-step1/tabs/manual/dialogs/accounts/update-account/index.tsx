@@ -21,8 +21,8 @@ import { useOnboardingContext } from '~/components/onboarding-context';
 import RenderError from '~/components/ui/forms/render-error';
 import Tooltip from '~/components/ui/tooltip';
 import {
-  AccountOnboardingInstitution,
-  AccountOnboardingInstitutionAccount,
+  AccountOnboardingManualInstitution,
+  AccountOnboardingManualInstitutionAccount,
 } from '~/lib/model/onboarding.types';
 import {
   Select,
@@ -52,8 +52,8 @@ const accountSchema = z.object({
 });
 
 type Props = {
-  institution: AccountOnboardingInstitution;
-  account: AccountOnboardingInstitutionAccount;
+  institution: AccountOnboardingManualInstitution;
+  account: AccountOnboardingManualInstitutionAccount;
 };
 
 type FormValues = Omit<z.infer<typeof accountSchema>, 'balanceCurrent'> & {
@@ -160,7 +160,10 @@ export default function UpdateAccount({ account, institution }: Props) {
 
       if (!res.ok) throw new Error(res.statusText);
 
-      accountManualAccountUpdateOne(account.id, institution.id, data);
+      accountManualAccountUpdateOne(account.id, institution.id, {
+        ...data,
+        balanceCurrent: parseFloat(data.balanceCurrent),
+      });
 
       toast.success('Account updated successfully', {
         position: 'bottom-center',

@@ -24,7 +24,7 @@ export default function generateTransactionId({ state, accountId }: Props) {
     transactionId = `${institution.symbol}${account.mask}${randomNum}`;
 
     const exists = account.transactions.some(
-      (trans) => trans.user_tx_id === transactionId,
+      (trans) => trans.userTxId === transactionId,
     );
 
     if (!exists) break;
@@ -33,28 +33,4 @@ export default function generateTransactionId({ state, accountId }: Props) {
   } while (true);
 
   return transactionId;
-}
-
-export function generateTransactionIdFromCSV({
-  bankSymbol,
-  bankMask,
-  index,
-}: {
-  bankSymbol: string;
-  bankMask: string;
-  index: number;
-}) {
-  try {
-    let currentNum = index;
-    let transactionId: string;
-
-    const randomNum = String(currentNum).padStart(8, '0');
-    transactionId = `${bankSymbol}${bankMask}${randomNum}`;
-
-    return transactionId;
-  } catch (err: any) {
-    console.error(err);
-
-    return null;
-  }
 }

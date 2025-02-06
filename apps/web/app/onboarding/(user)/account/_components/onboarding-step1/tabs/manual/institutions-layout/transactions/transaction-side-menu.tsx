@@ -47,6 +47,7 @@ const transactionFormSchema = z.object({
       message: 'Only capital letters are allowed',
     }),
   merchant_name: z.string().optional(),
+  tx_status: z.enum(['PENDING', 'POSTED']),
 });
 
 type TransactionPutResponse = {
@@ -114,14 +115,15 @@ export default function TransactionSideMenu() {
     if (transaction) {
       reset({
         amount: transaction.amount.toFixed(2),
-        svend_category_id: transaction.svend_category_id,
+        svend_category_id: transaction.svendCategoryId,
         date: transaction.date,
-        manual_account_id: transaction.manual_account_id ?? '',
-        user_tx_id: transaction.user_tx_id,
-        merchant_name: transaction.merchant_name ?? '',
+        manual_account_id: transaction.manualAccountId ?? '',
+        user_tx_id: transaction.userTxId,
+        merchant_name: transaction.merchantName ?? '',
+        tx_status: (transaction.status || 'POSTED').toUpperCase() as 'PENDING' | 'POSTED',
       });
     }
-  }, [transaction]);
+  }, [transaction, reset]);
 
   if (!transaction) return null;
 
@@ -165,7 +167,12 @@ export default function TransactionSideMenu() {
           `[Side Menu] Transaction could not be updated: ${error}`,
         );
 
-      accountManualTransactionUpdate(transactionId!, responseData);
+      accountManualTransactionUpdate(transactionId!, {
+        ...responseData,
+        user_tx_id: data.user_tx_id,
+        merchant_name: data.merchant_name,
+        tx_status: data.tx_status.toLowerCase() as 'pending' | 'posted'
+      });
 
       toast.success('Transaction updated successfully', {
         position: 'bottom-center',
@@ -208,6 +215,22 @@ export default function TransactionSideMenu() {
             <RenderError formState={formState} name="user_tx_id" />
           </div>
           <div className={`flex flex-col gap-4`}>
+            <Label>Transaction Status<span className="text-destructive">*</span></Label>
+            <Select
+              value={watch('tx_status')}
+              onValueChange={(value) => setValue('tx_status', value as 'PENDING' | 'POSTED')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="POSTED">Posted</SelectItem>
+              </SelectContent>
+            </Select>
+            <RenderError formState={formState} name="tx_status" />
+          </div>
+          <div className={`flex flex-col gap-4`}>
             <Label htmlFor="date">
               Date<span className="text-destructive">*</span>
             </Label>
@@ -220,8 +243,8 @@ export default function TransactionSideMenu() {
             </Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                {transaction.iso_currency_code
-                  ? getCurrencySymbol(transaction.iso_currency_code)
+                {transaction.isoCurrencyCode
+                  ? getCurrencySymbol(transaction.isoCurrencyCode)
                   : '$'}
               </span>
               <Input

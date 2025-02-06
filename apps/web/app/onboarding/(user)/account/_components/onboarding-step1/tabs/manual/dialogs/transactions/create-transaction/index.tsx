@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { useOnboardingContext } from '~/components/onboarding-context';
 import RenderError from '~/components/ui/forms/render-error';
 import { TransactionCategorySelect } from '~/home/[account]/manage/_components/tabs/_shared/transaction-category-select';
-import { AccountOnboardingInstitutionAccount } from '~/lib/model/onboarding.types';
+import { AccountOnboardingManualInstitutionAccount } from '~/lib/model/onboarding.types';
 import TransactionIdInput from './components/transaction-id-input';
 
 const institutionSchema = z.object({
@@ -42,10 +42,11 @@ const institutionSchema = z.object({
       message: 'Only capital letters are allowed',
     }),
   merchant_name: z.string().optional(),
+  tx_status: z.enum(['pending', 'posted']).default('posted'),
 });
 
 type Props = {
-  manualAccount: AccountOnboardingInstitutionAccount;
+  manualAccount: AccountOnboardingManualInstitutionAccount;
   institutionSymbol: string;
 };
 
@@ -96,7 +97,7 @@ export default function CreateTransaction({
   ) {
     if (!isAutoGenerating) {
       const transactionIdAlreadyExists = manualAccount?.transactions.find(
-        (trans) => trans.user_tx_id === data.user_tx_id,
+        (trans) => trans.userTxId === data.user_tx_id,
       );
 
       if (transactionIdAlreadyExists)
@@ -206,6 +207,7 @@ export default function CreateTransaction({
               svend_category_id: data.svend_category_id,
               user_tx_id: data.user_tx_id,
               merchant_name: data.merchant_name,
+              tx_status: data.tx_status,
             }),
           )}
         >
@@ -223,6 +225,16 @@ export default function CreateTransaction({
                 setIsAutoGenerating={setIsAutoGenerating}
               />
               <RenderError formState={formState} name="user_tx_id" />
+            </div>
+            <div className={`flex flex-col gap-2`}>
+              <Label htmlFor="tx_status">Status</Label>
+              <select
+                {...register('tx_status')}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="posted">Posted</option>
+                <option value="pending">Pending</option>
+              </select>
             </div>
             <div className={`relative flex flex-col gap-2`}>
               <Label htmlFor="date">

@@ -19,16 +19,14 @@ import {
 } from '@kit/ui/select';
 import { cn } from '@kit/ui/utils';
 import { Loader2, StarIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import parseCSVResponse from '~/api/onboarding/account/manual/csv/[filename]/_utils/parse-csv-response';
 import { useOnboardingContext } from '~/components/onboarding-context';
-import { generateTransactionIdFromCSV } from '../../dialogs/transactions/create-transaction/utils/generate-transaction-id';
 import { constants } from '../lib/constants';
-import { CSVModalInfoState } from '../types/states.types';
+import { AccountOnboardingManualInstitution, CSVColumns, CSVState } from '~/lib/model/onboarding.types';
 
 type Props = {
-  csvModalInfo: CSVModalInfoState;
+  csvModalInfo: CSVState;
   setCsvModalInfo: React.Dispatch<React.SetStateAction<Props['csvModalInfo']>>;
 };
 
@@ -44,9 +42,26 @@ export default function CsvColumnsMapperModal({
 
   const [loading, setLoading] = useState(false);
 
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (!csvModalInfo.isModalOpen) {
+      setSelectedColumns({});
+      setLoading(false);
+    }
+  }, [csvModalInfo.isModalOpen]);
+
   function handleOpen(open: boolean) {
-    if (!open)
-      setCsvModalInfo((prev) => ({ ...prev, open: false, csvResult: null }));
+    if (!open) {
+      setCsvModalInfo((prev) => ({ 
+        ...prev, 
+        isModalOpen: false,
+        csvResult: null,
+        columns: {} as CSVColumns,
+        extraColumns: [],
+        rawData: [],
+        processedData: null
+      }));
+    }
   }
 
   function handleSelect(extraColumn: string, missingColumn: string) {
@@ -59,46 +74,29 @@ export default function CsvColumnsMapperModal({
   async function handleSubmit() {
     setLoading(true);
 
-    const csvData = csvModalInfo.csvResult!.csvData as Record<string, any>[];
+    if (!csvModalInfo.filename) {
+      toast.error('No file selected');
+      setLoading(false);
+      return;
+    }
 
-    const newCsvData = csvData.map((row, index) => {
-      const newRow = structuredClone(row);
-
-      Object.entries(selectedColumns).forEach(
-        ([missingColumn, extraColumn]) => {
-          if (extraColumn === 'auto-generate') {
-            //TODO: Should be dynamic for each type of column
-            const transactionId = generateTransactionIdFromCSV({
-              bankSymbol: row.BankSymbol ?? row[selectedColumns['BankSymbol']!],
-              bankMask: row.AccountMask ?? row[selectedColumns['AccountMask']!],
-              index,
-            });
-
-            if (!transactionId) return;
-
-            newRow[missingColumn] = transactionId;
-            delete newRow[extraColumn];
-          } else {
-            newRow[missingColumn] = row[extraColumn];
-            delete newRow[extraColumn];
-          }
-        },
-      );
-
-      return newRow;
-    });
-
-    console.log(newCsvData);
+    const columnMappings = Object.entries(selectedColumns).map(([internalColumn, csvColumn]) => ({
+      internalColumn,
+      csvColumn
+    }));
 
     const res = await fetch('/api/onboarding/account/manual/csv/mapped', {
       method: 'POST',
-      body: JSON.stringify({ mappedCsv: newCsvData }),
+      body: JSON.stringify({
+        filename: csvModalInfo.filename,
+        columnMappings
+      }),
     });
 
     if (res.ok) {
-      setCsvModalInfo((prev) => ({ ...prev, csvResult: null, open: false }));
+      setCsvModalInfo((prev) => ({ ...prev, csvResult: null, isModalOpen: false }));
       const { institutions, error } = (await res.json()) as {
-        institutions?: ReturnType<typeof parseCSVResponse>;
+        institutions?: AccountOnboardingManualInstitution[];
         error?: string;
       };
 
@@ -108,15 +106,17 @@ export default function CsvColumnsMapperModal({
           position: 'bottom-center',
           duration: 3000,
         });
+        return;
       }
       if (!institutions) {
         toast.warning('No financial data imported', {
           position: 'bottom-center',
           duration: 3000,
         });
+        return;
       }
 
-      accountManualInstitutionsAddMany(institutions!);
+      accountManualInstitutionsAddMany(institutions);
     } else {
       const isJson = res.headers.get('content-type') === 'application/json';
 
@@ -132,8 +132,8 @@ export default function CsvColumnsMapperModal({
         setCsvModalInfo((prev) => ({
           ...prev,
           invalidRows,
-          open: false,
-          rowsModalOpen: true,
+          isModalOpen: false,
+          isRowsModalOpen: true,
           csvResult: {
             csvData,
             missingProps: [],
@@ -149,15 +149,16 @@ export default function CsvColumnsMapperModal({
 
   return (
     <AlertDialog
-      open={csvModalInfo.open && !!csvModalInfo.csvResult}
+      open={csvModalInfo.isModalOpen && !!csvModalInfo.csvResult}
       onOpenChange={handleOpen}
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Oops, there are missing columns</AlertDialogTitle>
+          <AlertDialogTitle>CSV Error: Missing required columns</AlertDialogTitle>
           <AlertDialogDescription>
-            There are missing columns that could be mapped to the ones that are
-            compatible with Svend.
+            The CSV you uploaded is missing one or more required columns.  However, we detected additional columns 
+            that could be mapped to the ones that are compatible with Svend.  Please select the appropriate columns
+            to map to the ones that are compatible with Svend or cancel and re-upload the CSV with the correct columns.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <Divider />
@@ -166,7 +167,7 @@ export default function CsvColumnsMapperModal({
             className={`flex items-center justify-between text-sm text-muted-foreground`}
           >
             <p>Missing Columns</p>
-            <p>Extra CSV Columns</p>
+            <p>Mappable CSV Columns</p>
           </div>
           {csvModalInfo.csvResult!.missingProps.map((mp: string) => (
             <div key={mp} className={`flex items-center justify-between gap-2`}>
@@ -194,10 +195,9 @@ export default function CsvColumnsMapperModal({
                         <SelectItem
                           key={col}
                           value={col}
-                          disabled={
-                            Object.values(selectedColumns).includes(col) &&
-                            selectedColumns[mp] !== col
-                          }
+                          disabled={Object.entries(selectedColumns).some(
+                            ([key, value]) => value === col && key !== mp
+                          )}
                         >
                           <span className="text-sm">{col}</span>
                         </SelectItem>

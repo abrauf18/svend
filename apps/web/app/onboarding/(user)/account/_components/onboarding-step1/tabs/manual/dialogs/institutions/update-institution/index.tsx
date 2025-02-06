@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { useOnboardingContext } from '~/components/onboarding-context';
 import RenderError from '~/components/ui/forms/render-error';
 import Tooltip from '~/components/ui/tooltip';
-import { AccountOnboardingInstitution } from '~/lib/model/onboarding.types';
+import { AccountOnboardingManualInstitution } from '~/lib/model/onboarding.types';
 
 const institutionSchema = z.object({
   name: z
@@ -43,7 +43,7 @@ const institutionSchema = z.object({
 });
 
 type Props = {
-  institution: AccountOnboardingInstitution;
+  institution: AccountOnboardingManualInstitution;
 };
 
 export default function UpdateInstitution({ institution }: Props) {

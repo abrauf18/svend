@@ -4,7 +4,7 @@ import { Building } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useOnboardingContext } from '~/components/onboarding-context';
 import { DeleteDialog } from '~/components/ui/dialogs/delete-dialog';
-import { AccountOnboardingInstitution } from '~/lib/model/onboarding.types';
+import { AccountOnboardingManualInstitution } from '~/lib/model/onboarding.types';
 import { ItemDeleteDialog } from '../../../plaid/plaid-item-delete-dialog';
 import CreateAccount from '../../dialogs/accounts/create-account';
 import ManualAccountSkeleton from '../../manual-account-skeleton';
@@ -12,7 +12,7 @@ import UpdateInstitution from '../../dialogs/institutions/update-institution';
 import UpdateAccount from '../../dialogs/accounts/update-account';
 
 type Props = {
-  institution: AccountOnboardingInstitution;
+  institution: AccountOnboardingManualInstitution;
 };
 
 export default function InstitutionRender({ institution }: Props) {

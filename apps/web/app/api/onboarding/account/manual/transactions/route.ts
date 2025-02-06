@@ -3,9 +3,7 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-
-// POST /api/onboarding/account/manual/institutions
-// Create a new institution
+import { createTransactionService } from '~/lib/server/transaction.service';
 
 const transactionSchema = z.object({
   date: z.string().min(1, { message: 'Date is required' }),
@@ -27,10 +25,17 @@ const transactionSchema = z.object({
       message: 'Only capital letters are allowed',
     }),
   merchant_name: z.string().optional(),
+  tx_status: z.enum(['pending', 'posted', 'PENDING', 'POSTED'])
+    .transform(val => val.toLowerCase() as 'pending' | 'posted')
+    .default('posted'),
 });
 
+// POST /api/onboarding/account/manual/transactions
+// Create a new transaction
 export const POST = enhanceRouteHandler(
-  async ({ body }) => {
+  async ({ body, user }) => {
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     try {
       const {
         date,
@@ -38,93 +43,183 @@ export const POST = enhanceRouteHandler(
         manual_account_id,
         svend_category_id,
         user_tx_id,
+        merchant_name,
+        tx_status = 'posted', // Add default value
       } = body;
-
-      const supabaseClient = getSupabaseServerClient();
-      const {
-        data: { user },
-      } = await supabaseClient.auth.getUser();
-
-      if (!user) throw new Error('User not found');
-
+      
+      const supabase = getSupabaseServerClient();
       const supabaseAdmin = getSupabaseServerAdminClient();
 
-      const { data: dbAccountOnboardingData, error: fetchOnboardingError } =
-        await supabaseAdmin
-          .from('user_onboarding')
-          .select('state->account')
-          .eq('user_id', user.id)
-          .single();
-
-      if (fetchOnboardingError) throw fetchOnboardingError;
-      if (!dbAccountOnboardingData)
-        throw new Error('No onboarding data was returned');
-
-      const budgetId = (dbAccountOnboardingData.account as any).budgetId;
-
-      const { data: budgetFinAccount, error: budgetFinAccountError } =
-        await supabaseAdmin
-          .from('budget_fin_accounts')
-          .select('id')
-          .eq('manual_account_id', manual_account_id)
-          .single();
-
-      if (budgetFinAccountError) throw budgetFinAccountError;
-      if (!budgetFinAccount)
-        throw new Error('No budget fin account was returned');
-
-      const budgetFinAccountId = budgetFinAccount.id;
-
-      const { data, error } = await supabaseAdmin.rpc(
-        'create_budget_fin_account_transactions',
-        {
-          p_budget_id: budgetId,
-          p_transactions: [
-            {
-              date,
-              amount,
-              svend_category_id,
-              budget_fin_account_id: budgetFinAccountId,
-              iso_currency_code: null,
-              merchant_name: body.merchant_name ?? null,
-              payee: null,
-              plaid_category_detailed: null,
-              plaid_category_confidence: null,
-              plaid_raw_data: null,
-              user_tx_id,
-              plaid_tx_id: null,
-            },
-          ],
-        },
-      );
-
-      if (error) throw new Error(error.message);
-      if (!data) throw new Error('No data was returned from the database');
-
-      // Fetch the full transaction details
-      const { data: newTransaction, error: fetchError } = await supabaseAdmin
-        .from('fin_account_transactions')
-        .select('*')
-        .eq('id', data[0]!)
+      // Check if user is in onboarding
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from('user_onboarding')
+        .select('state->account')
+        .eq('user_id', user.id)
         .single();
 
-      if (fetchError) throw fetchError;
-      if (!newTransaction) throw new Error('Could not fetch created transaction');
+      if (onboardingError) {
+        throw new Error(`Failed to fetch onboarding state: ${onboardingError.message}`);
+      }
 
-      return NextResponse.json(
-        {
-          message: '[Create Transaction Endpoint] Transaction created successfully',
-          transaction: newTransaction, // Return full transaction instead of just ID
-        },
-        { status: 200 },
-      );
+      const onboardingState = onboardingData?.account as any;
+      if (!['start', 'plaid', 'manual'].includes(onboardingState.contextKey)) {
+        return NextResponse.json({ error: 'Invalid onboarding state' }, { status: 403 });
+      }
+
+      // Verify account belongs to user
+      const { data: account, error: accountError } = await supabase
+        .from('manual_fin_accounts')
+        .select(`
+          id,
+          manual_fin_institutions!inner (
+            owner_account_id
+          )
+        `)
+        .eq('id', manual_account_id)
+        .single();
+
+      if (accountError || !account) {
+        throw new Error('Failed to fetch account');
+      }
+
+      if (account.manual_fin_institutions.owner_account_id !== user.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      }
+
+      // Create the fin_account_transaction
+      const { data: dbTx, error: finTxError } = await supabaseAdmin
+        .from('fin_account_transactions')
+        .insert({
+          user_tx_id,
+          date,
+          amount,
+          manual_account_id,
+          merchant_name: merchant_name || '',
+          payee: '',
+          iso_currency_code: 'USD',
+          tx_status,
+          svend_category_id,
+        })
+        .select('*')
+        .single();
+
+      if (finTxError) throw finTxError;
+      if (!dbTx) throw new Error('No transaction was created');
+
+      const transactionService = createTransactionService(supabaseAdmin);
+      const [transaction] = transactionService.parseTransactions([dbTx]);
+
+      return NextResponse.json({
+        message: 'Transaction created successfully',
+        transaction,
+      });
     } catch (err: any) {
-      console.error(
-        `[Create Transaction Endpoint] Error while creating transaction: ${err.message}`,
-      );
-
-      return NextResponse.json({ error: err.message }, { status: 500 });
+      console.error('Transaction creation failed:', err.message);
+      return NextResponse.json({ error: 'Unknown error' }, { status: 500 });
     }
   },
-  { auth: false, schema: transactionSchema },
+  { schema: transactionSchema },
+);
+
+// Schema for PATCH request
+const syncToBudgetSchema = z.object({
+  budgetId: z.string().uuid(),
+  manualAccountId: z.string().uuid()
+});
+
+// PATCH /api/onboarding/account/manual/transactions
+// Sync manual transactions to budget transactions
+export const PATCH = enhanceRouteHandler(
+  async ({ body, user }) => {
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    try {
+      const { budgetId, manualAccountId } = body;
+      const supabase = getSupabaseServerClient();
+      const supabaseAdmin = getSupabaseServerAdminClient();
+
+      // Check if user is in onboarding
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from('user_onboarding')
+        .select('state->account')
+        .eq('user_id', user.id)
+        .single();
+
+      if (onboardingError) {
+        throw new Error(`Failed to fetch onboarding state: ${onboardingError.message}`);
+      }
+
+      const onboardingState = onboardingData?.account as any;
+      if (!['start', 'plaid', 'manual'].includes(onboardingState.contextKey)) {
+        return NextResponse.json({ error: 'Invalid onboarding state' }, { status: 403 });
+      }
+
+      // 1. Verify account belongs to user and is linked to budget
+      const { data: account, error: accountError } = await supabaseAdmin
+        .from('manual_fin_accounts')
+        .select(`
+          id,
+          budget_fin_accounts!inner (
+            id,
+            budget_id
+          ),
+          manual_fin_institutions!inner (
+            owner_account_id
+          ),
+          fin_account_transactions (*)
+        `)
+        .eq('id', manualAccountId)
+        .eq('budget_fin_accounts.budget_id', budgetId)
+        .single();
+
+      if (accountError) throw accountError;
+      if (!account) {
+        return NextResponse.json(
+          { error: 'Account not found or not linked to budget' },
+          { status: 404 }
+        );
+      }
+
+      if (account.manual_fin_institutions.owner_account_id !== user.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      }
+
+      // 2. Create budget transactions using stored procedure
+      if (account.fin_account_transactions?.length) {
+        const { error: syncError } = await supabaseAdmin
+          .rpc('create_budget_fin_account_transactions', {
+            p_budget_id: budgetId,
+            p_transactions: account.fin_account_transactions.map(tx => ({
+              user_tx_id: tx.user_tx_id,
+              plaid_tx_id: null,
+              budget_fin_account_id: account.budget_fin_accounts[0]!.id,
+              amount: tx.amount,
+              date: tx.date,
+              svend_category_id: tx.svend_category_id,
+              merchant_name: tx.merchant_name || '',
+              payee: tx.payee || '',
+              tx_status: tx.tx_status,
+              iso_currency_code: tx.iso_currency_code || 'USD',
+              plaid_category_detailed: null,
+              plaid_category_confidence: null,
+              plaid_raw_data: null
+            }))
+          });
+
+        if (syncError) throw syncError;
+      }
+
+      return NextResponse.json({ 
+        message: 'Transactions synced successfully',
+        count: account.fin_account_transactions?.length || 0
+      });
+    } catch (err: any) {
+      console.error('Failed to sync transactions to budget:', err);
+      return NextResponse.json(
+        { error: 'Failed to sync transactions' },
+        { status: 500 }
+      );
+    }
+  },
+  { schema: syncToBudgetSchema }
 );

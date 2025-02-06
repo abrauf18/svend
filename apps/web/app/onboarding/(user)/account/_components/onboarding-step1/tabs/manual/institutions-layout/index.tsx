@@ -3,10 +3,7 @@ import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
 import { ChangeEvent, useState, useRef, useEffect, DragEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import parseCSVResponse from '~/api/onboarding/account/manual/csv/[filename]/_utils/parse-csv-response';
 import { useOnboardingContext } from '~/components/onboarding-context';
-import { getUniqueFileName } from '~/utils/get-unique-filename';
-import { sanitizeFileName } from '~/utils/sanitize-filename';
 import CreateInstitution from '../dialogs/institutions/create-institution';
 import { manualAccountFormSchema } from '../schemas/account.schema';
 import InstitutionsRender from './institutions/institutions-render';
@@ -25,8 +22,24 @@ import CSVGuideDialog from '../dialogs/institutions/upload-csv-guide';
 import { toast } from 'sonner';
 import CsvColumnsMapperModal from './modals/csv-columns-mapper.modal';
 import invalidCsvHandler from './utils/invalid-csv-handler';
-import { CSVModalInfoState } from './types/states.types';
+import { CSVColumns, CSVState } from '~/lib/model/onboarding.types';
 import CSVInvalidRowsModal from './modals/csv-invalid-rows-modal';
+import { sanitizeFileName, getUniqueFileName } from '~/lib/utils/csv-naming';
+
+// interface CSVValidationError {
+//   isValid: boolean;
+//   missingProps: string[];
+//   extraProps: string[];
+//   invalidRows?: Array<{
+//     isValid: boolean;
+//     index: number;
+//     isValidDate?: boolean;
+//     isValidSymbol?: boolean;
+//     isValidMask?: boolean;
+//   }>;
+//   csvData?: any[];
+//   error?: Error;
+// }
 
 export default function InstitutionsLayout() {
   const { state } = useOnboardingContext();
@@ -34,19 +47,29 @@ export default function InstitutionsLayout() {
   const categoryGroups = state.account.svendCategoryGroups!;
 
   const supabase = getSupabaseBrowserClient();
-  const { accountManualInstitutionsAddMany } = useOnboardingContext();
+  const { 
+    accountManualInstitutionsAddMany, 
+    accountBudgetSetLinkedFinAccounts
+  } = useOnboardingContext();
 
   const [isImportingFile, setIsImportingFile] = useState(false);
   const [isLearnMoreOpen, setIsLearnMoreOpen] = useState(false);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [isCreatingInstitution, setIsCreatingInstitution] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [csvModalInfo, setCsvModalInfo] = useState<CSVModalInfoState>({
-    open: false,
+  const [csvModalInfo, setCsvModalInfo] = useState<CSVState>({
+    isModalOpen: false,
+    isRowsModalOpen: false,
+    columns: {} as CSVColumns,
+    extraColumns: [],
+    rawData: [],
+    processedData: null,
+    invalidRows: undefined,
     csvResult: null,
-    rowsModalOpen: false,
-    invalidRows: null,
+    error: undefined,
+    filename: ''
   });
+  const [currentFileName, setCurrentFileName] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof manualAccountFormSchema>>({
     resolver: zodResolver(manualAccountFormSchema),
@@ -55,136 +78,64 @@ export default function InstitutionsLayout() {
     },
   });
 
-  const { watch, setValue } = form;
-
-  const uploadFilesToStorage = async (attachments: (File | string)[]) => {
-    const uploadedFileNames = [];
-
-    const { data } = await supabase.auth.getUser();
-
+  const handleFileUpload = async (file: File) => {
     try {
-      for (const attachment of attachments) {
-        // Skip if attachment is already a filename string
-        if (typeof attachment === 'string') {
-          uploadedFileNames.push(attachment);
-          continue;
-        }
+      setIsImportingFile(true);
+      
+      const sanitizedName = sanitizeFileName(file.name);
+      const uniqueFileName = await getUniqueFileName(sanitizedName);
+      setCurrentFileName(uniqueFileName);
 
-        const file = attachment;
-        const sanitizedFileName = sanitizeFileName(file.name);
-        const filePath = `user/${data.user?.id}/${sanitizedFileName}`;
+      // 1. Upload to Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      const filePath = `user/${user!.id}/${uniqueFileName}`;
 
-        const { error } = await supabase.storage
-          .from('onboarding_attachments')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false,
-          });
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('onboarding_attachments')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: 'text/csv'
+        });
 
-        if (error) {
-          console.error('Error uploading file:', error.message);
-          throw error;
-        }
+      if (uploadError) throw uploadError;
 
-        // Store just the filePath instead of full URL
-        uploadedFileNames.push(filePath);
-      }
-
-      return uploadedFileNames;
-    } catch (error: unknown) {
-      console.error(
-        'Error during file upload:',
-        error instanceof Error ? error.message : 'Unknown error',
-      );
-      return [];
-    }
-  };
-
-  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    try {
-      if (!event.target.files || event.target.files.length === 0) {
-        setIsImportingFile(false);
-        return;
-      }
-
-      const currentAttachments = watch('attachments');
-
-      const sanitizedName = sanitizeFileName(event.target.files[0]!.name);
-      const uniqueName = `${getUniqueFileName(sanitizedName, currentAttachments)}-${crypto.randomUUID()}`;
-
-      const newFile = new (File as any)([event.target.files[0]!], uniqueName, {
-        type: event.target.files[0]!.type,
+      // 2. Analyze CSV via API
+      const res = await fetch('/api/onboarding/account/manual/csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: filePath })
       });
 
-      setValue('attachments', [...currentAttachments, newFile]);
-      await uploadFilesToStorage([newFile]);
-
-      //Uploads csv for the very first time
-      const res = await fetch(
-        `/api/onboarding/account/manual/csv/${uniqueName}`,
-        {
-          method: 'POST',
-        },
-      );
-
+      const data = await res.json();
+      
       if (!res.ok) {
-        //If response is not ok, that could mean that there are missing columns or invalid rows
-        const error = await res.json();
-
-        if ('isValid' in error) {
-          const { result, error: err } = await invalidCsvHandler({
-            error,
-            setIsLearnMoreOpen,
+        if (data.missingProps || data.mappableProps) {
+          await invalidCsvHandler({ 
+            error: data, 
+            setIsLearnMoreOpen, 
             setCsvModalInfo,
+            filename: filePath
           });
-
-          if (err) {
-            throw err;
-          }
-
-          if (!result) return;
-
-          return accountManualInstitutionsAddMany(result);
+          return;
         }
-
-        return;
+        throw new Error(data.error || 'Failed to analyze CSV file');
       }
 
-      const { institutions, error } = (await res.json()) as {
-        institutions?: ReturnType<typeof parseCSVResponse>;
-        error?: string;
-      };
-
-      if (error) {
-        console.error('financial data import error:', error);
-        toast.error('Could not import financial data', {
-          position: 'bottom-center',
-          duration: 3000,
-        });
-      }
-      if (!institutions) {
-        toast.warning('No financial data imported', {
-          position: 'bottom-center',
-          duration: 3000,
-        });
+      // add institutions to context
+      if (data.institutions) {
+        accountManualInstitutionsAddMany(data.institutions);
       }
 
-      accountManualInstitutionsAddMany(institutions!);
-
-      toast.success('Financial data imported successfully', {
-        position: 'bottom-center',
-        duration: 3000,
-      });
-
-      setIsImportingFile(false);
-    } catch (err: any) {
-      console.error('financial data import error:', err);
+      // update linked accounts in budget
+      if (data.linkedFinAccounts) {
+        accountBudgetSetLinkedFinAccounts(data.linkedFinAccounts);
+      }
+    } catch (err) {
+      console.error('CSV Upload Error:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to process CSV file');
     } finally {
       setIsImportingFile(false);
-    }
-
-    if (event.target) {
-      event.target.value = '';
     }
   };
 
@@ -230,12 +181,12 @@ export default function InstitutionsLayout() {
 
   const handleDownloadSample = () => {
     const sampleData =
-      'TransactionId,Date,Amount,Merchant,Category,BankName,BankSymbol,AccountName,AccountType,AccountMask\n' +
-      'BOA202401010002,01/01/2024,-1000.00,Starting Balance,Income,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
-      'BOA202401010001,01/02/2024,-3500.00,ABC Company,Income,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
-      'BOA202401010003,01/03/2024,2000.00,Rent Payment,Rent,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
-      'BOA202401010004,01/02/2024,89.99,Whole Foods,Groceries,Bank of America,BOA,Svend Credit,CREDIT,5678\n' +
-      'BOA202401010005,01/05/2024,14.99,Netflix,TV & Movies,Bank of America,BOA,Svend Credit,CREDIT,5678';
+      'TransactionId,TransactionStatus,TransactionDate,TransactionAmount,TransactionMerchant,TransactionCategory,BankName,BankSymbol,AccountName,AccountType,AccountMask\n' +
+      'BOA202401010002,POSTED,01/01/2024,-1000.00,Starting Balance,Income,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
+      'BOA202401010001,POSTED,01/02/2024,-3500.00,ABC Company,Income,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
+      'BOA202401010003,POSTED,01/03/2024,2000.00,Rent Payment,Rent,Bank of America,BOA,Svend Checking,DEPOSITORY,1234\n' +
+      'BOA202401010004,POSTED,01/02/2024,89.99,Whole Foods,Groceries,Bank of America,BOA,Svend Credit,CREDIT,5678\n' +
+      'BOA202401010005,POSTED,01/05/2024,14.99,Netflix,TV & Movies,Bank of America,BOA,Svend Credit,CREDIT,5678';
 
     const blob = new Blob([sampleData], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -283,21 +234,23 @@ export default function InstitutionsLayout() {
     e.stopPropagation();
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files);
-    const csvFile = files.find(
-      (file) => file.type === 'text/csv' || file.name.endsWith('.csv'),
-    );
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      await handleFileUpload(file);
+      // Also reset the file input if it exists
+      const fileInput = document.querySelector('input[type="file"]');
+      if (fileInput) {
+        (fileInput as HTMLInputElement).value = '';
+      }
+    }
+  };
 
-    if (csvFile) {
-      setIsImportingFile(true);
-      const event = {
-        target: {
-          files: [csvFile],
-          value: '',
-        },
-      } as unknown as ChangeEvent<HTMLInputElement>;
-
-      await handleFileUpload(event);
+  const handleFileInputChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      await handleFileUpload(file);
+      // Reset the input value so the same file can be selected again
+      e.target.value = '';
     }
   };
 
@@ -390,9 +343,8 @@ export default function InstitutionsLayout() {
                               <input
                                 type="file"
                                 accept=".csv"
-                                onChange={handleFileUpload}
+                                onChange={handleFileInputChange}
                                 ref={ref}
-                                onClick={() => setIsImportingFile(true)}
                                 className="hidden"
                               />
                               <div

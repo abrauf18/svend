@@ -1,6 +1,5 @@
-import { Database } from '../database.types';
 import { Budget, BudgetCategoryGroups } from './budget.types';
-import { ProfileData } from './fin.types';
+import { FinAccountTransaction, ProfileData } from './fin.types';
 
 // Define the enum for onboarding steps
 export type AccountOnboardingStepContextKey =
@@ -72,25 +71,22 @@ export type AccountOnboardingPlaidItemAccount = {
   updatedAt: string;
 };
 
-export type AccountOnboardingInstitutionTransaction =
-  Database['public']['Tables']['fin_account_transactions']['Row'];
-
-export type AccountOnboardingInstitutionAccount = {
+export type AccountOnboardingManualInstitutionAccount = {
   id: string;
   name: string;
   type: string;
   institutionId: string;
   balanceCurrent: number;
   budgetFinAccountId?: string;
-  transactions: AccountOnboardingInstitutionTransaction[];
+  transactions: FinAccountTransaction[];
   mask: string;
 };
 
-export type AccountOnboardingInstitution = {
+export type AccountOnboardingManualInstitution = {
   id: string;
   name: string;
   symbol: string;
-  accounts: AccountOnboardingInstitutionAccount[];
+  accounts: AccountOnboardingManualInstitutionAccount[];
 };
 
 export type AccountOnboardingState = {
@@ -99,7 +95,7 @@ export type AccountOnboardingState = {
   contextKey?: AccountOnboardingStepContextKey;
   userId?: string;
   plaidConnectionItems?: AccountOnboardingPlaidConnectionItem[];
-  manualInstitutions?: AccountOnboardingInstitution[];
+  manualInstitutions?: AccountOnboardingManualInstitution[];
   svendCategoryGroups?: BudgetCategoryGroups;
   transactions?: {
     transactionsPanel?: {
@@ -114,3 +110,62 @@ export type AccountOnboardingState = {
 export type OnboardingState = {
   account: AccountOnboardingState;
 };
+
+import checkCSVRowValidity from '../utils/check-csv-row-validity'
+
+// Type for a single row of CSV data
+export type CSVRow = Record<keyof CSVColumns, string>;
+
+export type CSVColumnState = {
+  originalName: string | null;
+  isValid: boolean;
+  canAutoGenerate: boolean;
+  validationError?: string;
+};
+
+export const CSV_VALID_COLUMNS = [
+  'TransactionId',
+  'TransactionStatus',
+  'TransactionDate',
+  'TransactionAmount',
+  'TransactionMerchant',
+  'TransactionCategory',
+  'BankName',
+  'BankSymbol',
+  'AccountName',
+  'AccountType',
+  'AccountMask',
+] as const;
+
+// Then use it to define CSVColumns type
+export type CSVColumns = Record<
+  typeof CSV_VALID_COLUMNS[number],
+  CSVColumnState
+>;
+
+export type CSVState = {
+  isModalOpen: boolean;
+  isRowsModalOpen: boolean;
+  filename: string;
+  columns: CSVColumns;
+  extraColumns: string[];
+  rawData: Record<string, any>[];
+  processedData: Record<string, any>[] | null;
+  invalidRows?: ReturnType<typeof checkCSVRowValidity>[];
+  csvResult?: Record<string, any> | null;
+  error?: Error;
+};
+
+export type CSVColumnMapping = {
+  // The internal column name we expect
+  internalColumn: keyof CSVRow;
+  // The CSV column name to map from, or 'auto-generate' for special cases
+  csvColumn: string;
+}
+
+export type CSVMappingRequest = {
+  // The original file path in Supabase storage
+  filename: string;
+  // The column mappings specified by the user
+  columnMappings: CSVColumnMapping[];
+}

@@ -1,84 +1,172 @@
 import { enhanceRouteHandler } from '@kit/next/routes';
 import { NextResponse } from 'next/server';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { z } from 'zod';
+import papa from 'papaparse';
+
+// Handlers
+import insertInstitutions from '../_handlers/insert-institutions';
+import insertAccounts from '../_handlers/insert-accounts';
+
+// Utilities
 import {
   CSVProcessingError,
-  CSVType,
   normalizeCategory,
-} from '../[filename]/route';
-import insertInstitutions from '../[filename]/_handlers/insert-institutions';
-import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
-import { getSupabaseServerClient } from '@kit/supabase/server-client';
-import insertAccounts from '../[filename]/_handlers/insert-accounts';
-import parseCSVResponse from '../[filename]/_utils/parse-csv-response';
-import checkCSVRowValidity from '../[filename]/_utils/check-csv-row-validity';
+} from '../route';
+import { parseCSVResponse } from '../_utils/parse-csv-response';
+import checkCSVValidity from '~/lib/utils/check-csv-validity';
+
+// Types
+import { CSVRow, CSV_VALID_COLUMNS } from '~/lib/model/onboarding.types';
+
+const postSchema = z.object({
+  filename: z.string(),
+  columnMappings: z.array(
+    z.object({
+      internalColumn: z.enum(CSV_VALID_COLUMNS),
+      csvColumn: z.string()
+    })
+  )
+});
 
 // POST /api/onboarding/account/manual/csv/mapped
 // Insert the mapped CSV data into the database
-
-const postSchema = z.object({
-  mappedCsv: z.array(z.record(z.string(), z.string())),
-});
-
 export const POST = enhanceRouteHandler(
-  async ({ body }) => {
+  async ({ body, user }) => {
+    const supabase = getSupabaseServerClient();
+    let budgetId: string;
+
     try {
-      const parsedText = body.mappedCsv as CSVType[];
+      if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+      // Check if user is in onboarding
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from('user_onboarding')
+        .select('state->account')
+        .eq('user_id', user.id)
+        .single();
+
+      if (onboardingError) {
+        throw new Error(`Failed to fetch onboarding state: ${onboardingError.message}`);
+      }
+
+      const onboardingState = onboardingData?.account as any;
+      if (!['start', 'plaid', 'manual'].includes(onboardingState.contextKey)) {
+        return NextResponse.json({ error: 'User not in onboarding' }, { status: 403 });
+      }
+
+      budgetId = onboardingState.budgetId;
+    } catch (err: any) {
+      console.error('[Mapped CSV Authorization] Unexpected error:', {
+        error: err,
+        message: err.message,
+        details: err.details,
+        stack: err.stack,
+      });
+      return NextResponse.json({ error: 'Unknown error' }, { status: 500 });
+    }
+
+    try {
+      const { filename, columnMappings } = body;
+
+      // 1. Download and parse the original CSV
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('onboarding_attachments')
+        .download(filename);
+
+      if (downloadError) {
+        return NextResponse.json(
+          { error: 'Failed to download CSV file. Please try uploading again.' },
+          { status: 400 }
+        );
+      }
+
+      if (!fileData) {
+        return NextResponse.json(
+          { error: 'No file data received' },
+          { status: 400 }
+        );
+      }
+
+      const text = await fileData.text();
+      const { data: rawCsvData } = papa.parse<Record<string, string>>(text, { header: true });
+
+      // Check what columns are missing from the original CSV
+      const validProps = Object.fromEntries(
+        CSV_VALID_COLUMNS.map(key => [key, true])
+      );
+
+      const { isValid, missingProps, mappableProps, invalidRows: validityInvalidRows, error: csvValidityError } = checkCSVValidity({
+        csv: rawCsvData as CSVRow[],
+        csvValidProps: validProps as Record<keyof CSVRow, boolean>
+      });
+
+      // Validate that all missing columns are mapped
+      const mappedColumns = columnMappings.map(m => m.internalColumn);
+      const unmappedRequiredColumns = (missingProps || []).filter(col =>
+        !mappedColumns.includes(col as typeof CSV_VALID_COLUMNS[number])
+      );
+
+      if (unmappedRequiredColumns.length > 0) {
+        return NextResponse.json({
+          error: `Missing mappings for required columns: ${unmappedRequiredColumns.join(', ')}`,
+          unmappedColumns: unmappedRequiredColumns
+        }, {
+          status: 400
+        });
+      }
+
+      // Apply the mappings to transform the CSV data
+      const transformedData = rawCsvData.map(row => {
+        // Start with all matching column names from original data
+        const newRow: Partial<CSVRow> = {};
+        Object.entries(row).forEach(([key, value]) => {
+          if (CSV_VALID_COLUMNS.includes(key as keyof CSVRow)) {
+            newRow[key as keyof CSVRow] = value;
+          }
+        });
+
+        // Then apply any specific mappings
+        columnMappings.forEach(mapping => {
+          if (mapping.csvColumn === 'auto-generate') {
+            if (mapping.internalColumn === 'TransactionId') {
+              newRow[mapping.internalColumn] = generateTransactionIdFromCSV({
+                bankSymbol: row.BankSymbol || '',
+                bankMask: row.Mask || '',
+                index: 0
+              });
+            }
+          } else {
+            newRow[mapping.internalColumn] = row[mapping.csvColumn] || '';
+          }
+        });
+
+        return newRow as CSVRow;
+      });
+
+      // Now validate the transformed data
+      const { isValid: isValidTransformed, invalidRows, error: validationError } = checkCSVValidity({
+        csv: transformedData,
+        csvValidProps: validProps as Record<keyof CSVRow, boolean>
+      });
+
+      if (!isValidTransformed) {
+        return NextResponse.json({
+          error: 'Transformed CSV validation failed',
+          details: validationError?.message,
+          invalidRows
+        }, {
+          status: 400
+        });
+      }
 
       const supabaseAdmin = getSupabaseServerAdminClient();
-      const supabaseClient = getSupabaseServerClient();
-
-      const {
-        data: { user },
-        error: getUserError,
-      } = await supabaseClient.auth.getUser();
-
-      if (!user || getUserError) {
-        return NextResponse.json(
-          { error: 'Authentication required' },
-          { status: 401 },
-        );
-      }
-
-      //Check if the csv's rows are valid
-      const invalidRows = [];
-
-      for (let i = 0; i < parsedText.length; i++) {
-        const row = parsedText[i]!;
-
-        const result = checkCSVRowValidity({ row, index: i });
-
-        if (!result.isValid) {
-          invalidRows.push(result);
-        }
-      }
-
-      if (invalidRows.length > 0) {
-        return NextResponse.json(
-          {
-            error: 'Invalid rows found',
-            invalidRows,
-            isValid: false,
-            csvData: parsedText,
-          },
-          { status: 400 },
-        );
-      }
-
-      const { data: dbAccountOnboardingData, error: fetchOnboardingError } =
-        await supabaseAdmin
-          .from('user_onboarding')
-          .select('state->account')
-          .eq('user_id', user.id)
-          .single();
-
-      if (fetchOnboardingError) throw fetchOnboardingError;
-
       const { data: insertedInstitutions, error: institutionsError } =
         await insertInstitutions({
           supabaseAdmin,
-          parsedText,
-          user,
+          parsedText: transformedData,
+          userId: user.id,
         });
 
       if (institutionsError) {
@@ -112,20 +200,21 @@ export const POST = enhanceRouteHandler(
       }
 
       const {
-        insertedBudgetAccounts,
-        insertedAccounts,
+        data,
         error: budgetAccountsError,
       } = await insertAccounts({
         supabaseAdmin,
-        parsedText,
-        user,
+        parsedText: transformedData,
+        userId: user.id,
         insertedInstitutions,
-        budgetId: (dbAccountOnboardingData?.account as any)!.budgetId,
+        budgetId,
       });
 
-      if (budgetAccountsError || !insertedBudgetAccounts) {
+      if (budgetAccountsError || !data) {
         throw new CSVProcessingError('Failed to process accounts from CSV');
       }
+
+      const { accounts: insertedAccounts, budgetAccounts: insertedBudgetAccounts } = data;
 
       //We fetch the built in categories
       const { data: builtInCategories, error: builtInCategoriesError } =
@@ -140,19 +229,19 @@ export const POST = enhanceRouteHandler(
       //We map through the accounts and create the transactions
       const insertedTransactions = insertedAccounts
         .map((acc) => {
-          const transactionsRows = parsedText.filter(
+          const transactionsRows = transformedData.filter(
             (row) =>
               row.AccountName === acc.name &&
               row.BankName.trim().toLowerCase() ===
-                insertedInstitutions
-                  .find((inst) => inst.id === acc.institution_id)
-                  ?.name.trim()
-                  .toLowerCase() &&
+              insertedInstitutions
+                .find((inst) => inst.id === acc.institution_id)
+                ?.name.trim()
+                .toLowerCase() &&
               row.BankSymbol.trim().toUpperCase() ===
-                insertedInstitutions
-                  .find((inst) => inst.id === acc.institution_id)
-                  ?.symbol.trim()
-                  .toUpperCase(),
+              insertedInstitutions
+                .find((inst) => inst.id === acc.institution_id)
+                ?.symbol.trim()
+                .toUpperCase(),
           )!;
 
           return transactionsRows;
@@ -206,12 +295,12 @@ export const POST = enhanceRouteHandler(
         const matchingCategory = builtInCategories.find(
           (cat) =>
             normalizeCategory(cat.category_name ?? '') ===
-            normalizeCategory(trans.Category ?? ''),
+            normalizeCategory(trans.TransactionCategory ?? ''),
         );
 
         if (!matchingCategory) {
           console.warn(
-            `Skipping transaction ${trans.TransactionId}: Invalid category "${trans.Category}". Available categories:`,
+            `Skipping transaction ${trans.TransactionId}: Invalid category "${trans.TransactionCategory}". Available categories:`,
             builtInCategories.map((c) => c.category_name),
           );
           return false;
@@ -219,71 +308,44 @@ export const POST = enhanceRouteHandler(
         return true;
       });
 
-      // Only proceed with RPC call if we have valid transactions
+      // Insert transactions directly into fin_account_transactions
       if (validTransactions.length > 0) {
-        const { error: budgetFinAccountTransactionsError } =
-          await supabaseAdmin.rpc('create_budget_fin_account_transactions', {
-            p_budget_id: (dbAccountOnboardingData?.account as any).budgetId,
-            p_transactions: validTransactions.map((trans) => {
-              const matchingCategory = builtInCategories.find(
-                (cat) =>
-                  normalizeCategory(cat.category_name ?? '') ===
-                  normalizeCategory(trans.Category ?? ''),
-              );
+        const { data: insertedTransactions, error: insertError } = await supabaseAdmin
+          .from('fin_account_transactions')
+          .insert(validTransactions.map(trans => {
+            const matchingCategory = builtInCategories.find(
+              cat => normalizeCategory(cat.category_name ?? '') === normalizeCategory(trans.TransactionCategory ?? '')
+            );
 
-              return {
-                date: trans.Date,
-                amount: parseFloat(trans.Amount),
-                manual_account_id: insertedAccounts.find(
-                  (acc) => acc.name === trans.AccountName,
-                )?.id!,
-                svend_category_id: matchingCategory!.category_id,
-                budget_fin_account_id: insertedBudgetAccounts.find(
-                  (fin_acc) =>
-                    fin_acc.manual_account_id ===
-                    insertedAccounts.find(
-                      (acc) => acc.name === trans.AccountName,
-                    )?.id!,
-                )?.id!,
-                merchant_name: trans.Merchant || null,
-                payee: null,
-                iso_currency_code: 'USD',
-                plaid_category_detailed: null,
-                plaid_category_confidence: null,
-                tx_status: 'posted' as 'pending' | 'posted',
-                plaid_raw_data: null,
-                user_tx_id: trans.TransactionId,
-                plaid_tx_id: null,
-              };
-            }),
-          });
+            return {
+              user_tx_id: trans.TransactionId,
+              date: trans.TransactionDate,
+              amount: parseFloat(trans.TransactionAmount),
+              manual_account_id: insertedAccounts.find(acc => acc.name === trans.AccountName)?.id!,
+              merchant_name: trans.TransactionMerchant || '',
+              payee: '',
+              iso_currency_code: 'USD',
+              tx_status: 'posted' as const,
+              svend_category_id: matchingCategory!.category_id || ''
+            };
+          }))
+          .select('*');
 
-        if (budgetFinAccountTransactionsError)
-          throw budgetFinAccountTransactionsError;
+        if (insertError) throw insertError;
+        if (!insertedTransactions) throw new Error('No transactions were inserted');
+
+        const parsedInstitutions = parseCSVResponse({
+          insertedInstitutions,
+          insertedAccounts,
+          insertedBudgetAccounts,
+          insertedFinAccountTransactions: insertedTransactions,
+          supabase
+        });
+
+        return NextResponse.json({ institutions: parsedInstitutions });
       }
 
-      //With the returned ids, we fetch the transactions from "fin_account_transactions"
-      const {
-        data: insertedFinAccountTransactions,
-        error: finAccountTransactionsError,
-      } = await supabaseAdmin
-        .from('fin_account_transactions')
-        .select('*')
-        .in(
-          'user_tx_id',
-          validTransactions.map((trans) => trans.TransactionId),
-        );
-
-      if (finAccountTransactionsError) throw finAccountTransactionsError;
-
-      const parsedInstitutions = parseCSVResponse({
-        insertedInstitutions,
-        insertedAccounts,
-        insertedBudgetAccounts,
-        insertedFinAccountTransactions: insertedFinAccountTransactions ?? [],
-      });
-
-      return NextResponse.json({ institutions: parsedInstitutions });
+      return NextResponse.json({ institutions: [] });
     } catch (err: any) {
       console.error('[Mapped CSV Processing] Unexpected error:', {
         error: err,
@@ -294,12 +356,30 @@ export const POST = enhanceRouteHandler(
 
       return NextResponse.json(
         {
-          error:
-            'An unexpected error occurred while processing the mapped CSV file',
+          error: 'Unknown error',
         },
         { status: 500 },
       );
     }
   },
-  { auth: false, schema: postSchema },
+  { schema: postSchema },
 );
+
+function generateTransactionIdFromCSV({
+  bankSymbol,
+  bankMask,
+  index,
+}: {
+  bankSymbol: string;
+  bankMask: string;
+  index: number;
+}): string | undefined {
+  try {
+    let currentNum = index;
+    const randomNum = String(currentNum).padStart(8, '0');
+    return `${bankSymbol}${bankMask}${randomNum}`;
+  } catch (err: any) {
+    console.error(err);
+    return undefined;
+  }
+}

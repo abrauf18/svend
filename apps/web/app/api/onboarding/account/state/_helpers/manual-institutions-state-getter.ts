@@ -1,6 +1,7 @@
 import { SupabaseClient, User } from '@supabase/supabase-js';
 import { Database } from '~/lib/database.types';
-import { AccountOnboardingInstitution } from '~/lib/model/onboarding.types';
+import { AccountOnboardingManualInstitution } from '~/lib/model/onboarding.types';
+import { createTransactionService } from '~/lib/server/transaction.service';
 
 type Props = {
   supabaseAdminClient: SupabaseClient;
@@ -17,6 +18,8 @@ export default async function manualInstitutionsStateGetter({
   user,
   budgetFinAccounts,
 }: Props) {
+  const transactionService = createTransactionService(supabaseAdminClient);
+
   // Fetch the manual institutions associated with the user
   const { data: manualInstitutions, error: manualInstitutionsError } =
     await supabaseAdminClient
@@ -58,7 +61,7 @@ export default async function manualInstitutionsStateGetter({
     );
 
   //Adds the budgetFinAccountId to each account if it exists
-  const parsedManualInstitutions: AccountOnboardingInstitution[] =
+  const parsedManualInstitutions: AccountOnboardingManualInstitution[] =
     manualInstitutions.map((inst) => ({
       id: inst.id,
       name: inst.name,
@@ -68,8 +71,8 @@ export default async function manualInstitutionsStateGetter({
         budgetFinAccountId: budgetFinAccounts.find(
           (account) => account.manual_account_id === acc.id,
         )?.id,
-        transactions: finAccountTransactions.filter(
-          (trans) => trans.manual_account_id === acc.id,
+        transactions: transactionService.parseTransactions(
+          finAccountTransactions.filter((trans) => trans.manual_account_id === acc.id)
         ),
         institutionId: acc.institution_id,
         balanceCurrent: acc.balance_current,
