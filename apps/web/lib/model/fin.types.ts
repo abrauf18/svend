@@ -3,6 +3,7 @@ import { Transaction, TransactionStream } from "plaid";
 export type FinAccount = {
   id: string;
   source: 'plaid' | 'svend';
+  type: 'depository' | 'credit' | 'loan' | 'investment' | 'other';
   institutionName: string;
   budgetFinAccountId?: string;
   name: string;

@@ -1,0 +1,189 @@
+[
+  {
+    "id": "101",
+    "description": "GRUBHUBCHICKFILA",
+    "amount": 30.28,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "102",
+    "description": "WAWA 915 MEDFORD NJ",
+    "amount": 49.61,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "103",
+    "description": "HOME DEPOT",
+    "amount": 115.23,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD",
+    "city": "CAMPBELL",
+    "region": "CA"
+  },
+  {
+    "id": "104",
+    "description": "MTA*NYCT PAYGO",
+    "amount": 2.75,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "105",
+    "description": "WAL-MART ASSOCS. PAYROLL",
+    "amount": 1058.23,
+    "direction": "INFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "106",
+    "description": "PURCHASE WM SUPERCENTER #1700",
+    "amount": 72.1,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD",
+    "city": "POWAY",
+    "region": "CA"
+  },
+  {
+    "id": "107",
+    "description": "AMAZON.COM*MJ3LO9AN2",
+    "amount": 24.2,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "108",
+    "description": "GOOGLE *FRESHBOOKS",
+    "amount": 30,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "109",
+    "description": "HOT TOPIC #821",
+    "amount": 17.89,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "110",
+    "description": "EARNIN TRANSFER",
+    "amount": 100,
+    "direction": "INFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "111",
+    "description": "SONIC DRIVE",
+    "amount": 5.21,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD",
+    "city": "DUNLAP",
+    "region": "TN"
+  },
+  {
+    "id": "112",
+    "description": "SQ *KHAO SOI",
+    "amount": 48.96,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD",
+    "city": "BREMERTON",
+    "region": "WA"
+  },
+  {
+    "id": "113",
+    "description": "DOLLAR GE DG",
+    "amount": 17.05,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD",
+    "city": "BROWNWOOD",
+    "region": "TX"
+  },
+  {
+    "id": "114",
+    "description": "TST *JETTIES BAGELS",
+    "amount": 7.78,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD",
+    "city": "IPSWICH",
+    "region": "MA"
+  },
+  {
+    "id": "115",
+    "description": "AFFIRM INC AFFIRM PAY",
+    "amount": 97.25,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "116",
+    "description": "ALLSTATE INS CO INS PREM",
+    "amount": 80.87,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "117",
+    "description": "DD DOORDASH BURGERKIN 855-123-4567 CA",
+    "amount": 28.34,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "118",
+    "description": "PURCHASE REVERSAL UBR* PENDING",
+    "amount": 7.99,
+    "direction": "INFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "119",
+    "description": "SLACK T86KDKX0Y5",
+    "amount": 39.82,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "120",
+    "description": "VENMO CASHOUT",
+    "amount": 160,
+    "direction": "INFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "121",
+    "description": "PAYPAL *ROBLOX CORP",
+    "amount": 4.99,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "122",
+    "description": "MI UNEMPLOYMENT UI BENEFIT",
+    "amount": 713.48,
+    "direction": "INFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "123",
+    "description": "COSTCO WHSE #0775",
+    "amount": 128.1,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "124",
+    "description": "XCEL ENERGY-WI RETRY PYMT",
+    "amount": 201.11,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  },
+  {
+    "id": "125",
+    "description": "CHUMBA GOLD COINS",
+    "amount": 40,
+    "direction": "OUTFLOW",
+    "iso_currency_code": "USD"
+  }
+]

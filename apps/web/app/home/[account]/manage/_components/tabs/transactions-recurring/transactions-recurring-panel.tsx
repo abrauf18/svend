@@ -362,7 +362,7 @@ export function RecurringPanel(props: RecurringPanelProps) {
                                 }).format(transaction.transaction.amount)}
                               </TableCell>
                               <TableCell className="whitespace-nowrap">
-                                {transaction.category}
+                                {transaction.category.name}
                               </TableCell>
                             </TableRow>
                           ))}

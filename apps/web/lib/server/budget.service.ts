@@ -361,6 +361,7 @@ class BudgetService {
         if (rawGetBudgetResults.linked_accounts) {
           linkedFinAccounts = (rawGetBudgetResults.linked_accounts as any[]).map(account => ({
             id: account.id,
+            type: account.type,
             source: account.source,
             institutionName: account.institutionName,
             budgetFinAccountId: account.budgetFinAccountId,
@@ -664,6 +665,8 @@ class BudgetService {
       allTransactions: [],
       allRecurringTransactions: [],
       newTransactions: [],
+      existingUnlinkedTransactions: [],
+      existingUnlinkedRecurringTransactions: [],
       newUnlinkedTransactions: [],
       newRecurringTransactions: [],
       newUnlinkedRecurringTransactions: [],
@@ -679,15 +682,46 @@ class BudgetService {
         result
       );
     }
+    
+    console.log('[Debug] After Plaid collection:', {
+      allTransactionsCount: result.allTransactions.length,
+      samplePlaid: result.allTransactions[0] ? {
+        id: result.allTransactions[0].transaction.id,
+        budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
+        hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
+      } : null
+    });
 
     // Process each manual
     for (const institutionId of manualInstitutionIds) {
+      console.log('[Debug] Before institution processing:', {
+        institutionId,
+        allTransactionsCount: result.allTransactions.length,
+        allTransactionsRef: result.allTransactions
+      });
+
       await this.onboardingAnalysisCollectManualInstitutionTransactions(
         institutionId,
         budgetId,
-        result
+        result,
+        plaidClient
       );
+
+      console.log('[Debug] After institution processing:', {
+        institutionId,
+        allTransactionsCount: result.allTransactions.length,
+        allTransactionsRef: result.allTransactions
+      });
     }
+
+    console.log('[Debug] After manual collection:', {
+      allTransactionsCount: result.allTransactions.length,
+      sampleManual: result.allTransactions[0] ? {
+        id: result.allTransactions[0].transaction.id,
+        budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
+        hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
+      } : null
+    });
 
     return result;
   }
@@ -737,12 +771,17 @@ class BudgetService {
     try {
       // 1. Fetch existing transactions
       const existingTransactions = await this.onboardingAnalysisFetchPlaidItemTransactions(item.svendItemId, budgetId);
+      console.log('[Debug] Fetched existing transactions:', {
+        count: existingTransactions.length,
+        sample: existingTransactions[0]?.fin_account_transactions?.[0]
+      });
 
       // 2. Get Plaid account mappings
       const plaidAccountMappings = this.onboardingAnalysisGetPlaidAccountMappings(existingTransactions);
+      console.log('[Debug] Plaid account mappings:', plaidAccountMappings);
 
       // 3. Process existing transactions
-      this.onboardingAnalysisProcessExistingTransactions(existingTransactions, result);
+      await this.onboardingAnalysisProcessExistingTransactions(existingTransactions, result);
 
       // 4. Sync new transactions from Plaid with retry
       await this.retryOperation(async () => {
@@ -774,7 +813,7 @@ class BudgetService {
         const transaction = 'transaction' in tx ? tx.transaction : tx;
 
         if (!transaction.userTxId && transaction.plaidTxId) {
-          transaction.userTxId = await this.generateUserTxIdFromRecurringPlaidTx(transaction);
+          transaction.userTxId = await this.generateUserTxIdFromRecurringPlaidTx(transaction as FinAccountRecurringTransaction);
         }
       }
     } catch (error: any) {
@@ -838,8 +877,8 @@ class BudgetService {
 
     // Get the most recent date from plaid_raw_data.last_date or use current date
     const getMostRecentDate = (transaction: FinAccountRecurringTransaction): Date => {
-        const lastDate = transaction.plaidRawData?.last_date;
-        return lastDate ? new Date(lastDate) : new Date();
+      const lastDate = transaction.plaidRawData?.last_date;
+      return lastDate ? new Date(lastDate) : new Date();
     };
 
     // Get date once
@@ -848,27 +887,27 @@ class BudgetService {
     const plaidTxIdSuffix = transaction.plaidTxId?.slice(-6) || '000000';
 
     while (!isUnique) {
-        // Generate 10 IDs with the same date
-        const potentialIds = Array.from({ length: 10 }, () => {
-            const randomCounter = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-            return `P${formattedDate}${randomCounter}${plaidTxIdSuffix}`;
-        });
+      // Generate 10 IDs with the same date
+      const potentialIds = Array.from({ length: 10 }, () => {
+        const randomCounter = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+        return `P${formattedDate}${randomCounter}${plaidTxIdSuffix}`;
+      });
 
-        const { data: existingTxs, error: existingTxsError } = await this.supabase
-            .from('fin_account_recurring_transactions')
-            .select('user_tx_id')
-            .in('user_tx_id', potentialIds);
+      const { data: existingTxs, error: existingTxsError } = await this.supabase
+        .from('fin_account_recurring_transactions')
+        .select('user_tx_id')
+        .in('user_tx_id', potentialIds);
 
-        if (existingTxsError) {
-            throw new Error(`[generateUserTxIdFromRecurringPlaidTx]:[generateUserTxId]: Failed to fetch recurring transaction IDs: ${existingTxsError.message}`);
-        }
+      if (existingTxsError) {
+        throw new Error(`[generateUserTxIdFromRecurringPlaidTx]:[generateUserTxId]: Failed to fetch recurring transaction IDs: ${existingTxsError.message}`);
+      }
 
-        const existingIds = new Set(existingTxs?.map(tx => tx.user_tx_id));
-        uniqueId = potentialIds.find(id => !existingIds.has(id));
+      const existingIds = new Set(existingTxs?.map(tx => tx.user_tx_id));
+      uniqueId = potentialIds.find(id => !existingIds.has(id));
 
-        if (uniqueId) {
-            isUnique = true;
-        }
+      if (uniqueId) {
+        isUnique = true;
+      }
     }
 
     return uniqueId!;
@@ -884,15 +923,131 @@ class BudgetService {
   private async onboardingAnalysisCollectManualInstitutionTransactions(
     institutionId: string,
     budgetId: string,
-    result: OnboardingAnalysisTransactionCollection
+    result: OnboardingAnalysisTransactionCollection,
+    plaidClient: PlaidApi
   ): Promise<void> {
     try {
       // 1. Fetch existing transactions
-      const existingTransactions = await this.onboardingAnalysisFetchManualInstitutionTransactions(institutionId, budgetId);
+      const manualAccounts = await this.onboardingAnalysisFetchManualInstitutionTransactions(institutionId, budgetId);
 
-      // 2. Process existing transactions
-      this.onboardingAnalysisProcessExistingTransactions(existingTransactions, result);
+      // 2. Enrich manual transactions with Plaid data
+      const enrichedData = await Promise.all(
+        manualAccounts.map(async account => {
+          const enrichedTransactions = await this.transactionService.enrichManualTransactions(
+            {
+              [account.id]: {
+                account: {
+                  id: account.id,
+                  type: account.type || 'depository',
+                  source: 'svend',
+                  institutionName: account.manual_fin_institutions?.name || '',
+                  name: account.name || '',
+                  mask: account.mask || '',
+                  officialName: account.official_name || '',
+                  balance: account.balance_current || 0
+                },
+                transactions: this.transactionService.parseTransactions(account.fin_account_transactions || [])
+              }
+            },
+            plaidClient
+          );
 
+          // Update original transactions with enriched data
+          const updatedTransactions = (account.fin_account_transactions || []).map(tx => {
+            const enrichedTx = enrichedTransactions[account.id]?.find(et => et.userTxId === tx.user_tx_id);
+            if (!enrichedTx) return tx;
+
+            return {
+              ...tx,
+              manual_account_id: account.id,
+              merchant_name: enrichedTx.merchantName || tx.merchant_name,
+              plaid_detailed_category: enrichedTx.plaidDetailedCategory || undefined,
+              plaid_category_confidence: enrichedTx.plaidCategoryConfidence || undefined,
+              plaid_raw_data: enrichedTx.plaidRawData,
+              iso_currency_code: tx.iso_currency_code || undefined,
+              svend_category_id: tx.svend_category_id
+            };
+          });
+
+          return {
+            ...account,
+            fin_account_transactions: updatedTransactions
+          };
+        })
+      );
+
+      // Use enrichedData instead of enrichedTransactions in subsequent steps
+      manualAccounts.forEach((account, index) => {
+        account.fin_account_transactions = enrichedData[index]?.fin_account_transactions as any;
+      });
+
+      // 4. Process existing transactions
+      console.log('[Debug] About to call ProcessExistingTransactions:', {
+        manualAccountsLength: manualAccounts.length,
+        resultRef: result
+      });
+
+      try {
+        await this.onboardingAnalysisProcessExistingTransactions(manualAccounts, result);
+
+        console.log('[Debug] Successfully returned from ProcessExistingTransactions:', {
+          allTransactionsCount: result.allTransactions.length,
+          resultRef: result
+        });
+      } catch (error) {
+        console.error('[Error] Failed in or after ProcessExistingTransactions:', error);
+        throw error;
+      }
+
+      // Add debug log to watch allTransactions
+      console.log('[Debug] One step later:', {
+        allTransactionsCount: result.allTransactions.length
+      });
+
+      // 5. Process recurring patterns
+      const recurringTransactions = await this.transactionService.processManualRecurringTransactions([
+        ...result.allTransactions,
+        ...result.existingUnlinkedTransactions.map(tx => ({
+          transaction: tx,
+          budgetFinAccountId: '',
+          category: {
+            id: tx.svendCategoryId || '',
+            name: '',
+            svendCategoryId: tx.svendCategoryId || '',
+            isManual: true,
+            isDiscretionary: false,
+            createdAt: '',
+            updatedAt: ''
+          },
+          categoryGroupId: '',
+          categoryGroup: '',
+          merchantName: tx.merchantName || '',
+          payee: tx.payee || '',
+          notes: '',
+          budgetTags: [],
+          budgetAttachmentsStorageNames: []
+        }))
+      ]);
+
+      console.log('[Debug] After processManualRecurringTransactions:', {
+        allTransactionsCount: result.allTransactions.length,
+        recurringCount: recurringTransactions.length,
+        sample: result.allTransactions[0] ? {
+          id: result.allTransactions[0].transaction.id,
+          budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
+          hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
+        } : null
+      });
+
+      // 6. Add recurring transactions to result
+      for (const recurring of recurringTransactions) {
+        if (recurring.budgetFinAccountId) {
+          result.newRecurringTransactions.push(recurring);
+          result.allRecurringTransactions.push(recurring);
+        } else {
+          result.newUnlinkedRecurringTransactions.push(recurring.transaction);
+        }
+      }
     } catch (error: any) {
       throw new Error(
         `Failed to process manual institution ${institutionId}: ${error.message}`
@@ -960,15 +1115,27 @@ class BudgetService {
    * @returns Array of existing transactions from the database
    */
   private async onboardingAnalysisFetchManualInstitutionTransactions(institutionId: string, budgetId: string) {
+    // const { data: transactions, error } = await this.supabase
+    //   .from('manual_fin_accounts')
+    //   .select(`
+    //     *,
+    //     manual_fin_institutions (name),
+    //     fin_account_transactions (*),
+    //     budget_fin_accounts!inner (id)
+    //   `)
+    //   .eq('institution_id', institutionId)
+    //   .eq('budget_fin_accounts.budget_id', budgetId);
+
+    // TODO: Remove query constraints to include unlinked transactions
     const { data: transactions, error } = await this.supabase
-      .from('manual_fin_accounts')
-      .select(`
-        id,
-        fin_account_transactions (*),
-        budget_fin_accounts (id)
-      `)
-      .eq('institution_id', institutionId)
-      .eq('budget_fin_accounts.budget_id', budgetId);
+    .from('manual_fin_accounts')
+    .select(`
+      *,
+      manual_fin_institutions (name),
+      fin_account_transactions (*),
+      budget_fin_accounts (id)
+    `)
+    .eq('institution_id', institutionId);
 
     if (error) {
       console.error('Error fetching manual transactions:', error);
@@ -998,50 +1165,153 @@ class BudgetService {
    * @param dbExistingTransactions - Array of transactions from database
    * @param result - Collection to store processed transactions
    */
-  private onboardingAnalysisProcessExistingTransactions(
+  private async onboardingAnalysisProcessExistingTransactions(
     dbExistingTransactions: any[],
     result: OnboardingAnalysisTransactionCollection
   ) {
+    console.log('[Debug] Processing existing transactions:', {
+      accountsCount: dbExistingTransactions.length,
+      transactionsPerAccount: dbExistingTransactions.map(account => ({
+        accountId: account.id,
+        transactionCount: account.fin_account_transactions?.length || 0,
+        budgetFinAccountId: account.budget_fin_accounts?.[0]?.id
+      }))
+    });
+
     const transactions = dbExistingTransactions
       .flatMap(account => {
-        // Check if account and fin_account_transactions exist
         if (!account || !account.fin_account_transactions) {
-          console.warn('Account or transactions missing:', {
-            accountId: account?.id,
-            hasTransactions: !!account?.fin_account_transactions
-          });
           return [];
         }
 
-        return account.fin_account_transactions.map((transaction: any) => ({
-          ...transaction,
-          budgetFinAccountId: account.budget_fin_accounts?.[0]?.id
+        // Add debug log for manual accounts
+        if (account.id && account.manual_fin_institutions) {
+          console.log('[Manual Account Debug]', {
+            accountId: account.id,
+            institutionName: account.manual_fin_institutions.name,
+            transactionCount: account.fin_account_transactions.length,
+            sampleTransaction: account.fin_account_transactions[0] ? {
+              id: account.fin_account_transactions[0].id,
+              manual_account_id: account.fin_account_transactions[0].manual_account_id,
+              amount: account.fin_account_transactions[0].amount
+            } : null
+          });
+        }
+
+        return account.fin_account_transactions.map((tx: any) => ({
+          transaction: tx,
+          budgetFinAccountId: account.budget_fin_accounts?.[0]?.id,
+          category: tx.svend_category_id ? {
+            id: tx.svend_category_id
+          } : undefined
         }));
       })
-      .filter(Boolean);
+      .filter(tx => tx.transaction)
+      .map(tx => {
+        if (tx.budgetFinAccountId) {
+          const transformedTx = {
+            ...tx,
+            transaction: {
+              ...tx.transaction,
+              manualAccountId: tx.transaction.manual_account_id,
+              plaidAccountId: tx.transaction.plaid_account_id,
+              plaidDetailedCategory: tx.transaction.plaid_detailed_category,
+              plaidCategoryConfidence: tx.transaction.plaid_category_confidence,
+              plaidRawData: tx.transaction.plaid_raw_data,
+              isoCurrencyCode: tx.transaction.iso_currency_code || 'USD',
+              userTxId: tx.transaction.user_tx_id,
+              plaidTxId: tx.transaction.plaid_tx_id,
+              date: tx.transaction.date,
+              amount: tx.transaction.amount,
+              status: tx.transaction.tx_status || 'posted',
+              merchantName: tx.transaction.merchant_name || '',
+              payee: tx.transaction.payee || '',
+              svendCategoryId: tx.transaction.svend_category_id
+            }
+          };
 
-    for (const transaction of transactions) {
-      result.allTransactions.push({
-        transaction: {
-          id: transaction.id,
-          userTxId: transaction.user_tx_id,
-          plaidTxId: transaction.plaid_tx_id,
-          date: transaction.date,
-          amount: transaction.amount,
-          plaidAccountId: transaction.plaid_account_id,
-          svendCategoryId: transaction.svend_category_id,
-          payee: transaction.payee,
-          status: transaction.tx_status,
-          merchantName: transaction.merchant_name,
-          plaidDetailedCategory: transaction.plaid_category_detailed,
-          plaidRawData: transaction.plaid_raw_data
-        } as FinAccountTransaction,
-        budgetFinAccountId: transaction.budgetFinAccountId,
-        category: {
-          id: transaction.svend_category_id,
+          return transformedTx;
         }
-      } as BudgetFinAccountTransaction);
+        // Convert snake_case DB fields to camelCase when adding to existingUnlinkedTransactions
+        const unlinkedTx: FinAccountTransaction = {
+          id: tx.transaction.id,
+          date: tx.transaction.date,
+          amount: tx.transaction.amount,
+          status: tx.transaction.tx_status || 'posted',
+          svendCategoryId: tx.transaction.svend_category_id,
+          merchantName: tx.transaction.merchant_name || '',
+          payee: tx.transaction.payee || '',
+          plaidRawData: tx.transaction.plaid_raw_data,
+          isoCurrencyCode: tx.transaction.iso_currency_code || 'USD',
+          userTxId: tx.transaction.user_tx_id,
+          plaidTxId: tx.transaction.plaid_tx_id,
+          manualAccountId: tx.transaction.manual_account_id,
+          plaidAccountId: tx.transaction.plaid_account_id,
+          plaidDetailedCategory: tx.transaction.plaid_detailed_category,
+          plaidCategoryConfidence: tx.transaction.plaid_category_confidence
+        };
+        result.existingUnlinkedTransactions.push(unlinkedTx);
+        return null;
+      })
+      .filter((tx): tx is BudgetFinAccountTransaction => tx !== null);
+
+    const { transactions: processedTransactions, error } =
+      await this.transactionService.processPlaidCategories(transactions, []);
+
+    console.log('[Debug] After processPlaidCategories:', {
+      originalCount: transactions.length,
+      processedCount: processedTransactions?.length || 0,
+      error: error,
+      allTransactionsCount: result.allTransactions.length  // Add this
+    });
+
+    if (error) {
+      console.error('Error processing categories:', error);
+      result.allTransactions.push(...transactions);
+    } else if (processedTransactions) {
+      result.allTransactions.push(...processedTransactions);
+      console.log('[Debug] Right after push, before return:', {
+        allTransactionsCount: result.allTransactions.length,
+        isArray: Array.isArray(result.allTransactions),
+        allTransactionsRef: result.allTransactions
+      });
     }
+
+    // Add debug log right after pushing to allTransactions
+    console.log('[Debug] After adding to allTransactions:', {
+      allTransactionsCount: result.allTransactions.length,
+      sampleTransaction: result.allTransactions[0] ? {
+        id: result.allTransactions[0].transaction.id,
+        budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
+        hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
+      } : null
+    });
+
+    // Final summary log for manual transactions
+    const manualTransactions = result.allTransactions.filter(tx => tx.transaction.manualAccountId);
+    if (manualTransactions.length > 0) {
+      console.log('[Manual Transactions Summary]', {
+        totalCount: manualTransactions.length,
+        withManualAccountId: manualTransactions.filter(tx => tx.transaction.manualAccountId).length,
+        samples: manualTransactions.slice(0, 2).map(tx => ({
+          id: tx.transaction.id,
+          manualAccountId: tx.transaction.manualAccountId,
+          budgetFinAccountId: tx.budgetFinAccountId,
+          amount: tx.transaction.amount
+        }))
+      });
+    }
+
+    // After processing existing transactions
+    console.log('[Debug] After processing existing:', {
+      allTransactionsCount: result.allTransactions.length,
+      sample: result.allTransactions[0] ? {
+        id: result.allTransactions[0].transaction.id,
+        budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
+        hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
+      } : null,
+      resultKeys: Object.keys(result)
+    });
   }
 
   /**
@@ -1070,17 +1340,39 @@ class BudgetService {
           budgetFinAccountId: account.budget_fin_accounts?.[0]?.id
         }));
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .map(transaction => {
+        // If it has a budgetFinAccountId, it's a linked transaction
+        if (transaction.budgetFinAccountId) {
+          result.allRecurringTransactions.push({
+            transaction: {
+              id: transaction.id,
+              plaidAccountId: transaction.plaid_account_id,
+              manualAccountId: transaction.manual_account_id,
+              svendCategoryId: transaction.svend_category_id,
+              userTxId: transaction.user_tx_id,
+              plaidTxId: transaction.plaid_tx_id || undefined,
+              plaidDetailedCategory: transaction.plaid_category_detailed,
+              plaidCategoryConfidence: transaction.plaid_category_confidence,
+              plaidTransactionIds: transaction.plaid_transaction_ids,
+              finAccountTransactionIds: transaction.fin_account_transaction_ids,
+              plaidRawData: transaction.plaid_raw_data,
+              createdAt: transaction.created_at,
+              updatedAt: transaction.updated_at
+            } as FinAccountRecurringTransaction,
+            budgetFinAccountId: transaction.budgetFinAccountId,
+          } as BudgetFinAccountRecurringTransaction);
+          return null;
+        }
 
-    for (const transaction of transactions) {
-      result.allRecurringTransactions.push({
-        transaction: {
+        // If no budgetFinAccountId, it's an unlinked transaction
+        result.newUnlinkedRecurringTransactions.push({
           id: transaction.id,
           plaidAccountId: transaction.plaid_account_id,
           manualAccountId: transaction.manual_account_id,
           svendCategoryId: transaction.svend_category_id,
           userTxId: transaction.user_tx_id,
-          plaidTxId: transaction.plaid_tx_id,
+          plaidTxId: transaction.plaid_tx_id || undefined,
           plaidDetailedCategory: transaction.plaid_category_detailed,
           plaidCategoryConfidence: transaction.plaid_category_confidence,
           plaidTransactionIds: transaction.plaid_transaction_ids,
@@ -1088,10 +1380,19 @@ class BudgetService {
           plaidRawData: transaction.plaid_raw_data,
           createdAt: transaction.created_at,
           updatedAt: transaction.updated_at
-        } as FinAccountRecurringTransaction,
-        budgetFinAccountId: transaction.budgetFinAccountId,
-      } as BudgetFinAccountRecurringTransaction);
-    }
+        } as FinAccountRecurringTransaction);
+        return null;
+      })
+      .filter(Boolean);
+
+    console.log('[Debug] Processed recurring transactions:', {
+      allRecurringTransactions: result.allRecurringTransactions.length,
+      newUnlinkedRecurringTransactions: result.newUnlinkedRecurringTransactions.length,
+      sample: {
+        linked: result.allRecurringTransactions[0]?.transaction?.id,
+        unlinked: result.newUnlinkedRecurringTransactions[0]?.id
+      }
+    });
   }
 
   /**
@@ -1193,7 +1494,7 @@ class BudgetService {
         if (result.allRecurringTransactions.some(t => t.transaction.plaidTxId === stream.stream_id)) {
           continue;
         }
-        
+
         const newRecurringTransaction = this.onboardingAnalysisCreateRecurringTransactionFromPlaid(
           stream,
           plaidAccounts
@@ -1322,13 +1623,12 @@ class BudgetService {
           if (transaction.transaction.manualAccountId || transaction.transaction.svendCategoryId) {
             const svendCategoryId = transaction.transaction.svendCategoryId;
             if (!svendCategoryId) {
-              console.warn('Manual transaction missing svendCategoryId:', transaction);
+              // Only log summary of missing categories instead of each transaction
               return transaction;
             }
 
             const mappedCategory = findCategoryBySvendId(svendCategoryId);
             if (!mappedCategory) {
-              console.warn(`No category found for ID: ${svendCategoryId}`);
               return transaction;
             }
 
@@ -1348,13 +1648,11 @@ class BudgetService {
           // For Plaid transactions
           const plaidCategory = transaction.transaction.plaidDetailedCategory;
           if (!plaidCategory) {
-            console.warn('Plaid transaction missing category:', transaction);
             return transaction;
           }
 
           const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
           if (!mappedCategory) {
-            console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
             return transaction;
           }
 
@@ -1379,13 +1677,11 @@ class BudgetService {
         return transactions.map(transaction => {
           if (transaction.manualAccountId || transaction.svendCategoryId) {
             if (!transaction.svendCategoryId) {
-              console.warn('Unlinked manual transaction missing svendCategoryId:', transaction);
               return transaction;
             }
 
             const mappedCategory = findCategoryBySvendId(transaction.svendCategoryId);
             if (!mappedCategory) {
-              console.warn(`No category found for ID: ${transaction.svendCategoryId}`);
               return transaction;
             }
 
@@ -1399,13 +1695,11 @@ class BudgetService {
 
           const plaidCategory = transaction.plaidDetailedCategory;
           if (!plaidCategory) {
-            console.warn('Unlinked Plaid transaction missing category:', transaction);
             return transaction;
           }
 
           const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
           if (!mappedCategory) {
-            console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
             return transaction;
           }
 
@@ -1423,16 +1717,23 @@ class BudgetService {
         transactions: BudgetFinAccountRecurringTransaction[]
       ): BudgetFinAccountRecurringTransaction[] => {
         return transactions.map(transaction => {
-          if (transaction.transaction.manualAccountId || transaction.transaction.svendCategoryId) {
-            const svendCategoryId = transaction.transaction.svendCategoryId;
-            if (!svendCategoryId) {
-              console.warn('Manual recurring transaction missing svendCategoryId:', transaction);
-              return transaction;
-            }
+          const isManual = !!transaction.transaction.manualAccountId;
 
-            const mappedCategory = findCategoryBySvendId(svendCategoryId);
-            if (!mappedCategory) {
-              console.warn(`No category found for ID: ${svendCategoryId}`);
+          // For manual transactions, copy category from original transaction
+          if (isManual) {
+            // Find original transaction in allTransactions to get its category
+            const originalTx = transactionData.allTransactions.find(tx => 
+              tx.transaction.userTxId === transaction.transaction.userTxId
+            );
+
+            if (!originalTx?.category) {
+              console.warn('Missing category for manual recurring transaction:', {
+                userTxId: transaction.transaction.userTxId,
+                originalTx: originalTx ? {
+                  category: originalTx.category,
+                  svendCategoryId: originalTx.transaction.svendCategoryId
+                } : null
+              });
               return transaction;
             }
 
@@ -1440,24 +1741,23 @@ class BudgetService {
               ...transaction,
               transaction: {
                 ...transaction.transaction,
-                svendCategoryId: mappedCategory.category.id,
+                svendCategoryId: originalTx.category.id,
               },
-              categoryId: mappedCategory.category.id,
-              category: mappedCategory.category.name,
-              categoryGroup: mappedCategory.groupName,
-              categoryGroupId: mappedCategory.groupId
+              categoryId: originalTx.category.id,
+              category: originalTx.category.name,
+              categoryGroup: originalTx.categoryGroup,
+              categoryGroupId: originalTx.categoryGroupId
             };
           }
 
+          // For Plaid transactions, use plaid category mapping
           const plaidCategory = transaction.transaction.plaidDetailedCategory;
           if (!plaidCategory) {
-            console.warn('Plaid recurring transaction missing category:', transaction);
             return transaction;
           }
 
           const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
           if (!mappedCategory) {
-            console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
             return transaction;
           }
 
@@ -1481,13 +1781,11 @@ class BudgetService {
         return transactions.map(transaction => {
           if (transaction.manualAccountId || transaction.svendCategoryId) {
             if (!transaction.svendCategoryId) {
-              console.warn('Unlinked manual recurring transaction missing svendCategoryId:', transaction);
               return transaction;
             }
 
             const mappedCategory = findCategoryBySvendId(transaction.svendCategoryId);
             if (!mappedCategory) {
-              console.warn(`No category found for ID: ${transaction.svendCategoryId}`);
               return transaction;
             }
 
@@ -1501,13 +1799,11 @@ class BudgetService {
 
           const plaidCategory = transaction.plaidDetailedCategory;
           if (!plaidCategory) {
-            console.warn('Unlinked Plaid recurring transaction missing category:', transaction);
             return transaction;
           }
 
           const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
           if (!mappedCategory) {
-            console.warn(`No mapping found for Plaid category: ${plaidCategory}`);
             return transaction;
           }
 
@@ -1529,31 +1825,94 @@ class BudgetService {
         );
       };
 
-      // Map and sort all transaction types
-      transactionData.allTransactions = sortTransactionsByDate(
-        mapBudgetTransactionCategories(transactionData.allTransactions)
-      );
+      // Process regular transactions
+      const processedTransactions = mapBudgetTransactionCategories(transactionData.allTransactions);
+      console.log('[Debug] After category mapping:', {
+        sampleTx: processedTransactions[0]?.transaction?.id,
+        totalTxs: processedTransactions.length
+      });
 
-      transactionData.allRecurringTransactions =
-        mapBudgetRecurringTransactionCategories(transactionData.allRecurringTransactions)
+      // Only sort if we have new processed transactions
+      if (processedTransactions?.length > 0) {
+        transactionData.allTransactions = sortTransactionsByDate(processedTransactions);
+      }
+      console.log('[Debug] After sorting:', {
+        sampleTx: transactionData.allTransactions[0]?.transaction?.id,
+        totalTxs: transactionData.allTransactions.length
+      });
 
+      // Process new transactions
       transactionData.newTransactions = sortTransactionsByDate(
         mapBudgetTransactionCategories(transactionData.newTransactions)
       );
+      console.log('[Debug] After new transactions:', {
+        sampleTx: transactionData.newTransactions[0]?.transaction?.id,
+        totalTxs: transactionData.newTransactions.length
+      });
 
-      transactionData.newUnlinkedTransactions =
-        mapUnlinkedTransactionCategories(transactionData.newUnlinkedTransactions);
+      // Process unlinked transactions
+      transactionData.newUnlinkedTransactions = mapUnlinkedTransactionCategories(
+        transactionData.newUnlinkedTransactions
+      );
 
-      // Update the mapping calls:
-      transactionData.newRecurringTransactions =
-        mapBudgetRecurringTransactionCategories(transactionData.newRecurringTransactions);
+      // Now process recurring transactions after all regular transactions are processed
+      transactionData.newRecurringTransactions = transactionData.newRecurringTransactions.map(rt => {
+        const isManual = !rt.transaction.plaidTxId;
+        
+        if (isManual) {
+          // For manual recurring transactions, find the original transaction by ID
+          const originalTx = transactionData.allTransactions.find(tx => 
+            rt.transaction.finAccountTransactionIds?.includes(tx.transaction.id)
+          );
 
-      transactionData.newUnlinkedRecurringTransactions =
-        mapUnlinkedRecurringTransactionCategories(transactionData.newUnlinkedRecurringTransactions);
+          // If no match found but recurring transaction has a category, use that
+          if (!originalTx?.transaction.svendCategoryId && rt.transaction.svendCategoryId) {
+            return rt;
+          }
+
+          // If no category found at all, log and continue
+          if (!originalTx?.transaction.svendCategoryId) {
+            console.warn('[Warning] No category found for manual recurring transaction:', {
+              userTxId: rt.transaction.userTxId,
+              finAccountTransactionIds: rt.transaction.finAccountTransactionIds,
+              matchAttempt: originalTx ? {
+                id: originalTx.transaction.id,
+                svendCategoryId: originalTx.transaction.svendCategoryId
+              } : null
+            });
+            return rt;
+          }
+
+          return {
+            ...rt,
+            transaction: {
+              ...rt.transaction,
+              svendCategoryId: originalTx.transaction.svendCategoryId
+            }
+          };
+        }
+        return rt;
+      });
+
+      // Finally process unlinked recurring transactions
+      transactionData.newUnlinkedRecurringTransactions = mapUnlinkedRecurringTransactionCategories(
+        transactionData.newUnlinkedRecurringTransactions
+      );
+
+      // Process recurring transactions
+      transactionData.newRecurringTransactions = mapBudgetRecurringTransactionCategories(
+        transactionData.newRecurringTransactions
+      );
+
+      // Log any missing categories
+      const missingCategories = processedTransactions.filter(tx => !tx.category?.id);
+      if (missingCategories.length > 0) {
+        console.log(`[Budget] ${missingCategories.length} transactions missing categories`);
+      }
 
       return { transactionData };
     } catch (error: any) {
-      console.error('Error in processCategories:', error);
+      console.error('[Budget] Error processing categories:', error);
       return {
         error: `SERVER_ERROR:[onboardingAnalysis.processCategories] ${error.message}`
       };
@@ -1626,6 +1985,20 @@ class BudgetService {
     plaidItems: PlaidConnectionItemSummary[]
   ): Promise<void> {
     try {
+      console.log('[Debug] PersistData received:', {
+        allTransactionsCount: transactionData.allTransactions.length,
+        sampleAllTx: transactionData.allTransactions[0] ? {
+          id: transactionData.allTransactions[0].transaction.id,
+          budgetFinAccountId: transactionData.allTransactions[0].budgetFinAccountId,
+          hasEnrichment: !!(transactionData.allTransactions[0].transaction.plaidDetailedCategory)
+        } : null
+      });
+
+      console.log('[Debug] Before save:', {
+        sampleNewTx: transactionData.newTransactions[0]?.transaction,
+        sampleAllTx: transactionData.allTransactions[0]?.transaction
+      });
+
       // Step 1: Save new transactions
       const { error: saveError } = await this.onboardingAnalysisSaveTransactions(
         transactionData,
@@ -1662,70 +2035,208 @@ class BudgetService {
     budgetId: string
   ): Promise<{ error?: string }> {
     try {
-      // First, save all regular transactions (both budget and unlinked)
-      console.log(`budget service > onboarding analysis > persisting ${transactionData.newTransactions.length} budget transactions and ${transactionData.newUnlinkedTransactions.length} unlinked transactions..`);
+      console.log('[Debug] Saving transactions:', {
+        newTransactions: transactionData.newTransactions.slice(0, 3).map(tx => ({
+          id: tx.transaction.id,
+          userTxId: tx.transaction.userTxId,
+          plaidTxId: tx.transaction.plaidTxId
+        })),
+        newRecurringTransactions: transactionData.newRecurringTransactions.slice(0, 3).map(tx => ({
+          id: tx.transaction.id,
+          userTxId: tx.transaction.userTxId,
+          plaidTxId: tx.transaction.plaidTxId
+        }))
+      });
 
-      // Save budget transactions
-      const { data: savedBudgetTransactions, error } = await this.transactionService.saveBudgetTransactions(transactionData.newTransactions, budgetId);
-      if (error) throw new Error(error);
-      if (!savedBudgetTransactions) throw new Error('No budget transactions were saved');
+      // First, save all regular transactions (both budget and unlinked)
+      console.warn(`budget service > onboarding analysis > persisting ${transactionData.newTransactions.length} budget transactions and ${transactionData.newUnlinkedTransactions.length} unlinked transactions..`);
+
+      console.log('[Debug] About to save:', {
+        sampleTransaction: transactionData.newUnlinkedTransactions[0],
+        totalToSave: transactionData.newUnlinkedTransactions.length
+      });
+
+      // Save regular transactions first
+      if (transactionData.allTransactions.length > 0) {
+        const { error: saveTxError } = await this.transactionService.saveBudgetTransactions(
+          transactionData.allTransactions,
+          budgetId
+        );
+        if (saveTxError) return { error: saveTxError };
+      }
 
       // Save unlinked transactions
-      const { data: savedTransactions, error: unlinkedError } = await this.transactionService.saveTransactions(transactionData.newUnlinkedTransactions);
-      if (unlinkedError) throw new Error(unlinkedError);
+      console.log('[Debug] Unlinked transactions to save:', {
+        count: transactionData.newUnlinkedTransactions.length,
+        sample: transactionData.newUnlinkedTransactions.slice(0, 2).map(tx => ({
+          id: tx.id,
+          plaidTxId: tx.plaidTxId,
+          userTxId: tx.userTxId,
+          date: tx.date
+        }))
+      });
+      
+      if (transactionData.existingUnlinkedTransactions.length > 0) {
+        console.log('[Debug] About to save:', {
+          sampleTransaction: transactionData.newUnlinkedTransactions[0],
+          totalToSave: transactionData.newUnlinkedTransactions.length
+        });
 
-      // Get all Plaid transaction IDs from recurring transactions
-      const allPlaidTxIds = [
-        ...transactionData.newRecurringTransactions.flatMap(rt => rt.transaction.plaidRawData?.transaction_ids || []),
-        ...transactionData.newUnlinkedRecurringTransactions.flatMap(rt => rt.plaidRawData?.transaction_ids || [])
+        const { error } = await this.transactionService.saveTransactions(
+          transactionData.existingUnlinkedTransactions.map(tx => ({
+            id: tx.id,
+            date: tx.date,
+            amount: tx.amount,
+            status: tx.status || 'posted',
+            svendCategoryId: tx.svendCategoryId,
+            merchantName: tx.merchantName || '',
+            payee: tx.payee || '',
+            plaidRawData: tx.plaidRawData || undefined,
+            isoCurrencyCode: tx.isoCurrencyCode || 'USD',
+            userTxId: tx.userTxId,
+            plaidTxId: tx.plaidTxId,
+            manualAccountId: tx.manualAccountId,
+            plaidAccountId: tx.plaidAccountId,
+            plaidDetailedCategory: tx.plaidDetailedCategory,
+            plaidCategoryConfidence: tx.plaidCategoryConfidence
+          } as FinAccountTransaction))
+        );
+
+        if (error) {
+          throw new Error(`Error inserting transactions: ${JSON.stringify(error)}`);
+        }
+      }
+
+      // Get all transaction IDs from recurring transactions
+      const plaidTxIds = [
+        ...transactionData.newRecurringTransactions.flatMap(rt => 
+          !rt.transaction.manualAccountId ? (rt.transaction.plaidRawData?.transaction_ids || []) : []
+        ),
+        ...transactionData.newUnlinkedRecurringTransactions.flatMap(rt =>
+          !rt.manualAccountId ? (rt.plaidRawData?.transaction_ids || []) : []
+        )
       ];
 
-      // Query database for ID mappings
+      const manualTxIds = [
+        ...transactionData.newRecurringTransactions.flatMap(rt => 
+          rt.transaction.manualAccountId ? rt.transaction.finAccountTransactionIds || [] : []
+        ),
+        ...transactionData.newUnlinkedRecurringTransactions.flatMap(rt =>
+          rt.manualAccountId ? [rt.id] : []
+        )
+      ];
+
+      console.log('[Debug] Transaction IDs:', {
+        plaidIds: plaidTxIds,
+        manualIds: manualTxIds,
+        recurringTransactions: transactionData.newRecurringTransactions.map(rt => ({
+          isManual: !!rt.transaction.manualAccountId,
+          details: rt.transaction.manualAccountId ? {
+            id: rt.transaction.id,
+            finAccountTransactionIds: rt.transaction.finAccountTransactionIds
+          } : {
+            plaidTxId: rt.transaction.plaidTxId,
+            finAccountTransactionIds: rt.transaction.finAccountTransactionIds
+          }
+        }))
+      });
+
+      // Query database for both Plaid and manual transaction IDs
       const { data: dbTransactions, error: queryError } = await this.supabase
         .from('fin_account_transactions')
-        .select('id, plaid_tx_id')
-        .in('plaid_tx_id', allPlaidTxIds);
+        .select('id, plaid_tx_id');
 
-      if (queryError) throw new Error(queryError.message);
+      if (queryError) {
+        console.error('[Error] Failed to query transactions:', queryError);
+        throw new Error(`Failed to query transactions: ${queryError.message}`);
+      }
 
-      // Create mapping from query results and log it
-      const plaidToDbIdMap = new Map(
-        dbTransactions?.map(tx => [tx.plaid_tx_id, tx.id]) || []
-      );
+      // Create mapping from both Plaid transaction IDs and direct IDs
+      const txToDbIdMap = new Map<string, string>();
+      
+      // First map Plaid IDs to database IDs
+      dbTransactions?.filter(tx => tx.plaid_tx_id).forEach(tx => {
+        txToDbIdMap.set(tx.plaid_tx_id!, tx.id);
+      });
+      
+      // Then map database IDs to themselves
+      dbTransactions?.forEach(tx => {
+        txToDbIdMap.set(tx.id, tx.id);
+      });
 
-      // Update recurring transactions with the correct fin_account_transaction_ids
+      console.log('[Debug] ID Mapping:', {
+        plaidMappings: dbTransactions?.filter(tx => tx.plaid_tx_id).map(tx => ({ 
+          plaidId: tx.plaid_tx_id, 
+          dbId: tx.id 
+        })),
+        totalMappings: txToDbIdMap.size
+      });
+
       transactionData.newRecurringTransactions = transactionData.newRecurringTransactions.map(rt => {
+        const isManual = !rt.transaction.plaidTxId;
+        
+        if (isManual) {
+          // For manual recurring transactions, try to find the original transaction by ID
+          const originalTx = transactionData.allTransactions.find(tx => 
+            // Try matching by multiple possible IDs
+            tx.transaction.id === rt.transaction.userTxId || 
+            tx.transaction.userTxId === rt.transaction.userTxId ||
+            (rt.transaction.finAccountTransactionIds || []).includes(tx.transaction.id)
+          );
+
+          if (!originalTx?.transaction.svendCategoryId) {
+            // If no match found, try to use the category from the recurring transaction itself
+            if (rt.transaction.svendCategoryId) {
+              return rt;
+            }
+
+            console.error('[Error] No category found for manual recurring transaction:', {
+              recurring: {
+                userTxId: rt.transaction.userTxId,
+                finAccountTransactionIds: rt.transaction.finAccountTransactionIds,
+                svendCategoryId: rt.transaction.svendCategoryId
+              },
+              matchAttempts: transactionData.allTransactions.slice(0, 3).map(tx => ({
+                id: tx.transaction.id,
+                userTxId: tx.transaction.userTxId,
+                svendCategoryId: tx.transaction.svendCategoryId
+              }))
+            });
+            
+            throw new Error(`Missing category ID for manual recurring transaction ${rt.transaction.userTxId}`);
+          }
+
+          return {
+            ...rt,
+            transaction: {
+              ...rt.transaction,
+              finAccountTransactionIds: rt.transaction.finAccountTransactionIds || [],
+              svendCategoryId: originalTx.transaction.svendCategoryId
+            }
+          };
+        }
+
+        // For Plaid recurring transactions, map the transaction IDs
         const plaidTransactionIds = rt.transaction.plaidRawData?.transaction_ids || [];
         const finAccountTransactionIds = plaidTransactionIds
-          .map(plaidId => plaidToDbIdMap.get(plaidId))
+          .map(plaidId => txToDbIdMap.get(plaidId))
           .filter((id): id is string => !!id);
-
-        if (finAccountTransactionIds.length !== plaidTransactionIds.length) {
-          console.warn(
-            'Not all Plaid transactions mapped for recurring transaction:',
-            {
-              plaidTransactionIds,
-              mappedIds: finAccountTransactionIds,
-              unmappedIds: plaidTransactionIds.filter(id => !plaidToDbIdMap.has(id)),
-              dbMappings: Object.fromEntries(plaidToDbIdMap)
-            }
-          );
-        }
 
         return {
           ...rt,
           transaction: {
             ...rt.transaction,
-            finAccountTransactionIds
+            finAccountTransactionIds,
+            svendCategoryId: rt.transaction.svendCategoryId
           }
         };
       });
 
-      // Update unlinked recurring transactions with the correct fin_account_transaction_ids
+      // Update unlinked plaid recurring transactions with the correct fin_account_transaction_ids
       transactionData.newUnlinkedRecurringTransactions = transactionData.newUnlinkedRecurringTransactions.map(rt => {
         const plaidTransactionIds = rt.plaidRawData?.transaction_ids || [];
         const finAccountTransactionIds = plaidTransactionIds
-          .map(plaidId => plaidToDbIdMap.get(plaidId))
+          .map(plaidId => txToDbIdMap.get(plaidId))
           .filter((id): id is string => !!id);
 
         if (finAccountTransactionIds.length !== plaidTransactionIds.length) {
@@ -1734,8 +2245,8 @@ class BudgetService {
             {
               plaidTransactionIds,
               mappedIds: finAccountTransactionIds,
-              unmappedIds: plaidTransactionIds.filter(id => !plaidToDbIdMap.has(id)),
-              dbMappings: Object.fromEntries(plaidToDbIdMap)
+              unmappedIds: plaidTransactionIds.filter(id => !txToDbIdMap.has(id)),
+              dbMappings: Object.fromEntries(txToDbIdMap)
             }
           );
         }
@@ -1747,12 +2258,29 @@ class BudgetService {
       });
 
       // Now save recurring transactions with the mapped IDs
-      console.log(`budget service > onboarding analysis > persisting ${transactionData.newRecurringTransactions.length} budget recurring transactions and ${transactionData.newUnlinkedRecurringTransactions.length} unlinked recurring transactions..`);
+      console.log('[Debug] Before saving recurring transactions:', {
+        newRecurringCount: transactionData.newRecurringTransactions.length,
+        unlinkedRecurringCount: transactionData.newUnlinkedRecurringTransactions.length,
+        sampleUnlinked: transactionData.newUnlinkedRecurringTransactions[0] ? {
+          userTxId: transactionData.newUnlinkedRecurringTransactions[0].userTxId,
+          finAccountTransactionIds: transactionData.newUnlinkedRecurringTransactions[0].finAccountTransactionIds,
+          svendCategoryId: transactionData.newUnlinkedRecurringTransactions[0].svendCategoryId,
+          isManual: !!transactionData.newUnlinkedRecurringTransactions[0].manualAccountId
+        } : null
+      });
 
-      const { error: recurringError } = await this.transactionService.saveBudgetRecurringTransactions(transactionData.newRecurringTransactions, budgetId);
-      if (recurringError) throw new Error(recurringError);
+      // Then merge recurring transactions
+      if (transactionData.newRecurringTransactions.length > 0) {
+        const { error: mergeError } = await this.transactionService.mergeBudgetFinAccountRecurringTransaction(
+          transactionData.newRecurringTransactions,
+          budgetId
+        );
+        if (mergeError) return { error: mergeError };
+      }
 
-      const { error: unlinkedRecurringError } = await this.transactionService.saveRecurringTransactions(transactionData.newUnlinkedRecurringTransactions);
+      const { error: unlinkedRecurringError } = await this.transactionService.mergeFinAccountRecurringTransactions(
+        transactionData.newUnlinkedRecurringTransactions
+      );
       if (unlinkedRecurringError) throw new Error(unlinkedRecurringError);
 
       return { error: undefined };
@@ -2459,7 +2987,7 @@ class BudgetService {
       acc[category] = (acc[category] || 0) + budgetTransaction.transaction.amount;
       return acc;
     }, {} as Record<string, number>);
-    
+
     // Ensure income is treated as a positive number for calculations
     const totalIncome = Math.abs(latestRollingMonthCategorySpending.Income || 0);
 
@@ -2907,10 +3435,12 @@ class BudgetService {
 
 interface OnboardingAnalysisTransactionCollection {
   allTransactions: BudgetFinAccountTransaction[];
-  allRecurringTransactions: BudgetFinAccountRecurringTransaction[];
+  allRecurringTransactions: BudgetFinAccountRecurringTransaction[];  // Changed
   newTransactions: BudgetFinAccountTransaction[];
+  existingUnlinkedTransactions: FinAccountTransaction[];
+  existingUnlinkedRecurringTransactions: FinAccountRecurringTransaction[];
   newUnlinkedTransactions: FinAccountTransaction[];
-  newRecurringTransactions: BudgetFinAccountRecurringTransaction[];
+  newRecurringTransactions: BudgetFinAccountRecurringTransaction[];  // Changed
   newUnlinkedRecurringTransactions: FinAccountRecurringTransaction[];
   itemCursors: Record<string, string>;
 }
