@@ -239,8 +239,19 @@ export function PlaidConnectionItems({
                                                     )}
                                                 </div>
                                                 <div>
-                                                    <h2 className="text-xl font-semibold text-primary-800">{plaidItem.institutionName}</h2>
-                                                    <p className="text-sm text-primary-600">{plaidItemAccount.accountName} - ***{plaidItemAccount.mask}</p>
+                                                    <h2 className="text-xl font-semibold text-primary-800">{plaidItemAccount.accountName}</h2>
+                                                    <div className="flex items-center gap-1 text-left text-sm text-primary/70">
+                                                        <span className="block max-w-[15ch] overflow-hidden text-ellipsis whitespace-nowrap capitalize">
+                                                            {plaidItemAccount.accountType}
+                                                        </span>{' '}
+                                                        &middot; <span>****{plaidItemAccount.mask}</span>
+                                                    </div>
+                                                    <div className="text-sm text-muted-foreground mt-1">
+                                                        ${plaidItemAccount.balanceCurrent?.toLocaleString('en-US', {
+                                                            minimumFractionDigits: 2,
+                                                            maximumFractionDigits: 2
+                                                        }) ?? '0.00'}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="pl-4">

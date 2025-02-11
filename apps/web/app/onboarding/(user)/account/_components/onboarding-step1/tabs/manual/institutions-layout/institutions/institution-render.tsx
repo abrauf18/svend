@@ -163,6 +163,12 @@ export default function InstitutionRender({ institution }: Props) {
                     </span>{' '}
                     &middot; <span>****{acc.mask}</span>
                   </button>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    ${acc.balanceCurrent?.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    }) ?? '0.00'}
+                  </div>
                 </div>
               </div>
               <div className="flex h-full translate-y-[4px] flex-col items-center justify-center gap-1">

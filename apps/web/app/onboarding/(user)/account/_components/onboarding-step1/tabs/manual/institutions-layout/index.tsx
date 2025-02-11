@@ -26,21 +26,6 @@ import { CSVColumns, CSVState } from '~/lib/model/onboarding.types';
 import CSVInvalidRowsModal from './modals/csv-invalid-rows-modal';
 import { sanitizeFileName, getUniqueFileName } from '~/lib/utils/csv-naming';
 
-// interface CSVValidationError {
-//   isValid: boolean;
-//   missingProps: string[];
-//   extraProps: string[];
-//   invalidRows?: Array<{
-//     isValid: boolean;
-//     index: number;
-//     isValidDate?: boolean;
-//     isValidSymbol?: boolean;
-//     isValidMask?: boolean;
-//   }>;
-//   csvData?: any[];
-//   error?: Error;
-// }
-
 export default function InstitutionsLayout() {
   const { state } = useOnboardingContext();
 
