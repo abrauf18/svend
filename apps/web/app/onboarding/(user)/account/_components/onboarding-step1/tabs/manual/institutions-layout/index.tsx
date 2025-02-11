@@ -122,6 +122,41 @@ export default function InstitutionsLayout() {
         throw new Error(data.error || 'Failed to analyze CSV file');
       }
 
+      console.log('[CSV Upload] Response data:', {
+        data,
+        summary: data.summary,
+        institutions: data.institutions?.length,
+        linkedAccounts: data.linkedFinAccounts?.length
+      });
+
+      const { summary } = data;
+      if (summary) {
+        const totalNew = summary.newInstitutions + summary.newAccounts + summary.newTransactions;
+        console.log('[CSV Upload] Summary:', { summary, totalNew });
+        if (totalNew > 0) {
+          toast.success(
+            `Successfully added:`,
+            {
+              description: (
+                <div className="flex flex-col gap-0.5">
+                  {summary.newInstitutions > 0 && (
+                    <div><b>{summary.newInstitutions}</b> institutions</div>
+                  )}
+                  {summary.newAccounts > 0 && (
+                    <div><b>{summary.newAccounts}</b> accounts</div>
+                  )}
+                  {summary.newTransactions > 0 && (
+                    <div><b>{summary.newTransactions}</b> transactions</div>
+                  )}
+                </div>
+              )
+            }
+          );
+        } else {
+          toast.warning('No new data was added from the CSV file');
+        }
+      }
+
       // add institutions to context
       if (data.institutions) {
         accountManualInstitutionsAddMany(data.institutions);

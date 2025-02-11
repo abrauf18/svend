@@ -5,10 +5,9 @@ import { Progress } from '@kit/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@kit/ui/tabs';
 import { Trans } from '@kit/ui/trans';
 import { Loader2 } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { PlaidTab } from './tabs/plaid/plaid-tab';
 import { ManualTab } from './tabs/manual/manual-tab';
-import { Checkbox } from '@kit/ui/checkbox';
 import { AccountOnboardingStepContextKey } from '~/lib/model/onboarding.types';
 import { FinAccount } from '~/lib/model/fin.types';
 import { AccountOnboardingState } from '~/lib/model/onboarding.types';
@@ -21,6 +20,8 @@ function OnboardingStep1ConnectPlaidAccounts() {
   const [isPlaidValid, setIsPlaidValid] = useState(false);
   const [isManualValid, setIsManualValid] = useState(false);
   const [isFormValid, setIsFormValid] = useState(false);
+  const [plaidLinkedCount, setPlaidLinkedCount] = useState(0);
+  const [manualLinkedCount, setManualLinkedCount] = useState(0);
   const {
     accountNextStep,
     accountSetStepContext,
@@ -28,20 +29,22 @@ function OnboardingStep1ConnectPlaidAccounts() {
     state
   } = useOnboardingContext();
 
-  useEffect(() => {
-    const hasManualValidLinkedTransaction = state?.account.manualInstitutions?.some(
-      (institution) =>
-        institution.accounts?.some(
-          (account) =>
-            account.budgetFinAccountId && account.transactions?.length > 0
-        )
-    );
-    setIsManualValid(!!hasManualValidLinkedTransaction);
+  const updateContextKeyRef = useRef<string | null>(null);
 
-    const hasPlaidLinkedAccount = state?.account.plaidConnectionItems?.some(item =>
-      item.itemAccounts.some(account => !!account.budgetFinAccountId)
-    );
-    setIsPlaidValid(hasPlaidLinkedAccount ?? false);
+  useEffect(() => {
+    const manualAccountsWithTransactions = state?.account.manualInstitutions?.flatMap(
+      institution => institution.accounts?.filter(
+        account => account.budgetFinAccountId && account.transactions?.length > 0
+      )
+    ) ?? [];
+    setManualLinkedCount(manualAccountsWithTransactions.length);
+    setIsManualValid(manualAccountsWithTransactions.length > 0);
+
+    const plaidLinkedAccounts = state?.account.plaidConnectionItems?.flatMap(
+      item => item.itemAccounts.filter(account => !!account.budgetFinAccountId)
+    ) ?? [];
+    setPlaidLinkedCount(plaidLinkedAccounts.length);
+    setIsPlaidValid(plaidLinkedAccounts.length > 0);
 
     // Either tab being valid makes the form valid
     setIsFormValid(isPlaidValid || isManualValid);
@@ -92,6 +95,18 @@ function OnboardingStep1ConnectPlaidAccounts() {
   }, [state.account.plaidConnectionItems, state.account.manualInstitutions]);
 
   async function updateContextKey(contextKey: string, validContextKeys: string[]) {
+    // Skip if we're trying to update to the same context key
+    if (state.account.contextKey === contextKey) {
+      return;
+    }
+
+    // Skip if we're already processing this context key
+    if (updateContextKeyRef.current === contextKey) {
+      return;
+    }
+
+    updateContextKeyRef.current = contextKey;
+
     try {
       const response = await fetch('/api/onboarding/account/state', {
         method: 'PUT',
@@ -114,6 +129,8 @@ function OnboardingStep1ConnectPlaidAccounts() {
       accountSetStepContext(contextKey as AccountOnboardingStepContextKey);
     } catch (error) {
       console.error('Error updating context:', error);
+    } finally {
+      updateContextKeyRef.current = null;
     }
   }
 
@@ -268,7 +285,7 @@ function OnboardingStep1ConnectPlaidAccounts() {
                   value="plaid"
                   className="h-[48px] w-[120px] rounded-md data-[state=active]:bg-green-300 data-[state=active]:text-primary-foreground"
                 >
-                  Plaid
+                  Auto Import
                 </TabsTrigger>
                 <TabsTrigger
                   value="manual"
@@ -318,13 +335,17 @@ function OnboardingStep1ConnectPlaidAccounts() {
               )}
             </Button>
 
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-muted-foreground">Plaid</span>
-              <Checkbox checked={isPlaidValid} disabled />
+            <div className="flex items-center space-x-3 ml-6">
+              <span className="text-base text-muted-foreground">Auto Import</span>
+              <div className={`flex h-6 w-7 items-center justify-center rounded-sm border ${plaidLinkedCount === 0 ? 'border-muted-foreground text-muted-foreground' : 'border-primary bg-primary text-primary-foreground font-semibold'}`}>
+                {plaidLinkedCount}
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-muted-foreground">Manual</span>
-              <Checkbox checked={isManualValid} disabled />
+            <div className="flex items-center space-x-3 ml-6">
+              <span className="text-base text-muted-foreground">Manual</span>
+              <div className={`flex h-6 w-7 items-center justify-center rounded-sm border ${manualLinkedCount === 0 ? 'border-muted-foreground text-muted-foreground' : 'border-primary bg-primary text-primary-foreground font-semibold'}`}>
+                {manualLinkedCount}
+              </div>
             </div>
           </div>
         </CardFooter>

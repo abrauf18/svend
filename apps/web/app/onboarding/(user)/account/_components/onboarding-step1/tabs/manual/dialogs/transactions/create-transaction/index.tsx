@@ -172,7 +172,6 @@ export default function CreateTransaction({
       <DialogTrigger asChild>
         <button
           onClick={() => setIsDialogOpened(true)}
-          disabled={!manualAccount?.budgetFinAccountId}
           className={`flex flex-shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border bg-muted/10 px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-50`}
         >
           <PlusIcon className={`size-5`} />

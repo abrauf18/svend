@@ -11,6 +11,7 @@ import checkCSVValidity from '~/lib/utils/check-csv-validity';
 import insertInstitutions from './_handlers/insert-institutions';
 import insertAccounts from './_handlers/insert-accounts';
 import { parseCSVResponse } from './_utils/parse-csv-response';
+import { Database } from '~/lib/database.types';
 
 const requestSchema = z.object({
   filename: z.string()
@@ -86,7 +87,7 @@ export const POST = enhanceRouteHandler(
       }
 
       const supabaseAdmin = getSupabaseServerAdminClient();
-      const { data: insertedInstitutions, error: institutionsError } =
+      const { data: insertedInstitutions, error: institutionsError, repeatedInstitutions } =
         await insertInstitutions({
           supabaseAdmin,
           parsedText,
@@ -126,6 +127,7 @@ export const POST = enhanceRouteHandler(
       const {
         data,
         error: budgetAccountsError,
+        repeatedAccounts,
       } = await insertAccounts({
         supabaseAdmin,
         parsedText,
@@ -138,7 +140,11 @@ export const POST = enhanceRouteHandler(
         throw new CSVProcessingError('Failed to process accounts from CSV');
       }
 
-      const { accounts: insertedAccounts, budgetAccounts: insertedBudgetAccounts } = data;
+      let insertedFinAccountTransactions: Database['public']['Tables']['fin_account_transactions']['Row'][] = [];
+      const { accounts: insertedAccounts, budgetAccounts: insertedBudgetAccounts } = data as {
+        accounts: Database['public']['Tables']['manual_fin_accounts']['Row'][];
+        budgetAccounts: Database['public']['Tables']['budget_fin_accounts']['Row'][];
+      };
 
       //We fetch the built in categories
       const { data: builtInCategories, error: builtInCategoriesError } =
@@ -214,140 +220,108 @@ export const POST = enhanceRouteHandler(
           ),
       );
 
-      // Filter out transactions with invalid categories
-      const validTransactions = newTransactions.filter((trans) => {
+      // First handle transaction merging for any matching manual accounts
+      const validTransactions = newTransactions.filter(trans => {
         const matchingCategory = builtInCategories.find(
           (cat) =>
             normalizeCategory(cat.category_name ?? '') ===
-            normalizeCategory(trans.TransactionCategory ?? ''),
+            normalizeCategory(trans.TransactionCategory ?? '')
         );
 
         if (!matchingCategory) {
           console.warn(
-            `Skipping transaction ${trans.TransactionId}: Invalid category "${trans.TransactionCategory}". Available categories:`,
-            builtInCategories.map((c) => c.category_name),
+            `Skipping transaction ${trans.TransactionId}: Invalid category "${trans.TransactionCategory}"`
           );
           return false;
         }
         return true;
       });
 
-      // Add debug logging for transactions processing
-      console.log('[CSV Processing] Unique transactions:', uniqueTransactions.length);
-      console.log('[CSV Processing] Existing transactions:', existingTransactions?.length ?? 0);
-      console.log('[CSV Processing] New transactions:', newTransactions.length);
-      console.log('[CSV Processing] Valid transactions:', validTransactions.length);
-
-      // Add more detailed category matching logging
-      const invalidCategories = newTransactions
-        .filter(trans => {
-          const matchingCategory = builtInCategories.find(
-            (cat) =>
-              normalizeCategory(cat.category_name ?? '') ===
-              normalizeCategory(trans.TransactionCategory ?? '')
-          );
-          return !matchingCategory;
-        })
-        .map(t => t.TransactionCategory);
-
-      if (invalidCategories.length > 0) {
-        console.log('[CSV Processing] Invalid categories found:', {
-          invalidCategories,
-          availableCategories: builtInCategories.map(c => c.category_name)
-        });
-      }
-
-      // Only proceed with RPC call if we have valid transactions
+      // Process transactions regardless of budget account status
       if (validTransactions.length > 0) {
         const { data: insertedTxs, error: txError } = await supabaseAdmin
           .from('fin_account_transactions')
           .insert(
-            validTransactions.map(trans => {
-              const matchingCategory = builtInCategories.find(
-                cat =>
-                  normalizeCategory(cat.category_name ?? '') ===
-                  normalizeCategory(trans.TransactionCategory ?? ''),
-              ) ?? builtInCategories[0];
-
-              return {
-                user_tx_id: trans.TransactionId,
-                plaid_tx_id: null,
-                manual_account_id: insertedAccounts.find(
-                  acc => acc.name === trans.AccountName,
-                )?.id as string | null,
-                amount: parseFloat(trans.TransactionAmount),
-                date: trans.TransactionDate,
-                svend_category_id: matchingCategory!.category_id as string,
-                merchant_name: trans.TransactionMerchant || '',
-                payee: '',
-                tx_status: 'posted' as const,
-                iso_currency_code: 'USD',
-                plaid_category_detailed: null,
-                plaid_category_confidence: null,
-                plaid_raw_data: null
-              };
-            })
+            validTransactions.map(trans => ({
+              user_tx_id: trans.TransactionId,
+              manual_account_id: insertedAccounts.find(
+                acc => acc.name === trans.AccountName
+              )?.id,
+              amount: parseFloat(trans.TransactionAmount),
+              date: trans.TransactionDate,
+              svend_category_id: builtInCategories.find(
+                cat => normalizeCategory(cat.category_name ?? '') === normalizeCategory(trans.TransactionCategory ?? '')
+              )?.category_id || '',
+              merchant_name: trans.TransactionMerchant || '',
+              payee: '',
+              tx_status: 'posted' as const,
+              iso_currency_code: 'USD'
+            }))
           )
           .select();
 
         if (txError) throw txError;
-        if (!insertedTxs?.length) throw new Error('No transactions were inserted');
-      } else {
-        console.log('[CSV Processing] No valid transactions to process');
-        const parsedInstitutions = parseCSVResponse({
-          insertedInstitutions,
-          insertedAccounts,
-          insertedBudgetAccounts,
-          insertedFinAccountTransactions: [],
-          supabase
-        });
-        return NextResponse.json({
-          institutions: parsedInstitutions,
-          warning: 'No new transactions were processed. This could be due to duplicate transactions or invalid categories.'
-        });
+        insertedFinAccountTransactions = insertedTxs ?? [];
       }
 
-      //With the returned ids, we fetch the transactions from "fin_account_transactions"
-      const {
-        data: insertedFinAccountTransactions,
-        error: finAccountTransactionsError,
-      } = await supabase
-        .from('fin_account_transactions')
-        .select('*')
-        .in(
-          'user_tx_id',
-          validTransactions.map((trans) => trans.TransactionId),
-        );
+      // Then separately handle the response with budget accounts if they exist
+      const linkedFinAccounts = insertedAccounts.map(account => {
+        const institution = insertedInstitutions.find(inst => inst.id === account.institution_id);
+        if (!institution) {
+          console.error('[CSV Processing] Could not find institution for account:', {
+            accountId: account.id,
+            institutionId: account.institution_id,
+            availableInstitutions: insertedInstitutions.map(i => ({ id: i.id, name: i.name }))
+          });
+          return null;
+        }
 
-      if (finAccountTransactionsError) throw finAccountTransactionsError;
+        // Budget account is optional now
+        const budgetAccount = insertedBudgetAccounts.find(ba => ba.manual_account_id === account.id);
+
+        return {
+          id: account.id,
+          source: 'svend' as const,
+          institutionName: institution.name,
+          budgetFinAccountId: budgetAccount?.id,
+          name: account.name,
+          mask: account.mask || '',
+          officialName: account.name,
+          balance: account.balance_current
+        };
+      }).filter((account): account is NonNullable<typeof account> => account !== null);
+
+      // If we have no valid accounts, we should return an error
+      if (linkedFinAccounts.length === 0) {
+        return NextResponse.json({
+          error: 'No valid accounts could be processed. This might be because the accounts in the CSV file don\'t match the existing accounts.'
+        }, { status: 400 });
+      }
 
       const parsedInstitutions = parseCSVResponse({
         insertedInstitutions,
         insertedAccounts,
         insertedBudgetAccounts,
-        insertedFinAccountTransactions: insertedFinAccountTransactions ?? [],
+        insertedFinAccountTransactions,
         supabase
       });
 
-      const linkedFinAccounts = insertedBudgetAccounts.map(budgetAccount => {
-        const account = insertedAccounts.find(acc => acc.id === budgetAccount.manual_account_id);
-        const institution = insertedInstitutions.find(inst => inst.id === account?.institution_id);
-        
-        return {
-          id: account!.id,
-          source: 'svend' as const,
-          institutionName: institution!.name,
-          budgetFinAccountId: budgetAccount.id,
-          name: account!.name,
-          mask: account!.mask || '',
-          officialName: account!.name,
-          balance: account!.balance_current
-        };
-      });
+      // Before returning the response, calculate the summary
+      const summary = {
+        newInstitutions: insertedInstitutions.length - (repeatedInstitutions?.size || 0),
+        newAccounts: insertedAccounts.length - (repeatedAccounts?.size || 0),
+        newTransactions: insertedFinAccountTransactions?.length || 0
+      };
+
+      console.log('[CSV Processing] Summary:', summary);
 
       return NextResponse.json({ 
         institutions: parsedInstitutions,
-        linkedFinAccounts 
+        linkedFinAccounts,
+        warning: linkedFinAccounts.length < insertedBudgetAccounts.length 
+          ? 'Some accounts could not be processed because they don\'t match existing accounts.'
+          : undefined,
+        summary
       });
     } catch (error) {
       console.error('[CSV Processing] Error:', error);

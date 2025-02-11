@@ -19,6 +19,7 @@ import checkCSVValidity from '~/lib/utils/check-csv-validity';
 
 // Types
 import { CSVRow, CSV_VALID_COLUMNS } from '~/lib/model/onboarding.types';
+import { Database } from '~/lib/database.types';
 
 const postSchema = z.object({
   filename: z.string(),
@@ -162,7 +163,7 @@ export const POST = enhanceRouteHandler(
       }
 
       const supabaseAdmin = getSupabaseServerAdminClient();
-      const { data: insertedInstitutions, error: institutionsError } =
+      const { data: insertedInstitutions, error: institutionsError, repeatedInstitutions } =
         await insertInstitutions({
           supabaseAdmin,
           parsedText: transformedData,
@@ -199,10 +200,7 @@ export const POST = enhanceRouteHandler(
         );
       }
 
-      const {
-        data,
-        error: budgetAccountsError,
-      } = await insertAccounts({
+      const { data, error: budgetAccountsError, repeatedAccounts } = await insertAccounts({
         supabaseAdmin,
         parsedText: transformedData,
         userId: user.id,
@@ -214,7 +212,10 @@ export const POST = enhanceRouteHandler(
         throw new CSVProcessingError('Failed to process accounts from CSV');
       }
 
-      const { accounts: insertedAccounts, budgetAccounts: insertedBudgetAccounts } = data;
+      const { accounts: insertedAccounts, budgetAccounts: insertedBudgetAccounts } = data as {
+        accounts: Database['public']['Tables']['manual_fin_accounts']['Row'][];
+        budgetAccounts: Database['public']['Tables']['budget_fin_accounts']['Row'][];
+      };
 
       //We fetch the built in categories
       const { data: builtInCategories, error: builtInCategoriesError } =
@@ -308,44 +309,53 @@ export const POST = enhanceRouteHandler(
         return true;
       });
 
-      // Insert transactions directly into fin_account_transactions
+      // First process transactions for any matching manual accounts
       if (validTransactions.length > 0) {
-        const { data: insertedTransactions, error: insertError } = await supabaseAdmin
+        let insertedFinAccountTransactions: Database['public']['Tables']['fin_account_transactions']['Row'][] = [];
+        const { data: insertedTxs, error: insertError } = await supabaseAdmin
           .from('fin_account_transactions')
-          .insert(validTransactions.map(trans => {
-            const matchingCategory = builtInCategories.find(
+          .insert(validTransactions.map(trans => ({
+            user_tx_id: trans.TransactionId,
+            manual_account_id: insertedAccounts.find(acc => acc.name === trans.AccountName)?.id,
+            date: trans.TransactionDate,
+            amount: parseFloat(trans.TransactionAmount),
+            merchant_name: trans.TransactionMerchant || '',
+            payee: '',
+            iso_currency_code: 'USD',
+            tx_status: 'posted' as const,
+            svend_category_id: builtInCategories.find(
               cat => normalizeCategory(cat.category_name ?? '') === normalizeCategory(trans.TransactionCategory ?? '')
-            );
-
-            return {
-              user_tx_id: trans.TransactionId,
-              date: trans.TransactionDate,
-              amount: parseFloat(trans.TransactionAmount),
-              manual_account_id: insertedAccounts.find(acc => acc.name === trans.AccountName)?.id!,
-              merchant_name: trans.TransactionMerchant || '',
-              payee: '',
-              iso_currency_code: 'USD',
-              tx_status: 'posted' as const,
-              svend_category_id: matchingCategory!.category_id || ''
-            };
-          }))
+            )?.category_id || ''
+          })))
           .select('*');
 
         if (insertError) throw insertError;
-        if (!insertedTransactions) throw new Error('No transactions were inserted');
+        insertedFinAccountTransactions = insertedTxs ?? [];
+
+        const summary = {
+          newInstitutions: insertedInstitutions.length - (repeatedInstitutions?.size || 0),
+          newAccounts: insertedAccounts.length - (repeatedAccounts?.size || 0),
+          newTransactions: insertedFinAccountTransactions.length
+        };
 
         const parsedInstitutions = parseCSVResponse({
           insertedInstitutions,
           insertedAccounts,
           insertedBudgetAccounts,
-          insertedFinAccountTransactions: insertedTransactions,
+          insertedFinAccountTransactions,
           supabase
         });
 
-        return NextResponse.json({ institutions: parsedInstitutions });
+        return NextResponse.json({ 
+          institutions: parsedInstitutions,
+          summary 
+        });
       }
 
-      return NextResponse.json({ institutions: [] });
+      return NextResponse.json({ 
+        institutions: [],
+        summary: { newInstitutions: 0, newAccounts: 0, newTransactions: 0 }
+      });
     } catch (err: any) {
       console.error('[Mapped CSV Processing] Unexpected error:', {
         error: err,

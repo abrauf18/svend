@@ -95,28 +95,47 @@ export default function CsvColumnsMapperModal({
 
     if (res.ok) {
       setCsvModalInfo((prev) => ({ ...prev, csvResult: null, isModalOpen: false }));
-      const { institutions, error } = (await res.json()) as {
+      const { institutions, summary, error } = (await res.json()) as {
         institutions?: AccountOnboardingManualInstitution[];
+        summary?: { newInstitutions: number; newAccounts: number; newTransactions: number };
         error?: string;
       };
 
       if (error) {
         console.error('financial data import error:', error);
-        toast.error('Could not import financial data', {
-          position: 'bottom-center',
-          duration: 3000,
-        });
-        return;
-      }
-      if (!institutions) {
-        toast.warning('No financial data imported', {
-          position: 'bottom-center',
-          duration: 3000,
-        });
+        toast.error('Could not import financial data');
         return;
       }
 
-      accountManualInstitutionsAddMany(institutions);
+      if (summary) {
+        const totalNew = summary.newInstitutions + summary.newAccounts + summary.newTransactions;
+        if (totalNew > 0) {
+          toast.success(
+            'Successfully added:',
+            {
+              description: (
+                <div className="flex flex-col gap-0.5">
+                  {summary.newInstitutions > 0 && (
+                    <div><b>{summary.newInstitutions}</b> institutions</div>
+                  )}
+                  {summary.newAccounts > 0 && (
+                    <div><b>{summary.newAccounts}</b> accounts</div>
+                  )}
+                  {summary.newTransactions > 0 && (
+                    <div><b>{summary.newTransactions}</b> transactions</div>
+                  )}
+                </div>
+              )
+            }
+          );
+        } else {
+          toast.warning('No new data was added from the CSV file');
+        }
+      }
+
+      if (institutions) {
+        accountManualInstitutionsAddMany(institutions);
+      }
     } else {
       const isJson = res.headers.get('content-type') === 'application/json';
 

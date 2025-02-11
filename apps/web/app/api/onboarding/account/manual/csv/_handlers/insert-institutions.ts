@@ -11,12 +11,19 @@ type Props = {
 type Institution =
   Database['public']['Tables']['manual_fin_institutions']['Row'];
 
+type Result = {
+  data?: Database['public']['Tables']['manual_fin_institutions']['Row'][];
+  error?: any;
+  repeatedInstitutions?: Map<string, Institution>;
+};
+
 export default async function insertInstitutions({
   supabaseAdmin,
   parsedText,
   userId,
-}: Props) {
+}: Props): Promise<Result> {
   try {
+    // Get all current institutions first
     const { data: currentInstitutions, error: currentInstitutionsError } =
       await supabaseAdmin
         .from('manual_fin_institutions')
@@ -57,7 +64,7 @@ export default async function insertInstitutions({
       const parsedInstitutionName = trans.BankName.trim().toLowerCase();
       const parsedSymbol = trans.BankSymbol.trim().toUpperCase();
 
-      // Check for name or symbol duplicate in DB
+      // Check for name or symbol duplicate in DB - using case-insensitive comparison
       const nameExists = currentInstitutions.find(
         (inst) => (inst.name ?? '').trim().toLowerCase() === parsedInstitutionName
       );
@@ -67,16 +74,15 @@ export default async function insertInstitutions({
       );
 
       if (nameExists || symbolExists) {
+        const existingInst = nameExists || symbolExists;
         repeatedInstitutions.set(
           `${parsedInstitutionName}:${parsedSymbol}`, 
-          nameExists || symbolExists
+          existingInst
         );
         
-        if (nameExists) {
-          console.warn(`Skipping institution with duplicate name in DB: ${parsedInstitutionName}`);
-        }
-        if (symbolExists) {
-          console.warn(`Skipping institution with duplicate symbol in DB: ${parsedSymbol}`);
+        if (nameExists && symbolExists && nameExists.id !== symbolExists.id) {
+          // Use the name match as the canonical institution
+          repeatedInstitutions.set(`${parsedInstitutionName}:${parsedSymbol}`, nameExists);
         }
       } else {
         // Check for duplicates within new institutions
@@ -109,8 +115,8 @@ export default async function insertInstitutions({
         .insert([
           ...Array.from(nonRepeatedInstitutions.values()).map((inst) => ({
             owner_account_id: userId,
-            name: inst.BankName,
-            symbol: inst.BankSymbol,
+            name: inst.BankName.trim(),
+            symbol: inst.BankSymbol.trim(),
           })),
         ])
         .select();
@@ -134,13 +140,14 @@ export default async function insertInstitutions({
         new Map(allInstitutions.map(inst => [inst.id, inst])).values()
       );
 
-      return { data: uniqueInstitutions };
+      return { data: uniqueInstitutions, repeatedInstitutions };
     } else {
       // If all institutions already exist, just return them (deduped)
       return { 
         data: Array.from(
           new Map(Array.from(repeatedInstitutions.values()).map(inst => [inst.id, inst])).values()
-        ) 
+        ),
+        repeatedInstitutions
       };
     }
   } catch (err: any) {

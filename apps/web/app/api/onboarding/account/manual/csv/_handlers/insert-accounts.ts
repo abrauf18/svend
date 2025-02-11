@@ -22,6 +22,16 @@ type Props = {
 };
 
 type Account = Database['public']['Tables']['manual_fin_accounts']['Insert'];
+type BudgetAccount = Database['public']['Tables']['budget_fin_accounts']['Insert'];
+
+type Result = {
+  data?: {
+    accounts: Account[];
+    budgetAccounts: BudgetAccount[];
+  };
+  error?: any;
+  repeatedAccounts?: Map<string, Account>;
+};
 
 function validateAccountType(type: string): AccountType {
   const normalizedType = type.toLowerCase();
@@ -39,7 +49,7 @@ export default async function insertAccounts({
   userId,
   insertedInstitutions,
   budgetId,
-}: Props) {
+}: Props): Promise<Result> {
   try {
     const { data: currentAccounts, error: currentAccountsError } =
       await supabaseAdmin
@@ -145,7 +155,8 @@ export default async function insertAccounts({
           ...currentBudgetAccounts,
           ...(insertedBudgetAccounts || [])
         ]
-      }
+      },
+      repeatedAccounts
     };
   } catch (err: any) {
     console.error(err);
