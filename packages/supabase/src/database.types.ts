@@ -83,81 +83,33 @@ export type Database = {
         Row: {
           account_id: string
           age: number | null
+          annual_income: number | null
           created_at: string | null
-          current_debt: Database["public"]["Enums"]["debt_type_enum"][] | null
-          current_debt_other: string | null
-          dependents: number | null
           full_name: string | null
-          goal_timeline:
-            | Database["public"]["Enums"]["goal_timeline_enum"]
-            | null
           id: string
-          income_level: Database["public"]["Enums"]["income_level_enum"] | null
-          marital_status:
-            | Database["public"]["Enums"]["marital_status_enum"]
-            | null
-          marital_status_other: string | null
-          monthly_contribution:
-            | Database["public"]["Enums"]["monthly_contribution_enum"]
-            | null
-          primary_financial_goals:
-            | Database["public"]["Enums"]["financial_goal_enum"][]
-            | null
-          savings: Database["public"]["Enums"]["savings_enum"] | null
+          savings: number | null
           state: Database["public"]["Enums"]["fin_profile_state_enum"] | null
           updated_at: string | null
         }
         Insert: {
           account_id: string
           age?: number | null
+          annual_income?: number | null
           created_at?: string | null
-          current_debt?: Database["public"]["Enums"]["debt_type_enum"][] | null
-          current_debt_other?: string | null
-          dependents?: number | null
           full_name?: string | null
-          goal_timeline?:
-            | Database["public"]["Enums"]["goal_timeline_enum"]
-            | null
           id?: string
-          income_level?: Database["public"]["Enums"]["income_level_enum"] | null
-          marital_status?:
-            | Database["public"]["Enums"]["marital_status_enum"]
-            | null
-          marital_status_other?: string | null
-          monthly_contribution?:
-            | Database["public"]["Enums"]["monthly_contribution_enum"]
-            | null
-          primary_financial_goals?:
-            | Database["public"]["Enums"]["financial_goal_enum"][]
-            | null
-          savings?: Database["public"]["Enums"]["savings_enum"] | null
+          savings?: number | null
           state?: Database["public"]["Enums"]["fin_profile_state_enum"] | null
           updated_at?: string | null
         }
         Update: {
           account_id?: string
           age?: number | null
+          annual_income?: number | null
           created_at?: string | null
-          current_debt?: Database["public"]["Enums"]["debt_type_enum"][] | null
-          current_debt_other?: string | null
-          dependents?: number | null
           full_name?: string | null
-          goal_timeline?:
-            | Database["public"]["Enums"]["goal_timeline_enum"]
-            | null
           id?: string
-          income_level?: Database["public"]["Enums"]["income_level_enum"] | null
-          marital_status?:
-            | Database["public"]["Enums"]["marital_status_enum"]
-            | null
-          marital_status_other?: string | null
-          monthly_contribution?:
-            | Database["public"]["Enums"]["monthly_contribution_enum"]
-            | null
-          primary_financial_goals?:
-            | Database["public"]["Enums"]["financial_goal_enum"][]
-            | null
-          savings?: Database["public"]["Enums"]["savings_enum"] | null
+          savings?: number | null
           state?: Database["public"]["Enums"]["fin_profile_state_enum"] | null
           updated_at?: string | null
         }
@@ -407,13 +359,15 @@ export type Database = {
           debt_payment_component:
             | Database["public"]["Enums"]["budget_goal_debt_payment_component_enum"]
             | null
-          debt_type: Database["public"]["Enums"]["debt_type_enum"] | null
           description: string | null
           fin_account_id: string
           id: string
           name: string
           spending_recommendations: Json
           spending_tracking: Json
+          subtype:
+            | Database["public"]["Enums"]["budget_goal_subtype_enum"]
+            | null
           target_date: string
           type: Database["public"]["Enums"]["budget_goal_type_enum"]
           updated_at: string
@@ -426,13 +380,15 @@ export type Database = {
           debt_payment_component?:
             | Database["public"]["Enums"]["budget_goal_debt_payment_component_enum"]
             | null
-          debt_type?: Database["public"]["Enums"]["debt_type_enum"] | null
           description?: string | null
           fin_account_id: string
           id?: string
           name: string
           spending_recommendations?: Json
           spending_tracking?: Json
+          subtype?:
+            | Database["public"]["Enums"]["budget_goal_subtype_enum"]
+            | null
           target_date: string
           type: Database["public"]["Enums"]["budget_goal_type_enum"]
           updated_at?: string
@@ -445,13 +401,15 @@ export type Database = {
           debt_payment_component?:
             | Database["public"]["Enums"]["budget_goal_debt_payment_component_enum"]
             | null
-          debt_type?: Database["public"]["Enums"]["debt_type_enum"] | null
           description?: string | null
           fin_account_id?: string
           id?: string
           name?: string
           spending_recommendations?: Json
           spending_tracking?: Json
+          subtype?:
+            | Database["public"]["Enums"]["budget_goal_subtype_enum"]
+            | null
           target_date?: string
           type?: Database["public"]["Enums"]["budget_goal_type_enum"]
           updated_at?: string
@@ -2030,6 +1988,7 @@ export type Database = {
           id: string
           user_tx_id: string
           plaid_tx_id: string
+          tx_status: Database["public"]["Enums"]["transaction_status_enum"]
           date: string
           amount: number
           iso_currency_code: string
@@ -2057,6 +2016,7 @@ export type Database = {
           id: string
           user_tx_id: string
           plaid_tx_id: string
+          tx_status: Database["public"]["Enums"]["transaction_status_enum"]
           date: string
           amount: number
           iso_currency_code: string
@@ -2189,8 +2149,6 @@ export type Database = {
           p_user_id: string
           p_full_name: string
           p_age: number
-          p_marital_status: Database["public"]["Enums"]["marital_status_enum"]
-          p_dependents: number
         }
         Returns: undefined
       }
@@ -2282,7 +2240,16 @@ export type Database = {
         | "principal"
         | "interest"
         | "principal_interest"
-      budget_goal_type_enum: "debt" | "savings" | "investment"
+      budget_goal_subtype_enum:
+        | "emergency_fund"
+        | "house"
+        | "retirement"
+        | "education"
+        | "vacation"
+        | "general"
+        | "loans"
+        | "credit_cards"
+      budget_goal_type_enum: "debt" | "savings" | "investment" | "charity"
       budget_onboarding_step_enum:
         | "start"
         | "plaid"
@@ -2293,14 +2260,6 @@ export type Database = {
         | "invite_members"
         | "end"
       budget_type: "personal" | "business"
-      debt_type_enum:
-        | "Credit Cards"
-        | "Student Loans"
-        | "Personal Loans"
-        | "Mortgage"
-        | "Auto Loans"
-        | "Business Loans"
-        | "Other"
       fin_account_type_enum:
         | "depository"
         | "credit"
@@ -2308,31 +2267,6 @@ export type Database = {
         | "investment"
         | "other"
       fin_profile_state_enum: "florida" | "california"
-      financial_goal_enum:
-        | "Debt - Loans"
-        | "Debt - Credit Cards"
-        | "Save - Build an emergency fund"
-        | "Save - Save for a house"
-        | "Save - Save for retirement"
-        | "Save - Save for children's education"
-        | "Save - Save for vacation or a large purchase"
-        | "Invest in stocks or bonds"
-        | "Donate to charity or tithe regularly"
-        | "Manage your money better"
-      goal_timeline_enum: "6 months" | "1 year" | "3 years" | "5 years or more"
-      income_level_enum:
-        | "Less than $25,000"
-        | "$25,000 - $50,000"
-        | "$50,000 - $75,000"
-        | "$75,000 - $100,000"
-        | "More than $100,000"
-      marital_status_enum: "Single" | "Married" | "Married with Kids" | "Other"
-      monthly_contribution_enum:
-        | "Less than $100"
-        | "$100 - $250"
-        | "$250 - $500"
-        | "$500 - $1,000"
-        | "More than $1,000"
       notification_channel: "in_app" | "email"
       notification_type: "info" | "warning" | "error"
       onboarding_step_enum:
@@ -2345,12 +2279,6 @@ export type Database = {
         | "budget_setup"
         | "end"
       payment_status: "pending" | "succeeded" | "failed"
-      savings_enum:
-        | "Less than $1,000"
-        | "$1,000 - $5,000"
-        | "$5,000 - $10,000"
-        | "$10,000 - $25,000"
-        | "More than $25,000"
       subscription_item_type: "flat" | "per_seat" | "metered"
       subscription_status:
         | "active"

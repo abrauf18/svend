@@ -130,7 +130,7 @@ class OnboardingService {
         throw acctFinProfileError;
       }
 
-      if (!acctFinProfile || !acctFinProfile.full_name || !acctFinProfile.age || !acctFinProfile.marital_status || acctFinProfile.dependents === null || !acctFinProfile.income_level || !acctFinProfile.savings) {
+      if (!acctFinProfile || !acctFinProfile.full_name || !acctFinProfile.age || !acctFinProfile.annual_income || !acctFinProfile.savings) {
         return { data: null, error: 'Incomplete account financial profile' };
       }
     }

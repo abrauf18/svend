@@ -23,53 +23,107 @@ import {
 import { Trans } from '@kit/ui/trans';
 import { useOnboardingContext } from '@kit/accounts/components';
 import { ProfileData } from '~/lib/model/fin.types';
-
-const incomeLevelOptions: Record<string, string> = {
-  lt_25k: 'Less than $25,000',
-  '25k_50k': '$25,000 - $50,000',
-  '50k_75k': '$50,000 - $75,000',
-  '75k_100k': '$75,000 - $100,000',
-  gt_100k: 'More than $100,000',
-};
-
-const savingsLevelOptions: Record<string, string> = {
-  lt_1k: 'Less than $1,000',
-  '1k_5k': '$1,000 - $5,000',
-  '5k_10k': '$5,000 - $10,000',
-  '10k_25k': '$10,000 - $25,000',
-  gt_25k: 'More than $25,000',
-};
-
-const debtTypeOptions: Record<string, string> = {
-  creditCardDebt: 'Credit Cards',
-  studentLoans: 'Student Loans',
-  personalLoans: 'Personal Loans',
-  mortgage: 'Mortgage',
-  autoLoans: 'Auto Loans',
-  others: 'Other',
-};
+import { Input } from '@kit/ui/input';
+import { OnboardingState } from '~/lib/model/onboarding.types';
 
 const FormSchema = z.object({
-  incomeLevel: z
-    .string()
-    .refine((value) => Object.keys(incomeLevelOptions).includes(value), {
-      message: 'Invalid income level selected',
-    }),
-  savingsLevel: z
-    .string()
-    .refine((value) => Object.keys(savingsLevelOptions).includes(value), {
-      message: 'Invalid savings level selected',
-    }),
-  debtTypes: z
-    .array(
-      z
-        .string()
-        .refine((value) => Object.keys(debtTypeOptions).includes(value), {
-          message: 'Invalid debt type selected',
-        }),
-    )
-    .min(1, 'At least one debt must be selected.'),
+  annualIncome: z.string()
+    .min(1, 'Annual income is required')
+    .transform((val) => {
+      const num = parseInt(val.replace(/[^0-9]/g, ''), 10);
+      if (isNaN(num)) throw new Error('Must be a valid number');
+      return num;
+    })
+    .refine((val) => val >= 0, 'Must be positive')
+    .refine((val) => val <= 100000000, 'Must be less than $100M'),
+  savings: z.string()
+    .min(1, 'Savings amount is required')
+    .transform((val) => {
+      const num = parseInt(val.replace(/[^0-9]/g, ''), 10);
+      if (isNaN(num)) throw new Error('Must be a valid number');
+      return num;
+    })
+    .refine((val) => val >= 0, 'Must be positive')
+    .refine((val) => val <= 100000000, 'Must be less than $100M'),
 });
+
+const calculateDefaultIncome = (state: OnboardingState): string => {
+  const manualInstitutions = state.account.manualInstitutions || [];
+  const plaidConnections = state.account.plaidConnectionItems || [];
+  const categoryGroups = state.account.svendCategoryGroups || {};
+  
+  // Find Income category group
+  const incomeGroup = Object.values(categoryGroups).find(group => 
+    group.name.toLowerCase() === 'income'
+  );
+  if (!incomeGroup) return "";
+  
+  // Calculate date 30 days ago from today
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+
+  // Get manual transactions (with logging)
+  const manualTransactions = manualInstitutions.flatMap(inst => 
+    inst.accounts.flatMap(acc => {
+      const transactions = acc.budgetFinAccountId 
+        ? acc.transactions.filter(tx => {
+            const isIncome = incomeGroup.categories.some(c => c.id === tx.svendCategoryId);
+            const isPosted = tx.status === 'posted';
+            const isRecent = new Date(tx.date) >= thirtyDaysAgo;
+            return isIncome && isPosted && isRecent;
+          })
+        : [];
+      return transactions;
+    })
+  );
+
+  // Get Plaid transactions
+  const plaidTransactions = plaidConnections.flatMap(conn => 
+    conn.itemAccounts.flatMap(acc => {
+      const transactions = (acc.transactions || []).filter(tx => {
+        const isIncome = tx.categoryGroup?.toLowerCase() === 'income';
+        const isPosted = tx.transaction.status === 'posted';
+        const isRecent = new Date(tx.transaction.date) >= thirtyDaysAgo;
+        
+        return isIncome && isPosted && isRecent;
+      });
+      return transactions;
+    })
+  );
+
+  // Calculate total
+  const annualIncome = Math.round(
+    (manualTransactions.reduce((sum, tx) => 
+      sum + Math.abs(Number(tx.amount)), 0) +
+    plaidTransactions.reduce((sum, tx) => 
+      sum + Math.abs(Number(tx.transaction.amount)), 0)) * 12
+  );
+
+  return annualIncome <= 0 ? "" : annualIncome.toString();
+};
+
+const calculateDefaultSavings = (state: OnboardingState): string => {
+  const linkedAccounts = state.account.budget?.linkedFinAccounts || [];
+  
+  // Sum balances of all depository accounts
+  const totalSavings = linkedAccounts
+    .filter(account => {
+      const accountType = account.source === 'plaid'
+        ? state.account.plaidConnectionItems
+            ?.flatMap(item => item.itemAccounts)
+            .find(plaidAcc => plaidAcc.svendAccountId === account.id)
+            ?.accountType
+        : state.account.manualInstitutions
+            ?.flatMap(inst => inst.accounts)
+            .find(manualAcc => manualAcc.id === account.id)
+            ?.type;
+      
+      return accountType === 'depository' || accountType === 'investment';
+    })
+    .reduce((sum, account) => sum + (account.balance || 0), 0);
+
+  return totalSavings <= 0 ? "" : totalSavings.toString();
+};
 
 export function FinancialInformation(props: {
   onValidationChange: (isValid: boolean) => void;
@@ -80,36 +134,17 @@ export function FinancialInformation(props: {
 
   const defaultValues = React.useMemo(() => {
     if (props.initialData) {
-      const incomeLevelKey = Object.keys(incomeLevelOptions).find(
-        (key) => incomeLevelOptions[key] === props.initialData?.incomeLevel,
-      );
-
-      const savingsLevelKey = Object.keys(savingsLevelOptions).find(
-        (key) => savingsLevelOptions[key] === props.initialData?.savings,
-      );
-
-      const mappedDebtTypes = props.initialData?.currentDebt?.map(
-        (debt: string) => {
-          const debtKey = Object.keys(debtTypeOptions).find(
-            (key) => debtTypeOptions[key] === debt,
-          );
-          return debtKey || '';
-        },
-      );
-
       return {
-        incomeLevel: incomeLevelKey || '',
-        savingsLevel: savingsLevelKey || '',
-        debtTypes: mappedDebtTypes || [],
+        annualIncome: props.initialData?.annualIncome?.toString() || calculateDefaultIncome(state),
+        savings: props.initialData?.savings?.toString() || calculateDefaultSavings(state),
       };
     } else {
       return {
-        incomeLevel: '',
-        savingsLevel: '',
-        debtTypes: [],
+        annualIncome: calculateDefaultIncome(state),
+        savings: calculateDefaultSavings(state),
       };
     }
-  }, [props.initialData]);
+  }, [props.initialData, state]);
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -118,32 +153,22 @@ export function FinancialInformation(props: {
   });
 
   const { reset } = form;
-  const incomeLevelInputRef = useRef<HTMLInputElement | null>(null);
+  const annualIncomeInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (incomeLevelInputRef.current) {
-      incomeLevelInputRef.current.focus();
+    if (annualIncomeInputRef.current) {
+      annualIncomeInputRef.current.focus();
     }
   }, []);
 
   useEffect(() => {
     if (props.initialData) {
       reset({
-        incomeLevel: Object.keys(incomeLevelOptions).find(
-          (key) => incomeLevelOptions[key] === props.initialData?.incomeLevel,
-        ) || '',
-        savingsLevel: Object.keys(savingsLevelOptions).find(
-          (key) => savingsLevelOptions[key] === props.initialData?.savings,
-        ) || '',
-        debtTypes: props.initialData?.currentDebt?.map(
-          (debt: string) =>
-            Object.keys(debtTypeOptions).find(
-              (key) => debtTypeOptions[key] === debt,
-            ) || '',
-        ) || [],
+        annualIncome: props.initialData?.annualIncome?.toString() || calculateDefaultIncome(state),
+        savings: props.initialData?.savings?.toString() || calculateDefaultSavings(state),
       });
     }
-  }, [props.initialData]);
+  }, [props.initialData, state]);
 
   useEffect(() => {
     props.onValidationChange(form.formState.isValid);
@@ -158,11 +183,8 @@ export function FinancialInformation(props: {
 
           accountProfileDataUpdate({
             ...state.account.profileData,
-            incomeLevel: incomeLevelOptions[data.incomeLevel],
-            savingsLevel: savingsLevelOptions[data.savingsLevel],
-            debtTypes: data.debtTypes.map(
-              (debtType) => debtTypeOptions[debtType],
-            ),
+            annualIncome: data.annualIncome.toString(),
+            savings: data.savings.toString(),
           } as ProfileData);
 
           return true;
@@ -184,11 +206,8 @@ export function FinancialInformation(props: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          incomeLevel: incomeLevelOptions[data.incomeLevel],
-          savingsLevel: savingsLevelOptions[data.savingsLevel],
-          debtTypes: data.debtTypes.map(
-            (debtType) => debtTypeOptions[debtType],
-          ),
+          annualIncome: data.annualIncome,
+          savings: data.savings,
         }),
       });
 
@@ -206,6 +225,20 @@ export function FinancialInformation(props: {
     return true;
   };
 
+  const loanAccounts = state.account.budget?.linkedFinAccounts.filter(account => {
+    const accountType = account.source === 'plaid'
+      ? state.account.plaidConnectionItems
+          ?.flatMap(item => item.itemAccounts)
+          .find(plaidAcc => plaidAcc.svendAccountId === account.id)
+          ?.accountType
+      : state.account.manualInstitutions
+          ?.flatMap(inst => inst.accounts)
+          .find(manualAcc => manualAcc.id === account.id)
+          ?.type;
+    
+    return accountType === 'loan' || accountType === 'credit';
+  }) || [];
+
   return (
     <>
       <h3 className="text-xl font-semibold">
@@ -217,32 +250,29 @@ export function FinancialInformation(props: {
             <div className={'w-2/5'}>
               <FormField
                 control={form.control}
-                name="incomeLevel"
+                name="annualIncome"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      <Trans i18nKey={'onboarding:incomeLevel.label'} />
+                      <Trans i18nKey={'onboarding:financialInformationAnnualIncomeLabel'} />
                     </FormLabel>
                     <FormControl>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <SelectTrigger data-test={'income-selector-trigger'}>
-                          <SelectValue placeholder="Select income level" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(incomeLevelOptions).map(
-                            ([key, value]) => (
-                              <SelectItem key={key} value={key}>
-                                <span className="text-sm capitalize">
-                                  {value}
-                                </span>
-                              </SelectItem>
-                            ),
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <div className="relative w-48">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                          $
+                        </span>
+                        <Input 
+                          {...field}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          className="pl-8"
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^0-9]/g, '');
+                            field.onChange(value);
+                          }}
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -250,81 +280,81 @@ export function FinancialInformation(props: {
               />
             </div>
 
-            {/* Current Debt */}
             <div className={'w-2/5'}>
               <FormField
                 control={form.control}
-                name="debtTypes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base">
-                      <Trans i18nKey={'onboarding:loanType.label'} />
-                    </FormLabel>
-                    {Object.entries(debtTypeOptions).map(([key, value]) => (
-                      <FormItem
-                        key={key}
-                        className="flex flex-row items-start space-x-3 space-y-0"
-                      >
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value.includes(key)}
-                            onCheckedChange={(checked) => {
-                              const newValue = checked
-                                ? [...field.value, key]
-                                : field.value.filter((v) => v !== key);
-                              field.onChange(newValue);
-                            }}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          <Trans
-                            i18nKey={`onboarding:currentDebt.${key}`}
-                            defaults={value}
-                          />
-                        </FormLabel>
-                      </FormItem>
-                    ))}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Savings */}
-            <div className={'w-2/5'}>
-              <FormField
-                name="savingsLevel"
-                control={form.control}
+                name="savings"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
                       <Trans i18nKey={'onboarding:savingsLevel.label'} />
                     </FormLabel>
                     <FormControl>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <SelectTrigger data-test={'savings-selector-trigger'}>
-                          <SelectValue placeholder="Select savings level" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(savingsLevelOptions).map(
-                            ([key, value]) => (
-                              <SelectItem key={key} value={key}>
-                                <span className="text-sm capitalize">
-                                  {value}
-                                </span>
-                              </SelectItem>
-                            ),
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <div className="relative w-48">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                          $
+                        </span>
+                        <Input 
+                          {...field}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          className="pl-8"
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^0-9]/g, '');
+                            field.onChange(value);
+                          }}
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* Loan Accounts List */}
+            <div className={'w-3/5'}>
+              <FormLabel className="text-base block mb-2">
+                <Trans i18nKey={'onboarding:debtAccounts.title'} />
+              </FormLabel>
+              {loanAccounts.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  <Trans i18nKey={'onboarding:debtAccounts.noAccounts'} />
+                </div>
+              ) : (
+                <div className="h-[200px] overflow-y-auto border rounded-md p-2 space-y-2">
+                  {loanAccounts.map(account => {
+                    const accountType = account.source === 'plaid'
+                      ? state.account.plaidConnectionItems
+                          ?.flatMap(item => item.itemAccounts)
+                          .find(plaidAcc => plaidAcc.svendAccountId === account.id)
+                          ?.accountType
+                      : state.account.manualInstitutions
+                          ?.flatMap(inst => inst.accounts)
+                          .find(manualAcc => manualAcc.id === account.id)
+                          ?.type;
+
+                    return (
+                      <div key={account.id} className="flex items-center text-sm p-2 bg-muted/50 rounded-md">
+                        <div className="flex-1">
+                          <span className="font-medium capitalize">{accountType}</span>
+                          <span className="mx-2 text-muted-foreground">•</span>
+                          <span className="text-muted-foreground">${Math.abs(account.balance).toLocaleString()}</span>
+                          <span className="mx-2 text-muted-foreground">•</span>
+                          <span>{account.institutionName} - {account.name}</span>
+                          {account.mask && (
+                            <>
+                              <span className="mx-2 text-muted-foreground">•</span>
+                              <span className="text-muted-foreground">***{account.mask}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </form>

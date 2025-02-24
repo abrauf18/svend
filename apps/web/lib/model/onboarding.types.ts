@@ -1,4 +1,4 @@
-import { Budget, BudgetCategoryGroups } from './budget.types';
+import { Budget, BudgetCategoryGroups, BudgetFinAccountTransaction, BudgetGoal } from './budget.types';
 import { FinAccountTransaction, ProfileData } from './fin.types';
 
 // Define the enum for onboarding steps
@@ -67,6 +67,7 @@ export type AccountOnboardingPlaidItemAccount = {
   balanceLimit: number;
   mask: string;
   budgetFinAccountId: string | null;
+  transactions: BudgetFinAccountTransaction[];
   createdAt: string;
   updatedAt: string;
 };
@@ -90,7 +91,11 @@ export type AccountOnboardingManualInstitution = {
 };
 
 export type AccountOnboardingState = {
-  budget: Budget;
+  budget: Omit<Budget, 'goals'> & {
+    goals?: (BudgetGoal & {
+      subType?: string;  // Add subtype for savings and debt goals
+    })[];
+  };
   profileData?: ProfileData;
   contextKey?: AccountOnboardingStepContextKey;
   userId?: string;

@@ -26,7 +26,7 @@ class TransactionService {
 
   /**
  * Parses and validates raw budget transactions into strongly typed FinAccountTransaction objects
- * @param raw The raw budget transactions from the get_budget_transactions_by_team_account_slug function
+ * @param raw The raw budget transactions from the fin_account_transactions table
  * @returns Array of validated FinAccountTransaction objects
  * 
  * Maps the following fields from database:
@@ -136,6 +136,7 @@ class TransactionService {
               merchantName: budgetTransaction.merchant_name,
               payee: budgetTransaction.payee ?? undefined,
               isoCurrencyCode: budgetTransaction.iso_currency_code ?? undefined,
+              status: budgetTransaction.tx_status ?? 'posted',
             } as FinAccountTransaction,
             budgetFinAccountId: budgetTransaction.budget_fin_account_id ?? undefined,
 
@@ -255,48 +256,11 @@ class TransactionService {
    */
   async saveBudgetTransactions(transactions: BudgetFinAccountTransaction[], budgetId: string): Promise<ServiceResult<BudgetFinAccountTransaction[]>> {
     try {
-      // Add detailed debug log for enriched transactions
-      console.log('[Debug] Enriched transactions check:', {
-        total: transactions.length,
-        enrichedManual: transactions.filter(tx => 
-          tx.transaction.manualAccountId && 
-          tx.transaction.id &&  // existing transaction
-          (tx.transaction.plaidDetailedCategory || tx.transaction.plaidCategoryConfidence || tx.transaction.plaidRawData)
-        ).map(tx => ({
-          id: tx.transaction.id,
-          manualAccountId: tx.transaction.manualAccountId,
-          category: tx.transaction.plaidDetailedCategory,
-          confidence: tx.transaction.plaidCategoryConfidence
-        }))
-      });
-
-      // Debug log 1: All incoming transactions
-      console.log('[Debug] saveBudgetTransactions incoming:', {
-        total: transactions.length,
-        manual: transactions.filter(tx => tx.transaction.manualAccountId).length,
-        withEnrichment: transactions.filter(tx => 
-          tx.transaction.manualAccountId && 
-          (tx.transaction.plaidDetailedCategory || tx.transaction.plaidCategoryConfidence || tx.transaction.plaidRawData)
-        ).length
-      });
-
       // First, handle enrichment updates for manual transactions
       const manualTransactionsToEnrich = transactions.filter(tx => 
         tx.transaction.manualAccountId && 
         (tx.transaction.plaidDetailedCategory || tx.transaction.plaidCategoryConfidence || tx.transaction.plaidRawData)
       );
-
-      // Debug log 2: Transactions to enrich
-      console.log('[Debug] Manual transactions to enrich:', {
-        count: manualTransactionsToEnrich.length,
-        sample: manualTransactionsToEnrich[0] ? {
-          id: manualTransactionsToEnrich[0].transaction.id,
-          manualAccountId: manualTransactionsToEnrich[0].transaction.manualAccountId,
-          hasPlaidCategory: !!manualTransactionsToEnrich[0].transaction.plaidDetailedCategory,
-          hasConfidence: !!manualTransactionsToEnrich[0].transaction.plaidCategoryConfidence,
-          hasRawData: !!manualTransactionsToEnrich[0].transaction.plaidRawData
-        } : null
-      });
 
       if (manualTransactionsToEnrich.length > 0) {
         const updateData = manualTransactionsToEnrich
@@ -372,28 +336,33 @@ class TransactionService {
       // Handle new insertions using the stored procedure
       let newTransactionIds: string[] = [];
       if (newTransactions.length > 0) {
+        const rpcPayload = newTransactions.map(tx => ({
+          user_tx_id: tx.transaction.userTxId || null,
+          plaid_tx_id: tx.transaction.plaidTxId || null,
+          manual_account_id: tx.transaction.manualAccountId || null,
+          budget_fin_account_id: tx.budgetFinAccountId || null,
+          amount: tx.transaction.amount,
+          date: tx.transaction.date,
+          svend_category_id: tx.category?.id,
+          merchant_name: tx.transaction.merchantName || null,
+          payee: tx.transaction.payee || null,
+          tx_status: tx.transaction.status,
+          iso_currency_code: tx.transaction.isoCurrencyCode || null,
+          plaid_category_detailed: tx.transaction.plaidDetailedCategory ?? null,
+          plaid_category_confidence: tx.transaction.plaidCategoryConfidence ?? null,
+          plaid_raw_data: tx.transaction.plaidRawData as any
+        }));
+
         const { data: ids, error: insertError } = await this.supabase
           .rpc('create_budget_fin_account_transactions', {
             p_budget_id: budgetId,
-            p_transactions: newTransactions.map(tx => ({
-              user_tx_id: tx.transaction.userTxId || null,
-              plaid_tx_id: tx.transaction.plaidTxId || null,
-              manual_account_id: tx.transaction.manualAccountId || null,
-              budget_fin_account_id: tx.budgetFinAccountId || null,
-              amount: tx.transaction.amount,
-              date: tx.transaction.date,
-              svend_category_id: tx.category?.id || null,
-              merchant_name: tx.transaction.merchantName || null,
-              payee: tx.transaction.payee || null,
-              tx_status: tx.transaction.status,
-              iso_currency_code: tx.transaction.isoCurrencyCode || null,
-              plaid_category_detailed: tx.transaction.plaidDetailedCategory || null,
-              plaid_category_confidence: tx.transaction.plaidCategoryConfidence || null,
-              plaid_raw_data: tx.transaction.plaidRawData as any
-            }))
+            p_transactions: rpcPayload
           });
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('[Debug] RPC error:', insertError);
+          throw insertError;
+        }
         newTransactionIds = ids || [];
       }
 
@@ -518,7 +487,7 @@ class TransactionService {
           plaid_tx_id: tx.plaidTxId,
           amount: tx.amount,
           date: tx.date,
-          svend_category_id: tx.svendCategoryId as string,
+          svend_category_id: tx.svendCategoryId!,
           merchant_name: tx.merchantName || '',
           payee: tx.payee || '',
           tx_status: tx.status,
@@ -550,7 +519,15 @@ class TransactionService {
           .from('fin_account_transactions')
           .insert(newTransactions);
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('[Debug] Insert error details:', {
+            error: insertError,
+            failingTransaction: newTransactions.find(tx => 
+              !tx.svend_category_id || tx.svend_category_id === null
+            )
+          });
+          throw insertError;
+        }
       }
 
       // Get all saved transactions
@@ -689,15 +666,6 @@ class TransactionService {
             })
             .filter(Boolean);
 
-          console.log('[TransactionService] Plaid sync batch:', {
-            added: added.size,
-            removed: removed.size,
-            modified: modified.size,
-            pendingToPosted: pendingToPostedTransitions.length,
-            transitions: pendingToPostedTransitions,
-            cursor: nextCursor
-          });
-
           // Track all transaction changes in this sync
           const allTransactionChanges = new Map<string, {
             transaction: any,
@@ -771,7 +739,11 @@ class TransactionService {
                 newTransactions.push(transaction);
               }
             } else {
-              newUnlinkedTransactions.push(transaction.transaction);
+              const unlinkedTx: FinAccountTransaction = {
+                ...transaction.transaction,
+                svendCategoryId: transaction.category?.id,
+              };
+              newUnlinkedTransactions.push(unlinkedTx);
             }
           }
 
@@ -1105,22 +1077,11 @@ class TransactionService {
     error?: string 
   }> {
     try {
-      // console.log('Processing categories input:', {
-      //   transactionCount: transactions.length,
-      //   sampleTransaction: transactions[0] ? {
-      //     id: transactions[0].transaction.id,
-      //     plaidCategory: transactions[0].transaction.plaidDetailedCategory,
-      //     svendCategoryId: transactions[0].transaction.svendCategoryId
-      //   } : null
-      // });
-
       // Get unique Plaid categories from both transaction types
       const uniquePlaidCategories = [...new Set([
         ...transactions.map(t => t.transaction.plaidDetailedCategory),
         ...recurringTransactions.map(t => t.transaction.plaidDetailedCategory)
       ].filter((cat): cat is string => !!cat))];
-
-      // console.log('Unique Plaid categories:', uniquePlaidCategories);
 
       // Get mappings and categories
       const [plaidMappings, svendCategories] = await Promise.all([
@@ -1150,16 +1111,17 @@ class TransactionService {
 
       // Process regular transactions
       const processedTransactions = transactions.map(transaction => {
-        console.log('[Debug] Processing transaction:', {
-          beforeId: transaction.transaction.id,
-          plaidTxId: transaction.transaction.plaidTxId
-        });
-
         const plaidCategory = transaction.transaction.plaidDetailedCategory;
-        if (!plaidCategory) return transaction;
+        if (!plaidCategory) {
+          console.warn('[Debug] No Plaid category for transaction:', transaction.transaction.plaidTxId);
+          return transaction;
+        }
 
         const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
-        if (!mappedCategory) return transaction;
+        if (!mappedCategory) {
+          console.warn('[Debug] No mapping found for category:', plaidCategory);
+          return transaction;
+        }
 
         const processed = {
           ...transaction,
@@ -1172,11 +1134,6 @@ class TransactionService {
           categoryGroup: mappedCategory.groupName,
           categoryGroupId: mappedCategory.groupId
         };
-
-        console.log('[Debug] Processed transaction:', {
-          afterId: processed.transaction.id,
-          plaidTxId: processed.transaction.plaidTxId
-        });
 
         return processed;
       });
@@ -1212,18 +1169,12 @@ class TransactionService {
     teamAccountSlug: string,
     plaidClient: PlaidApi
   ): Promise<ServiceResult<PlaidSyncTransactionsResponse>> {
-    console.log(`[TransactionService] Starting Plaid sync for team account: ${teamAccountSlug} ...`);
     try {
       // First get the budget and its plaid items
       const { data: plaidItems, error: plaidItemsError } = await this.supabase
         .rpc('get_budget_plaid_items', { 
           p_team_account_slug: teamAccountSlug 
         });
-
-      console.log('[TransactionService] Plaid items fetch:', {
-        itemsCount: plaidItems?.length || 0,
-        error: plaidItemsError || null
-      });
 
       if (plaidItemsError) throw plaidItemsError;
       if (!plaidItems?.length) {

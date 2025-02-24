@@ -21,6 +21,7 @@
   "finBackgroundTitle": "Let's get to know you",
   "finBackgroundInstructionText": "By understanding your financial background and goals, we can offer personalized advice just for you. This will help you save more and improve your financial well-being.",
   "finBackgroundNextButtonLabel": "Next",
+  "nextButtonLabel": "Next",
   "analyzingDataTitle": "Analyzing your data",
   "analyzingDataInstructionText": "Svend is analyzing your financial data to give you best advice..",
   "createBudgetTitle": "Let's get to know you",
@@ -29,7 +30,9 @@
   "personalInformationNameLabel": "What is your name?",
   "personalInformationAgeLabel": "What is your age?",
   "financialInformationTitle": "Financial Information",
+  "financialInformationAnnualIncomeLabel": "What is your approximate annual income?",
   "financialGoalsTitle": "Financial Goals",
+  "financialGoalsSubtitle": "Select a Goal Type",
   "createBudgetCardGoalTitle": "Goal recommendation",
   "createBudgetCardGoalDescription": "Description",
   "createBudgetCardAdditionalTitle": "Additional recommendation",
@@ -60,14 +63,6 @@
     "savings": "Savings",
     "payOffDebts": "Pay Off Debts",
     "investments": "Investments"
-  },
-  "incomeLevel": {
-    "label": "What is your approximate annual income?",
-    "lt_25k": "Less than $25,000",
-    "25k_50k": "$25,000 - $50,000",
-    "50k_75k": "$50,000 - $75,000",
-    "75k_100k": "$75,000 - $100,000",
-    "gt_100k": "More than $100,000"
   },
   "savingsLevel": {
     "label": "How much do you currently have in savings?",
@@ -132,9 +127,9 @@
   },
   "savingDescriptionLabel": "Description",
   "loanGoalNameLabel": "Goal name",
-  "loanType": {
-    "label": "Loan type",
-    "business": "Business Loan"
+  "debtAccounts": {
+    "title": "Debt accounts",
+    "noAccounts": "No loan or credit accounts found"
   },
   "balanceLabel": "Balance",
   "paymentComponent": {

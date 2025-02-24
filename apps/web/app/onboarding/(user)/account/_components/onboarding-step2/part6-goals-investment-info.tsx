@@ -66,7 +66,7 @@ export function InvestmentInformation(props: {
   triggerSubmit: (submitHandler: () => Promise<boolean>) => void;
 }) {
   const [accounts, setAccounts] = useState<Record<string, { name: string; balance: number; isManual: boolean }>>({});
-  const { state, accountBudgetGoalsAddOne } = useOnboardingContext();
+  const { state, accountBudgetGoalsUpsertOne } = useOnboardingContext();
 
   useEffect(() => {
     const accountsData: Record<string, { name: string; balance: number; isManual: boolean }> = {};
@@ -143,7 +143,7 @@ export function InvestmentInformation(props: {
           let budgetGoal = await serverSubmit(data);
 
           // server updated successfully, update local state
-          accountBudgetGoalsAddOne(budgetGoal);
+          accountBudgetGoalsUpsertOne(budgetGoal);
 
           return true;
         } catch (error) {

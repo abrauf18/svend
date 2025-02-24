@@ -2,11 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-
-import { Button } from '@kit/ui/button';
-import { Card } from '@kit/ui/card';
-import { Trans } from '@kit/ui/trans';
 
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { BudgetGoal } from '~/lib/model/budget.types';

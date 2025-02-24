@@ -24,21 +24,20 @@ export default async function manualInstitutionsStateGetter({
   const { data: manualInstitutions, error: manualInstitutionsError } =
     await supabaseAdminClient
       .from('manual_fin_institutions')
-      .select(
-        `
-      id,
-      name,
-      symbol,
-      accounts:manual_fin_accounts(
+      .select(`
         id,
         name,
-        type,
-        institution_id,
-        balance_current,
-        iso_currency_code,
-        mask
-      )
-    `,
+        symbol,
+        accounts:manual_fin_accounts(
+          id,
+          name,
+          type,
+          institution_id,
+          balance_current,
+          iso_currency_code,
+          mask,
+          fin_account_transactions (*)
+        )`,
       )
       .eq('owner_account_id', user.id);
 
@@ -51,15 +50,6 @@ export default async function manualInstitutionsStateGetter({
     return { error: 'Failed to fetch manual institutions' };
   }
 
-  const { data: finAccountTransactions, error: finAccountTransactionsError } =
-    await supabaseAdminClient.from('fin_account_transactions').select('*');
-
-  if (finAccountTransactionsError) throw finAccountTransactionsError;
-  if (!finAccountTransactions)
-    throw new Error(
-      '[State Endpoint] No fin_account_transactions were returned from database',
-    );
-
   //Adds the budgetFinAccountId to each account if it exists
   const parsedManualInstitutions: AccountOnboardingManualInstitution[] =
     manualInstitutions.map((inst) => ({
@@ -67,17 +57,19 @@ export default async function manualInstitutionsStateGetter({
       name: inst.name,
       symbol: inst.symbol,
       accounts: inst.accounts.map((acc) => ({
-        ...acc,
-        budgetFinAccountId: budgetFinAccounts.find(
-          (account) => account.manual_account_id === acc.id,
-        )?.id,
-        transactions: transactionService.parseTransactions(
-          finAccountTransactions.filter((trans) => trans.manual_account_id === acc.id)
-        ),
+        id: acc.id,
+        name: acc.name,
+        type: acc.type,
         institutionId: acc.institution_id,
         balanceCurrent: acc.balance_current,
         isoCurrencyCode: acc.iso_currency_code,
         mask: acc.mask,
+        budgetFinAccountId: budgetFinAccounts.find(
+          (account) => account.manual_account_id === acc.id,
+        )?.id,
+        transactions: transactionService.parseTransactions(
+          acc.fin_account_transactions || []
+        )
       })),
     }));
 

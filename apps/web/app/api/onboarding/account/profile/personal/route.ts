@@ -1,45 +1,42 @@
-import { Database } from '@kit/supabase/database';
+import { enhanceRouteHandler } from '@kit/next/routes';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
-import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
-export async function PUT(request: Request) {
-    const supabase = getSupabaseServerClient();
+const schema = z.object({
+  fullName: z.string().min(1, { message: 'Name is required' }),
+  age: z.number({
+    required_error: 'Age is required',
+    invalid_type_error: 'Age must be a valid number',
+  }).min(5, 'Age must be at least 5').max(120, 'Age must be less than 120'),
+});
 
-    // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+export const PUT = enhanceRouteHandler(
+  async ({ body, user }) => {
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    try {
+      const supabaseAdmin = getSupabaseServerAdminClient();
 
-    const body = await request.json();
-
-    const supabaseAdmin = getSupabaseServerAdminClient();
-
-    const {
-        fullName,
-        age,
-        maritalStatus,
-        dependents
-    } = body;
-
-    if (!fullName || !age || !maritalStatus || typeof dependents !== 'number' || dependents < 0) {
-        return NextResponse.json({ error: 'missing required fields' }, { status: 400 });
-    }
-
-    // Update both profile and account name in a transaction
-    const { data, error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .rpc('update_account_profile', {
-            p_user_id: user.id,
-            p_full_name: fullName,
-            p_age: age,
-            p_marital_status: maritalStatus as Database['public']['Enums']['marital_status_enum'],
-            p_dependents: dependents
+          p_user_id: user.id,
+          p_full_name: body.fullName,
+          p_age: body.age
         });
 
-    if (error) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
-    }
+      if (error) {
+        throw new Error(`Failed to update profile: ${error.message}`);
+      }
 
-    return NextResponse.json({ data });
-}
+      return NextResponse.json({ 
+        message: 'Profile updated successfully',
+        data 
+      });
+    } catch (err: any) {
+      console.error('Profile update failed:', err.message);
+      return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+    }
+  },
+  { schema },
+);

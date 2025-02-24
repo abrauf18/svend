@@ -83,13 +83,13 @@ export interface Category {
 export type ProfileData = {
   fullName: string | null;
   age: string | null;
-  maritalStatus: string | null;
-  dependents: string | null;
-  incomeLevel: string | null;
-  savings: string | null;
-  currentDebt: string[] | null;
+  annualIncome: string | null;
+  savingsLevel: string | null;
+  debtTypes: string[] | null;
   primaryFinancialGoal: string[] | null;
   goalTimeline: string | null;
   monthlyContribution: string | null;
   state: string | null;
+  maritalStatus?: string;
+  dependents?: string;
 }

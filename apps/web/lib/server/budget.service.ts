@@ -111,18 +111,18 @@ class BudgetService {
     const { data, error } = await this.supabase
       .from('budget_goals')
       .upsert({
-        id: goal.id, // Will be undefined for new goals
+        id: goal.id,
         budget_id: goal.budgetId,
-        type: goal.type,
+        type: goal.type as Database['public']['Enums']['budget_goal_type_enum'],
+        subtype: goal.subType as Database['public']['Enums']['budget_goal_subtype_enum'] | null,
         name: goal.name,
         amount: goal.amount,
         fin_account_id: goal.budgetFinAccountId,
         description: goal.description,
         target_date: goal.targetDate,
-        debt_type: goal.debtType as Database['public']['Enums']['debt_type_enum'],
-        debt_payment_component: goal.debtPaymentComponent as Database['public']['Enums']['budget_goal_debt_payment_component_enum'],
-        debt_interest_rate: goal.debtInterestRate,
-        spending_tracking: goalTrackings,
+        debt_payment_component: goal.type === 'debt' ? goal.debtPaymentComponent as Database['public']['Enums']['budget_goal_debt_payment_component_enum'] : null,
+        debt_interest_rate: goal.type === 'debt' ? goal.debtInterestRate : null,
+        spending_tracking: goalTrackings.data,
         spending_recommendations: {}
       })
       .select('*');
@@ -409,7 +409,7 @@ class BudgetService {
    * - Validates amount is positive
    * - Validates target date is a valid date
    */
-  parseBudgetGoal(raw: Database['public']['Tables']['budget_goals']['Row'], budgetFinAccountBalance?: number): BudgetGoal | null {
+  parseBudgetGoal(raw: Database['public']['Tables']['budget_goals']['Row'], budgetFinAccountBalance?: number): BudgetGoal & { subType?: string } | null {
     try {
       // Validate required fields exist
       if (raw.id == null ||
@@ -436,32 +436,56 @@ class BudgetService {
       }
 
       // Validate goal type
-      const validTypes: Database['public']['Enums']['budget_goal_type_enum'][] = ['debt', 'savings', 'investment'];
+      const validTypes: Database['public']['Enums']['budget_goal_type_enum'][] = ['debt', 'savings', 'investment', 'charity'];
       if (!validTypes.includes(raw.type)) {
         console.warn('parseBudgetGoal: Invalid goal type:', raw.type);
         return null;
       }
 
+      // Validate subtypes for each goal type
+      if (raw.type === 'debt') {
+        const validDebtSubtypes = ['loans', 'credit_cards'];
+        if (!raw.subtype || !validDebtSubtypes.includes(raw.subtype)) {
+          console.warn('parseBudgetGoal: Invalid or missing subtype for debt goal:', raw.subtype);
+          return null;
+        }
+      } else if (raw.type === 'savings') {
+        const validSavingsSubtypes = ['emergency_fund', 'house', 'retirement', 'education', 'vacation', 'general']; // Updated list
+        if (!raw.subtype || !validSavingsSubtypes.includes(raw.subtype)) {
+          console.warn('parseBudgetGoal: Invalid or missing subtype for savings goal:', raw.subtype);
+          return null;
+        }
+      } else if (raw.type === 'investment') {
+        // Investment goals don't have subtypes, should be null
+        if (raw.subtype) {
+          console.warn('parseBudgetGoal: Unexpected subtype for investment goal:', raw.subtype);
+          return null;
+        }
+      } else if (raw.type === 'charity') {
+        // Charity goals don't have subtypes, should be null
+        if (raw.subtype) {
+          console.warn('parseBudgetGoal: Unexpected subtype for charity goal:', raw.subtype);
+          return null;
+        }
+      }
+
       // Validate debt-specific fields when type is debt
       if (raw.type === 'debt') {
         if (raw.debt_interest_rate == null ||
-          raw.debt_payment_component == null ||
-          raw.debt_type == null) {
+          raw.debt_payment_component == null) {
           console.warn('parseBudgetGoal: Missing required debt fields:', {
             debt_interest_rate: raw.debt_interest_rate,
-            debt_payment_component: raw.debt_payment_component,
-            debt_type: raw.debt_type
+            debt_payment_component: raw.debt_payment_component
           });
           return null;
         }
       } else {
+        // For non-debt goals (savings, investment, charity), ensure debt fields are null
         if (raw.debt_interest_rate != null ||
-          raw.debt_payment_component != null ||
-          raw.debt_type != null) {
+          raw.debt_payment_component != null) {
           console.warn('parseBudgetGoal: Unexpected debt fields for non-debt goal:', {
             debt_interest_rate: raw.debt_interest_rate,
-            debt_payment_component: raw.debt_payment_component,
-            debt_type: raw.debt_type
+            debt_payment_component: raw.debt_payment_component
           });
           return null;
         }
@@ -480,24 +504,26 @@ class BudgetService {
         return null;
       }
 
-      // return the goal
-      return {
+      const parsedGoal = {
         id: raw.id,
         budgetId: raw.budget_id,
         type: raw.type,
+        subType: raw.subtype ?? undefined,
         name: raw.name,
         amount: raw.amount,
         targetDate: raw.target_date,
+        balance: budgetFinAccountBalance ?? 0,
         budgetFinAccountId: raw.fin_account_id,
         budgetFinAccountBalance: budgetFinAccountBalance ?? undefined,
         debtInterestRate: raw.debt_interest_rate ?? undefined,
         debtPaymentComponent: raw.debt_payment_component ?? undefined,
-        debtType: raw.debt_type ?? undefined,
         createdAt: raw.created_at,
         spendingTracking: raw.spending_tracking as any,
         spendingRecommendations: raw.spending_recommendations as any,
         description: raw.description ?? undefined,
-      } as BudgetGoal;
+      };
+      
+      return parsedGoal;
     } catch (error) {
       console.error('Error parsing budget goal:', error);
       return null;
@@ -682,46 +708,16 @@ class BudgetService {
         result
       );
     }
-    
-    console.log('[Debug] After Plaid collection:', {
-      allTransactionsCount: result.allTransactions.length,
-      samplePlaid: result.allTransactions[0] ? {
-        id: result.allTransactions[0].transaction.id,
-        budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
-        hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
-      } : null
-    });
 
     // Process each manual
     for (const institutionId of manualInstitutionIds) {
-      console.log('[Debug] Before institution processing:', {
-        institutionId,
-        allTransactionsCount: result.allTransactions.length,
-        allTransactionsRef: result.allTransactions
-      });
-
       await this.onboardingAnalysisCollectManualInstitutionTransactions(
         institutionId,
         budgetId,
         result,
         plaidClient
       );
-
-      console.log('[Debug] After institution processing:', {
-        institutionId,
-        allTransactionsCount: result.allTransactions.length,
-        allTransactionsRef: result.allTransactions
-      });
     }
-
-    console.log('[Debug] After manual collection:', {
-      allTransactionsCount: result.allTransactions.length,
-      sampleManual: result.allTransactions[0] ? {
-        id: result.allTransactions[0].transaction.id,
-        budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
-        hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
-      } : null
-    });
 
     return result;
   }
@@ -771,14 +767,9 @@ class BudgetService {
     try {
       // 1. Fetch existing transactions
       const existingTransactions = await this.onboardingAnalysisFetchPlaidItemTransactions(item.svendItemId, budgetId);
-      console.log('[Debug] Fetched existing transactions:', {
-        count: existingTransactions.length,
-        sample: existingTransactions[0]?.fin_account_transactions?.[0]
-      });
 
       // 2. Get Plaid account mappings
       const plaidAccountMappings = this.onboardingAnalysisGetPlaidAccountMappings(existingTransactions);
-      console.log('[Debug] Plaid account mappings:', plaidAccountMappings);
 
       // 3. Process existing transactions
       await this.onboardingAnalysisProcessExistingTransactions(existingTransactions, result);
@@ -982,27 +973,12 @@ class BudgetService {
       });
 
       // 4. Process existing transactions
-      console.log('[Debug] About to call ProcessExistingTransactions:', {
-        manualAccountsLength: manualAccounts.length,
-        resultRef: result
-      });
-
       try {
         await this.onboardingAnalysisProcessExistingTransactions(manualAccounts, result);
-
-        console.log('[Debug] Successfully returned from ProcessExistingTransactions:', {
-          allTransactionsCount: result.allTransactions.length,
-          resultRef: result
-        });
       } catch (error) {
         console.error('[Error] Failed in or after ProcessExistingTransactions:', error);
         throw error;
       }
-
-      // Add debug log to watch allTransactions
-      console.log('[Debug] One step later:', {
-        allTransactionsCount: result.allTransactions.length
-      });
 
       // 5. Process recurring patterns
       const recurringTransactions = await this.transactionService.processManualRecurringTransactions([
@@ -1028,16 +1004,6 @@ class BudgetService {
           budgetAttachmentsStorageNames: []
         }))
       ]);
-
-      console.log('[Debug] After processManualRecurringTransactions:', {
-        allTransactionsCount: result.allTransactions.length,
-        recurringCount: recurringTransactions.length,
-        sample: result.allTransactions[0] ? {
-          id: result.allTransactions[0].transaction.id,
-          budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
-          hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
-        } : null
-      });
 
       // 6. Add recurring transactions to result
       for (const recurring of recurringTransactions) {
@@ -1169,15 +1135,6 @@ class BudgetService {
     dbExistingTransactions: any[],
     result: OnboardingAnalysisTransactionCollection
   ) {
-    console.log('[Debug] Processing existing transactions:', {
-      accountsCount: dbExistingTransactions.length,
-      transactionsPerAccount: dbExistingTransactions.map(account => ({
-        accountId: account.id,
-        transactionCount: account.fin_account_transactions?.length || 0,
-        budgetFinAccountId: account.budget_fin_accounts?.[0]?.id
-      }))
-    });
-
     const transactions = dbExistingTransactions
       .flatMap(account => {
         if (!account || !account.fin_account_transactions) {
@@ -1258,34 +1215,12 @@ class BudgetService {
     const { transactions: processedTransactions, error } =
       await this.transactionService.processPlaidCategories(transactions, []);
 
-    console.log('[Debug] After processPlaidCategories:', {
-      originalCount: transactions.length,
-      processedCount: processedTransactions?.length || 0,
-      error: error,
-      allTransactionsCount: result.allTransactions.length  // Add this
-    });
-
     if (error) {
       console.error('Error processing categories:', error);
       result.allTransactions.push(...transactions);
     } else if (processedTransactions) {
       result.allTransactions.push(...processedTransactions);
-      console.log('[Debug] Right after push, before return:', {
-        allTransactionsCount: result.allTransactions.length,
-        isArray: Array.isArray(result.allTransactions),
-        allTransactionsRef: result.allTransactions
-      });
     }
-
-    // Add debug log right after pushing to allTransactions
-    console.log('[Debug] After adding to allTransactions:', {
-      allTransactionsCount: result.allTransactions.length,
-      sampleTransaction: result.allTransactions[0] ? {
-        id: result.allTransactions[0].transaction.id,
-        budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
-        hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
-      } : null
-    });
 
     // Final summary log for manual transactions
     const manualTransactions = result.allTransactions.filter(tx => tx.transaction.manualAccountId);
@@ -1301,17 +1236,6 @@ class BudgetService {
         }))
       });
     }
-
-    // After processing existing transactions
-    console.log('[Debug] After processing existing:', {
-      allTransactionsCount: result.allTransactions.length,
-      sample: result.allTransactions[0] ? {
-        id: result.allTransactions[0].transaction.id,
-        budgetFinAccountId: result.allTransactions[0].budgetFinAccountId,
-        hasEnrichment: !!(result.allTransactions[0].transaction.plaidDetailedCategory)
-      } : null,
-      resultKeys: Object.keys(result)
-    });
   }
 
   /**
@@ -1384,15 +1308,6 @@ class BudgetService {
         return null;
       })
       .filter(Boolean);
-
-    console.log('[Debug] Processed recurring transactions:', {
-      allRecurringTransactions: result.allRecurringTransactions.length,
-      newUnlinkedRecurringTransactions: result.newUnlinkedRecurringTransactions.length,
-      sample: {
-        linked: result.allRecurringTransactions[0]?.transaction?.id,
-        unlinked: result.newUnlinkedRecurringTransactions[0]?.id
-      }
-    });
   }
 
   /**
@@ -1827,28 +1742,16 @@ class BudgetService {
 
       // Process regular transactions
       const processedTransactions = mapBudgetTransactionCategories(transactionData.allTransactions);
-      console.log('[Debug] After category mapping:', {
-        sampleTx: processedTransactions[0]?.transaction?.id,
-        totalTxs: processedTransactions.length
-      });
 
       // Only sort if we have new processed transactions
       if (processedTransactions?.length > 0) {
         transactionData.allTransactions = sortTransactionsByDate(processedTransactions);
       }
-      console.log('[Debug] After sorting:', {
-        sampleTx: transactionData.allTransactions[0]?.transaction?.id,
-        totalTxs: transactionData.allTransactions.length
-      });
 
       // Process new transactions
       transactionData.newTransactions = sortTransactionsByDate(
         mapBudgetTransactionCategories(transactionData.newTransactions)
       );
-      console.log('[Debug] After new transactions:', {
-        sampleTx: transactionData.newTransactions[0]?.transaction?.id,
-        totalTxs: transactionData.newTransactions.length
-      });
 
       // Process unlinked transactions
       transactionData.newUnlinkedTransactions = mapUnlinkedTransactionCategories(
@@ -1985,20 +1888,6 @@ class BudgetService {
     plaidItems: PlaidConnectionItemSummary[]
   ): Promise<void> {
     try {
-      console.log('[Debug] PersistData received:', {
-        allTransactionsCount: transactionData.allTransactions.length,
-        sampleAllTx: transactionData.allTransactions[0] ? {
-          id: transactionData.allTransactions[0].transaction.id,
-          budgetFinAccountId: transactionData.allTransactions[0].budgetFinAccountId,
-          hasEnrichment: !!(transactionData.allTransactions[0].transaction.plaidDetailedCategory)
-        } : null
-      });
-
-      console.log('[Debug] Before save:', {
-        sampleNewTx: transactionData.newTransactions[0]?.transaction,
-        sampleAllTx: transactionData.allTransactions[0]?.transaction
-      });
-
       // Step 1: Save new transactions
       const { error: saveError } = await this.onboardingAnalysisSaveTransactions(
         transactionData,
@@ -2035,26 +1924,8 @@ class BudgetService {
     budgetId: string
   ): Promise<{ error?: string }> {
     try {
-      console.log('[Debug] Saving transactions:', {
-        newTransactions: transactionData.newTransactions.slice(0, 3).map(tx => ({
-          id: tx.transaction.id,
-          userTxId: tx.transaction.userTxId,
-          plaidTxId: tx.transaction.plaidTxId
-        })),
-        newRecurringTransactions: transactionData.newRecurringTransactions.slice(0, 3).map(tx => ({
-          id: tx.transaction.id,
-          userTxId: tx.transaction.userTxId,
-          plaidTxId: tx.transaction.plaidTxId
-        }))
-      });
-
       // First, save all regular transactions (both budget and unlinked)
       console.warn(`budget service > onboarding analysis > persisting ${transactionData.newTransactions.length} budget transactions and ${transactionData.newUnlinkedTransactions.length} unlinked transactions..`);
-
-      console.log('[Debug] About to save:', {
-        sampleTransaction: transactionData.newUnlinkedTransactions[0],
-        totalToSave: transactionData.newUnlinkedTransactions.length
-      });
 
       // Save regular transactions first
       if (transactionData.allTransactions.length > 0) {
@@ -2064,24 +1935,8 @@ class BudgetService {
         );
         if (saveTxError) return { error: saveTxError };
       }
-
-      // Save unlinked transactions
-      console.log('[Debug] Unlinked transactions to save:', {
-        count: transactionData.newUnlinkedTransactions.length,
-        sample: transactionData.newUnlinkedTransactions.slice(0, 2).map(tx => ({
-          id: tx.id,
-          plaidTxId: tx.plaidTxId,
-          userTxId: tx.userTxId,
-          date: tx.date
-        }))
-      });
       
       if (transactionData.existingUnlinkedTransactions.length > 0) {
-        console.log('[Debug] About to save:', {
-          sampleTransaction: transactionData.newUnlinkedTransactions[0],
-          totalToSave: transactionData.newUnlinkedTransactions.length
-        });
-
         const { error } = await this.transactionService.saveTransactions(
           transactionData.existingUnlinkedTransactions.map(tx => ({
             id: tx.id,
@@ -2126,21 +1981,6 @@ class BudgetService {
         )
       ];
 
-      console.log('[Debug] Transaction IDs:', {
-        plaidIds: plaidTxIds,
-        manualIds: manualTxIds,
-        recurringTransactions: transactionData.newRecurringTransactions.map(rt => ({
-          isManual: !!rt.transaction.manualAccountId,
-          details: rt.transaction.manualAccountId ? {
-            id: rt.transaction.id,
-            finAccountTransactionIds: rt.transaction.finAccountTransactionIds
-          } : {
-            plaidTxId: rt.transaction.plaidTxId,
-            finAccountTransactionIds: rt.transaction.finAccountTransactionIds
-          }
-        }))
-      });
-
       // Query database for both Plaid and manual transaction IDs
       const { data: dbTransactions, error: queryError } = await this.supabase
         .from('fin_account_transactions')
@@ -2162,14 +2002,6 @@ class BudgetService {
       // Then map database IDs to themselves
       dbTransactions?.forEach(tx => {
         txToDbIdMap.set(tx.id, tx.id);
-      });
-
-      console.log('[Debug] ID Mapping:', {
-        plaidMappings: dbTransactions?.filter(tx => tx.plaid_tx_id).map(tx => ({ 
-          plaidId: tx.plaid_tx_id, 
-          dbId: tx.id 
-        })),
-        totalMappings: txToDbIdMap.size
       });
 
       transactionData.newRecurringTransactions = transactionData.newRecurringTransactions.map(rt => {
@@ -2255,18 +2087,6 @@ class BudgetService {
           ...rt,
           finAccountTransactionIds
         };
-      });
-
-      // Now save recurring transactions with the mapped IDs
-      console.log('[Debug] Before saving recurring transactions:', {
-        newRecurringCount: transactionData.newRecurringTransactions.length,
-        unlinkedRecurringCount: transactionData.newUnlinkedRecurringTransactions.length,
-        sampleUnlinked: transactionData.newUnlinkedRecurringTransactions[0] ? {
-          userTxId: transactionData.newUnlinkedRecurringTransactions[0].userTxId,
-          finAccountTransactionIds: transactionData.newUnlinkedRecurringTransactions[0].finAccountTransactionIds,
-          svendCategoryId: transactionData.newUnlinkedRecurringTransactions[0].svendCategoryId,
-          isManual: !!transactionData.newUnlinkedRecurringTransactions[0].manualAccountId
-        } : null
       });
 
       // Then merge recurring transactions

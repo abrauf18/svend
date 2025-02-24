@@ -11,6 +11,7 @@ import { ManualTab } from './tabs/manual/manual-tab';
 import { AccountOnboardingStepContextKey } from '~/lib/model/onboarding.types';
 import { FinAccount } from '~/lib/model/fin.types';
 import { AccountOnboardingState } from '~/lib/model/onboarding.types';
+import { toast } from 'sonner';
 
 function OnboardingStep1ConnectPlaidAccounts() {
   const [loadingPlaidOAuth, setLoadingPlaidOAuth] = useState(false);
@@ -26,10 +27,9 @@ function OnboardingStep1ConnectPlaidAccounts() {
     accountNextStep,
     accountSetStepContext,
     accountBudgetSetLinkedFinAccounts,
+    accountSetPlaidItemTransactions,
     state
   } = useOnboardingContext();
-
-  const updateContextKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const manualAccountsWithTransactions = state?.account.manualInstitutions?.flatMap(
@@ -37,6 +37,7 @@ function OnboardingStep1ConnectPlaidAccounts() {
         account => account.budgetFinAccountId && account.transactions?.length > 0
       )
     ) ?? [];
+
     setManualLinkedCount(manualAccountsWithTransactions.length);
     setIsManualValid(manualAccountsWithTransactions.length > 0);
 
@@ -63,12 +64,21 @@ function OnboardingStep1ConnectPlaidAccounts() {
   }, [isPlaidValid, isManualValid]);
 
   useEffect(() => {
-    // Don't update context until state is fully loaded
-    if (!state?.account || state.account.contextKey === undefined) {
+    // Don't update context until state is fully loaded and validation is complete
+    if (!state?.account || state.account.contextKey === undefined || manualLinkedCount === undefined) {
       return;
     }
 
-    // Only update if we need to change the context
+    // Skip updates if we're transitioning to next step
+    if (state.account.contextKey === 'profile_goals') {
+      return;
+    }
+
+    // Don't update context until selectedTab is initialized
+    if (selectedTab === undefined) {
+      return;
+    }
+
     const currentContextKey = state.account.contextKey;
     let newContextKey = currentContextKey;
 
@@ -77,16 +87,22 @@ function OnboardingStep1ConnectPlaidAccounts() {
     } else if (!isPlaidValid && isManualValid && currentContextKey !== 'manual') {
       newContextKey = 'manual';
     } else if (isPlaidValid && isManualValid && currentContextKey !== selectedTab) {
+      // Case 3: Both are valid, use selected tab
       newContextKey = selectedTab!;
     } else if (!isPlaidValid && !isManualValid && currentContextKey !== 'start') {
+      // Case 4: Neither is valid
       newContextKey = 'start';
     }
 
-    // Only make the API call if we actually need to change the context
-    if (newContextKey !== currentContextKey) {
-      void updateContextKey(newContextKey, [currentContextKey, newContextKey]);
-    }
-  }, [isPlaidValid, isManualValid, selectedTab, state?.account]);
+    // Add debounce to prevent rapid updates
+    const timeoutId = setTimeout(() => {
+      if (newContextKey !== currentContextKey) {
+        void updateContextKey(newContextKey, [currentContextKey, newContextKey]);
+      }
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [state?.account, isPlaidValid, isManualValid, selectedTab, manualLinkedCount]);
 
   useEffect(() => {
     if (!state.account) return;
@@ -99,13 +115,6 @@ function OnboardingStep1ConnectPlaidAccounts() {
     if (state.account.contextKey === contextKey) {
       return;
     }
-
-    // Skip if we're already processing this context key
-    if (updateContextKeyRef.current === contextKey) {
-      return;
-    }
-
-    updateContextKeyRef.current = contextKey;
 
     try {
       const response = await fetch('/api/onboarding/account/state', {
@@ -125,12 +134,12 @@ function OnboardingStep1ConnectPlaidAccounts() {
         return;
       }
 
-      // Only update context after successful DB update
-      accountSetStepContext(contextKey as AccountOnboardingStepContextKey);
+      // If API call succeeded, update client state with the context key unless proceeding to next step
+      if (contextKey !== 'profile_goals') {
+        accountSetStepContext(contextKey as AccountOnboardingStepContextKey);
+      }
     } catch (error) {
       console.error('Error updating context:', error);
-    } finally {
-      updateContextKeyRef.current = null;
     }
   }
 
@@ -214,25 +223,74 @@ function OnboardingStep1ConnectPlaidAccounts() {
     }
   }
 
+  async function syncPlaidTransactions(state: AccountOnboardingState) {
+    if (!state?.plaidConnectionItems?.length) return;
+
+    try {
+      const response = await fetch('/api/onboarding/account/plaid/transactions', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to sync Plaid transactions');
+      }
+
+      const result = await response.json();
+      
+      accountSetPlaidItemTransactions(result.newTransactions || []);
+    } catch (error) {
+      console.error('Error syncing Plaid transactions:', error);
+      throw error; // Re-throw the error so Promise.allSettled can catch it
+    }
+  }
+
   async function handleNext() {
     if (!state.account.budget.id) return;
 
-    try {
-      // First sync any manual transactions if needed
-      await syncManualTransactions(state.account);
-    } catch (error) {
-      console.error('Error syncing transactions:', error);
-    }
+    setIsNavigating(true);
 
     try {
+      // Track which syncs need to run
+      const needsManualSync = state.account.manualInstitutions?.some(
+        inst => inst.accounts.some(acc => acc.budgetFinAccountId)
+      ) ?? false;
+      
+      const needsPlaidSync = state.account.plaidConnectionItems?.length ?? 0 > 0;
+
+      // Run syncs in parallel if needed
+      const syncResults = await Promise.allSettled([
+        needsManualSync ? syncManualTransactions(state.account) : Promise.resolve(),
+        needsPlaidSync ? syncPlaidTransactions(state.account) : Promise.resolve()
+      ]);
+
+      // Check for failures in syncs that were attempted
+      const syncFailures = syncResults.map((result, index) => {
+        if (result.status === 'rejected') {
+          return index === 0 ? 'manual' : 'plaid';
+        }
+        return null;
+      }).filter(Boolean);
+
+      if (syncFailures.length > 0) {
+        console.error('Sync failures:', syncFailures);
+        toast.error(`Failed to sync ${syncFailures.join(' and ')} transactions. Please try again.`);
+        setIsNavigating(false);
+        return;
+      }
+
       await updateContextKey('profile_goals', [state.account.contextKey as string, 'profile_goals']);
-    } catch (error) {
-      console.error('Error updating context:', error);
-      setIsNavigating(false);
-      return;
-    }
 
-    accountNextStep();
+      // Only proceed if all required syncs succeeded
+      accountNextStep();
+    } catch (error) {
+      console.error('Error in handleNext:', error);
+      toast.error('An unexpected error occurred. Please try again.');
+      setIsNavigating(false);
+    }
   }
 
   return (

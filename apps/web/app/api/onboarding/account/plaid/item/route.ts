@@ -104,7 +104,33 @@ export async function POST(request: Request) {
       }
     }
 
-    // Insert the Plaid connection item into the database and return the id
+    // Get accounts associated with the item with retry
+    let plaidItemAccountsResponse;
+    const maxRetries = 3;
+    const retryDelay = 5000; // 5 seconds
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      plaidItemAccountsResponse = await plaidClient.accountsGet({
+        access_token: accessToken,
+      });
+
+      if (plaidItemAccountsResponse.data.accounts.length > 0) {
+        break;
+      }
+
+      console.warn(`onboarding: No Plaid accounts found, attempt ${attempt} of ${maxRetries}`);
+      
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+
+    if (!plaidItemAccountsResponse?.data.accounts.length) {
+      console.error('onboarding: Failed to get Plaid accounts after retries');
+      return NextResponse.json({ error: 'No accounts found for this institution' }, { status: 400 });
+    }
+
+    // Only insert after confirming we have accounts
     const { data: insertedData, error } = await supabaseAdminClient
       .from('plaid_connection_items')
       .insert({
@@ -113,7 +139,7 @@ export async function POST(request: Request) {
         plaid_item_id: plaidItemId,
         institution_id: institutionId,
         institution_name: institutionName,
-        institution_logo_storage_name: institutionLogoStorageName || null, // Use null if not set
+        institution_logo_storage_name: institutionLogoStorageName || null,
       })
       .select('id')
       .single();
@@ -124,16 +150,6 @@ export async function POST(request: Request) {
     }
 
     const newPlaidConnectionSvendItemId = insertedData?.id;
-
-    if (error) {
-      console.error('Error storing Plaid connection:', error);
-      return NextResponse.json({ error: 'Failed to store Plaid connection' }, { status: 500 });
-    }
-
-    // Get accounts associated with the item
-    const plaidItemAccountsResponse = await plaidClient.accountsGet({
-      access_token: accessToken,
-    });
 
     // Insert the accounts into the database using add_budget_plaid_account function
     const accountInsertResults = await Promise.all(plaidItemAccountsResponse.data.accounts.map(async (plaidAccount) => {
@@ -234,7 +250,8 @@ export async function POST(request: Request) {
       institutionLogoSignedUrl: data?.signedUrl || '',
       itemAccounts: resPlaidItemAccounts.map((account) => ({
         ...account,
-        budgetFinAccountId: account.budgetFinAccountId
+        budgetFinAccountId: account.budgetFinAccountId,
+        transactions: []  // Add empty transactions array
       }))
     };
 

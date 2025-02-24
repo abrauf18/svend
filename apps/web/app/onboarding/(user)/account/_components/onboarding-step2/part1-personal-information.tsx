@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { toast } from 'sonner';
 
 import {
   Form,
@@ -13,20 +14,9 @@ import {
   FormMessage,
 } from '@kit/ui/form';
 import { Input } from '@kit/ui/input';
-import { RadioGroup, RadioGroupItem } from '@kit/ui/radio-group';
 import { Trans } from '@kit/ui/trans';
-import { cn } from '@kit/ui/utils';
 import { useOnboardingContext } from '@kit/accounts/components';
 import { ProfileData } from '~/lib/model/fin.types';
-
-const maritalStatusOptions = ['single', 'married', 'marriedWithKids', 'other'];
-const maritalStatusOptionsServer = [
-  'Single',
-  'Married',
-  'Married with Kids',
-  'Other',
-];
-const dependents = ['yes', 'no'];
 
 // Zod Schema
 const FormSchema = z.object({
@@ -34,16 +24,10 @@ const FormSchema = z.object({
   age: z
     .string()
     .min(1, 'Age is required.')
-    .refine((val) => !isNaN(Number(val)), 'Age must be a valid number.'),
-  maritalStatus: z
-    .enum(maritalStatusOptions as [string, ...string[]])
-    .refine((val) => val !== '', 'Marital Status is required.')
-    .transform(
-      (val) => maritalStatusOptionsServer[maritalStatusOptions.indexOf(val)],
-    ),
-  dependent: z
-    .enum(dependents as [string, ...string[]])
-    .refine((val) => val !== '', 'Dependent is required.'),
+    .refine((val) => {
+      const num = parseInt(val);
+      return !isNaN(num) && num >= 5 && num <= 120;
+    }, 'Age must be between 5 and 120.')
 });
 
 export function PersonalInformation(props: {
@@ -58,8 +42,6 @@ export function PersonalInformation(props: {
     defaultValues: {
       name: '',
       age: '',
-      maritalStatus: '',
-      dependent: '',
     },
     mode: 'onChange',
   });
@@ -94,8 +76,6 @@ export function PersonalInformation(props: {
       reset({
         name: props.initialData.fullName || '',
         age: props.initialData.age || '',
-        maritalStatus: mapMaritalStatus(props.initialData.maritalStatus) || '',
-        dependent: props.initialData.dependents ? (props.initialData.dependents === '1' ? 'yes' : 'no') : ''
       });
     }
   }, [props.initialData]);
@@ -110,14 +90,16 @@ export function PersonalInformation(props: {
       if (form.formState.isValid) {
         try {
           const data = form.getValues();
-          await serverSubmit(data);
+          const success = await serverSubmit(data);
+
+          if (!success) {
+            return false;
+          }
 
           accountProfileDataUpdate({
             ...state.account.profileData,
-            fullName: data.name,
+            name: data.name,
             age: data.age,
-            maritalStatus: data.maritalStatus || null,
-            dependents: data.dependent === 'yes' ? '1' : '0'
           } as ProfileData);
 
           return true;
@@ -130,9 +112,7 @@ export function PersonalInformation(props: {
     });
   }, [form]);
 
-  const serverSubmit = async (
-    data: z.infer<typeof FormSchema>,
-  ): Promise<boolean> => {
+  const serverSubmit = async (data: z.infer<typeof FormSchema>): Promise<boolean> => {
     try {
       const response = await fetch('/api/onboarding/account/profile/personal', {
         method: 'PUT',
@@ -141,27 +121,27 @@ export function PersonalInformation(props: {
         },
         body: JSON.stringify({
           fullName: data.name,
-          age: Number(data.age),
-          maritalStatus:
-            maritalStatusOptionsServer[
-              maritalStatusOptions.indexOf(data.maritalStatus as string)
-            ],
-          dependents: data.dependent === 'yes' ? 1 : 0,
+          age: parseInt(data.age),
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          'Error updating financial profile - personal info: ' + errorData.error,
-        );
+        throw new Error('Failed to update profile');
       }
-    } catch (error: any) {
-      console.error(error);
-      throw error;
+
+      // Only update local state if the API call was successful
+      accountProfileDataUpdate({
+        ...state.account.profileData,
+        name: data.name,
+        age: data.age,
+      } as ProfileData);
+
+      return true;
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to save information. Please try again later.');
+      return false;
     }
-    
-    return true;
   };
 
   return (
@@ -170,28 +150,20 @@ export function PersonalInformation(props: {
         <Trans i18nKey={'onboarding:personalInformationTitle'} />
       </h3>
       <Form {...form}>
-        <form className={'flex flex-col space-y-4'}>
-          <div className={'flex flex-col space-y-4'}>
+        <form className={'flex flex-col space-y-8'}>
+          <div className={'flex flex-col space-y-8'}>
             {/* Name Field */}
-            <div className="w-2/5">
+            <div className={'w-2/5'}>
               <FormField
                 control={form.control}
-                name={'name'}
+                name="name"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      <Trans
-                        i18nKey={'onboarding:personalInformationNameLabel'}
-                      />
+                      <Trans i18nKey={'onboarding:personalInformationNameLabel'} />
                     </FormLabel>
                     <FormControl>
-                      <Input
-                        data-test={'personal-information-form-name-input'}
-                        required
-                        type={'text'}
-                        {...field}
-                        ref={nameInputRef}
-                      />
+                      <Input {...field} ref={nameInputRef} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -200,144 +172,29 @@ export function PersonalInformation(props: {
             </div>
 
             {/* Age Field */}
-            <div className="w-2/5">
+            <div className={'w-2/5'}>
               <FormField
                 control={form.control}
-                name={'age'}
+                name="age"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      <Trans
-                        i18nKey={'onboarding:personalInformationAgeLabel'}
+                      <Trans i18nKey={'onboarding:personalInformationAgeLabel'} />
+                    </FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={3}
+                        className="w-24"
+                        onChange={(e) => {
+                          // Only allow numeric input
+                          const value = e.target.value.replace(/[^0-9]/g, '');
+                          field.onChange(value);
+                        }}
                       />
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        data-test={'personal-information-form-age-input'}
-                        required
-                        type={'text'}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Marital Status Radio Group */}
-            <div className="w-full">
-              <FormField
-                control={form.control}
-                name={'maritalStatus'}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      <Trans i18nKey={'onboarding:maritalStatus.label'} />
-                    </FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        name={field.name}
-                        value={field.value}
-                        onValueChange={(value) =>
-                          setValue('maritalStatus', value, {
-                            shouldValidate: true,
-                            shouldDirty: true,
-                          })
-                        }
-                      >
-                        <div className={'flex space-x-2.5'}>
-                          {maritalStatusOptions.map((option) => (
-                            <label
-                              htmlFor={option}
-                              key={option}
-                              className={cn(
-                                'flex items-center space-x-2 rounded-md border border-transparent px-4 py-2 transition-colors',
-                                {
-                                  ['border-primary']: field.value === option,
-                                  ['hover:border-primary']:
-                                    field.value !== option,
-                                },
-                              )}
-                            >
-                              <RadioGroupItem
-                                id={option}
-                                value={option}
-                                checked={field.value === option}
-                              />
-                              <span
-                                className={cn('text-sm', {
-                                  ['cursor-pointer']: field.value !== option,
-                                })}
-                              >
-                                <Trans
-                                  i18nKey={`onboarding:maritalStatus.${option}`}
-                                />
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Dependent Radio Group */}
-            <div className="w-full">
-              <FormField
-                control={form.control}
-                name={'dependent'}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      <Trans i18nKey={'onboarding:dependents.label'} />
-                    </FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        name={field.name}
-                        value={field.value}
-                        onValueChange={(value) =>
-                          setValue('dependent', value, {
-                            shouldValidate: true,
-                            shouldDirty: true,
-                          })
-                        }
-                      >
-                        <div className={'flex space-x-2.5'}>
-                          {dependents.map((option) => (
-                            <label
-                              htmlFor={option}
-                              key={option}
-                              className={cn(
-                                'flex items-center space-x-2 rounded-md border border-transparent px-4 py-2 transition-colors',
-                                {
-                                  ['border-primary']: field.value === option,
-                                  ['hover:border-primary']:
-                                    field.value !== option,
-                                },
-                              )}
-                            >
-                              <RadioGroupItem
-                                id={option}
-                                value={option}
-                                checked={field.value === option}
-                              />
-                              <span
-                                className={cn('text-sm', {
-                                  ['cursor-pointer']: field.value !== option,
-                                })}
-                              >
-                                <Trans
-                                  i18nKey={`onboarding:dependents.${option}`}
-                                />
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </RadioGroup>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
