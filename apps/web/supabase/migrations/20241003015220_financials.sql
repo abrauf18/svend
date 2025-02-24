@@ -1,41 +1,22 @@
 -- ============================================================
 -- Create enums
 -- ============================================================
-create type marital_status_enum as enum ('Single', 'Married', 'Married with Kids', 'Other');
-create type income_level_enum as enum ('Less than $25,000', '$25,000 - $50,000', '$50,000 - $75,000', '$75,000 - $100,000', 'More than $100,000');
-create type savings_enum as enum ('Less than $1,000', '$1,000 - $5,000', '$5,000 - $10,000', '$10,000 - $25,000', 'More than $25,000');
-create type debt_type_enum as enum ('Credit Cards', 'Student Loans', 'Personal Loans', 'Mortgage', 'Auto Loans', 'Business Loans', 'Other');
-create type financial_goal_enum as enum (
-    'Debt - Loans',
-    'Debt - Credit Cards',
-    'Save - Build an emergency fund',
-    'Save - Save for a house',
-    'Save - Save for retirement',
-    'Save - Save for children''s education',
-    'Save - Save for vacation or a large purchase',
-    'Invest in stocks or bonds',
-    'Donate to charity or tithe regularly',
-    'Manage your money better'
-);
-
-create type goal_timeline_enum as enum (
-    '6 months',
-    '1 year',
-    '3 years',
-    '5 years or more'
-);
-
-create type monthly_contribution_enum as enum (
-    'Less than $100',
-    '$100 - $250',
-    '$250 - $500',
-    '$500 - $1,000',
-    'More than $1,000'
-);
-
 create type fin_profile_state_enum as enum ('florida', 'california');
+
 create type budget_goal_debt_payment_component_enum as enum ('principal', 'interest', 'principal_interest');
-create type budget_goal_type_enum as enum ('debt', 'savings', 'investment');
+create type budget_goal_type_enum as enum ('debt', 'savings', 'investment', 'charity');
+create type budget_goal_subtype_enum as enum (
+    -- Save subtypes
+    'emergency_fund',
+    'house',
+    'retirement',
+    'education',
+    'vacation',
+    'general',
+    -- Debt subtypes
+    'loans',
+    'credit_cards'
+);
 
 -- Create new fin account type enum (before the table definitions)
 create type fin_account_type_enum as enum (
@@ -84,16 +65,8 @@ create table if not exists public.acct_fin_profile (
   account_id uuid references public.accounts(id) not null unique,
   full_name text,
   age integer,
-  marital_status marital_status_enum,
-  marital_status_other text,
-  dependents integer,
-  income_level income_level_enum,
-  current_debt debt_type_enum[],
-  current_debt_other text,
-  savings savings_enum,
-  primary_financial_goals financial_goal_enum[], 
-  goal_timeline goal_timeline_enum,          
-  monthly_contribution monthly_contribution_enum, 
+  annual_income integer,
+  savings integer,
   state fin_profile_state_enum,
   created_at timestamp with time zone default current_timestamp,
   updated_at timestamp with time zone default current_timestamp,
@@ -126,18 +99,14 @@ create policy read_acct_fin_profile
 create or replace function update_account_profile(
     p_user_id uuid,
     p_full_name text,
-    p_age int,
-    p_marital_status marital_status_enum,
-    p_dependents int
+    p_age int
 ) returns void as $$
 begin
     -- Update the financial profile
     update acct_fin_profile
     set 
         full_name = p_full_name,
-        age = p_age,
-        marital_status = p_marital_status,
-        dependents = p_dependents
+        age = p_age
     where account_id = p_user_id;
 
     -- Update the account name
@@ -147,7 +116,7 @@ begin
 end;
 $$ language plpgsql;
 
-grant execute on function update_account_profile(uuid, text, int, marital_status_enum, int) to service_role;
+grant execute on function update_account_profile(uuid, text, int) to service_role;
 
 -- ============================================================
 -- plaid_connection_items table
@@ -482,6 +451,7 @@ BEGIN
                         'createdAt', bg.created_at,
                         'budgetId', bg.budget_id,
                         'type', bg.type,
+                        'subType', bg.subtype,  -- Changed from 'debtType' to 'subType'
                         'name', bg.name,
                         'amount', bg.amount,
                         'budgetFinAccountId', bg.fin_account_id,
@@ -490,7 +460,6 @@ BEGIN
                         'spendingRecommendations', bg.spending_recommendations,
                         'debtInterestRate', bg.debt_interest_rate,
                         'debtPaymentComponent', bg.debt_payment_component,
-                        'debtType', bg.debt_type,
                         'description', bg.description
                     )
                 ),
@@ -518,6 +487,7 @@ RETURNS TABLE (
     id UUID,
     user_tx_id varchar(100),
     plaid_tx_id varchar(100),
+    tx_status transaction_status_enum,
     date DATE,
     amount NUMERIC,
     iso_currency_code TEXT,
@@ -562,6 +532,7 @@ RETURNS TABLE (
     id UUID,
     user_tx_id varchar(100),
     plaid_tx_id varchar(100),
+    tx_status transaction_status_enum,
     date DATE,
     amount NUMERIC,
     iso_currency_code TEXT,
@@ -584,6 +555,7 @@ BEGIN
         fat.id,
         fat.user_tx_id,
         fat.plaid_tx_id,
+        fat.tx_status,
         fat.date,
         fat.amount,
         fat.iso_currency_code::TEXT,
@@ -647,6 +619,7 @@ BEGIN
         fat.id,
         fat.user_tx_id,
         fat.plaid_tx_id,
+        fat.tx_status,
         fat.date,
         fat.amount,
         fat.iso_currency_code,
@@ -1889,6 +1862,7 @@ create table if not exists public.budget_goals (
   id uuid primary key default uuid_generate_v4(),
   budget_id uuid not null references public.budgets(id) on delete cascade,
   type budget_goal_type_enum not null,
+  subtype budget_goal_subtype_enum,
   spending_tracking jsonb not null default '{}',
   spending_recommendations jsonb not null default '{}',
 
@@ -1899,9 +1873,14 @@ create table if not exists public.budget_goals (
   description text,
 
   -- Debt goal specific fields
-  debt_type debt_type_enum check (NOT (type = 'debt' AND debt_type IS NULL)),
-  debt_payment_component budget_goal_debt_payment_component_enum check (NOT (type = 'debt' AND debt_payment_component IS NULL)),
-  debt_interest_rate decimal(5, 2) check (NOT (type = 'debt' AND debt_interest_rate IS NULL)),
+  debt_payment_component budget_goal_debt_payment_component_enum check (
+    (type = 'debt' AND debt_payment_component IS NOT NULL) OR 
+    (type != 'debt' AND debt_payment_component IS NULL)
+  ),
+  debt_interest_rate decimal(5, 2) check (
+    (type = 'debt' AND debt_interest_rate IS NOT NULL) OR 
+    (type != 'debt' AND debt_interest_rate IS NULL)
+  ),
 
   created_at timestamp with time zone not null default current_timestamp,
   updated_at timestamp with time zone not null default current_timestamp

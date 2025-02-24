@@ -3,7 +3,6 @@ import { cn } from '@kit/ui/utils';
 import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { BudgetGoal } from '~/lib/model/budget.types';
 import { FinAccount } from '~/lib/model/fin.types';
-import { ArrowRight } from "lucide-react";
 import { useState, useEffect } from 'react';
 import { Progress } from '@kit/ui/progress';
 

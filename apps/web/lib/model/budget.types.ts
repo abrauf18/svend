@@ -1,5 +1,5 @@
 import { Database } from '../database.types';
-import { Category, CategoryCompositionData, CategoryGroup, FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from './fin.types';
+import { Category, CategoryGroup, FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from './fin.types';
 
 export type Budget = {
   id: string;
@@ -60,22 +60,28 @@ export type BudgetCategorySpending = {
   isTaxDeductible: boolean;
 }
 
+export type BudgetGoalType = 'savings' | 'debt' | 'investment' | 'charity';
+
 export interface BudgetGoal {
   id: string;
-  createdAt: string;
   budgetId: string;
-  type: 'savings' | 'debt' | 'investment';
+  type: BudgetGoalType;
   name: string;
   amount: number;
+  balance: number;
+  description?: string;
   budgetFinAccountId: string;
   budgetFinAccountBalance?: number;
   targetDate: string;
   spendingRecommendations: BudgetGoalSpendingRecommendations;
   spendingTracking: BudgetGoalSpendingTrackingsByMonth;
-  debtInterestRate?: number;
   debtPaymentComponent?: 'principal' | 'interest' | 'principal_interest';
-  debtType?: string;
-  description?: string;
+  debtInterestRate?: number;
+  // For savings and debt goals only
+  subType?: string;
+  // Common fields
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // The key is the category group name

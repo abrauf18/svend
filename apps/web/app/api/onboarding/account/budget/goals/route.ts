@@ -5,9 +5,30 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { BudgetGoal, BudgetGoalMonthlyTracking, BudgetGoalSpendingRecommendations } from '~/lib/model/budget.types';
 
+const savingsSubTypes = [
+  'emergency_fund',
+  'house',
+  'retirement',
+  'education',
+  'vacation',
+  'general'
+] as const;
+
+const debtSubTypes = [
+  'loans',
+  'credit_cards'
+] as const;
+
 const schema = z.object({
   budgetId: z.string().uuid('Invalid budget ID format'),
-  type: z.string().min(1, 'Type is required'),
+  type: z.enum(['debt', 'savings', 'investment', 'charity'], {
+    required_error: 'Type is required',
+    invalid_type_error: 'Invalid goal type'
+  }),
+  subType: z.union([
+    z.enum(savingsSubTypes),
+    z.enum(debtSubTypes)
+  ]).optional(),
   name: z.string().min(1, 'Name is required'),
   amount: z.number({
     required_error: 'Amount is required',
@@ -21,29 +42,30 @@ const schema = z.object({
   targetDate: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use yyyy-MM-dd format.')
     .refine(
-      (val) => {
-        if (!val) return true;
-        
-        // Get today's date and strip time components
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0]!;
-        
-        // Compare the date strings directly
-        return val > todayStr;  // This will compare YYYY-MM-DD strings
-      },
+      (val) => !val || val > new Date().toISOString().split('T')[0]!,
       'Target date must be in the future.',
     ),
   description: z.string().optional(),
-  debtType: z.string().optional(),
-  debtPaymentComponent: z.string().optional(),
+  debtPaymentComponent: z.enum(['principal', 'interest', 'principal_interest']).optional(),
   debtInterestRate: z.number().optional()
 }).refine((data) => {
   if (data.type === 'debt') {
-    return data.debtType && data.debtPaymentComponent && data.debtInterestRate;
+    return Boolean(
+      data.subType && 
+      debtSubTypes.includes(data.subType as typeof debtSubTypes[number]) &&
+      data.debtPaymentComponent && 
+      data.debtInterestRate
+    );
+  }
+  if (data.type === 'savings') {
+    return Boolean(
+      data.subType && 
+      savingsSubTypes.includes(data.subType as typeof savingsSubTypes[number])
+    );
   }
   return true;
 }, {
-  message: "Debt type goals require debtType, debtPaymentComponent, and debtInterestRate"
+  message: "Missing required fields or invalid subtype for goal type"
 });
 
 // POST /api/onboarding/account/budget/goals
@@ -87,12 +109,12 @@ export const POST = enhanceRouteHandler(
       id: existingGoal?.id,
       budget_id: body.budgetId,
       type: body.type,
+      subtype: (body.type === 'debt' || body.type === 'savings') ? body.subType : null,
       name: body.name,
       amount: Number(body.amount),
       fin_account_id: body.budgetFinAccountId,
       description: body.description,
       target_date: body.targetDate,
-      debt_type: body.debtType,
       debt_payment_component: body.debtPaymentComponent,
       debt_interest_rate: body.debtInterestRate,
       spending_tracking: {
@@ -129,12 +151,13 @@ export const POST = enhanceRouteHandler(
       id: data.id,
       budgetId: data.budget_id,
       type: data.type,
+      subType: data.subtype ?? '',
       name: data.name,
       amount: data.amount,
+      balance: body.balance,
       budgetFinAccountId: data.fin_account_id,
       description: data.description ?? undefined,
       targetDate: data.target_date,
-      debtType: data.debt_type ?? undefined,
       debtPaymentComponent: data.debt_payment_component ?? undefined,
       debtInterestRate: data.debt_interest_rate ?? undefined,
       spendingTracking: {

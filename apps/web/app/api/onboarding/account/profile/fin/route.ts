@@ -1,43 +1,42 @@
+import { enhanceRouteHandler } from '@kit/next/routes';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
-import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
-export async function PUT(request: Request) {
-    const supabase = getSupabaseServerClient();
+const schema = z.object({
+  annualIncome: z.string()
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => !isNaN(val) && val >= 0, 'Must be positive')
+    .refine((val) => val <= 100000000, 'Must be less than $100M'),
+  savings: z.string()
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => !isNaN(val) && val >= 0, 'Must be positive')
+    .refine((val) => val <= 100000000, 'Must be less than $100M'),
+});
 
-    // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+export const PUT = enhanceRouteHandler(
+  async ({ body, user }) => {
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    try {
+      const supabaseAdmin = getSupabaseServerAdminClient();
 
-    const body = await request.json();
-
-    const supabaseAdmin = getSupabaseServerAdminClient();
-
-    const {
-        incomeLevel,
-        savingsLevel,
-        debtTypes
-    } = body;
-
-    if (!incomeLevel || !savingsLevel || !debtTypes) {
-        return NextResponse.json({ error: 'missing required fields' }, { status: 400 });
-    }
-
-    const { data, error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('acct_fin_profile')
         .update({
-            income_level: incomeLevel,
-            savings: savingsLevel,
-            current_debt: debtTypes,
+          annual_income: body.annualIncome,
+          savings: body.savings,
         })
         .eq('account_id', user.id)
         .select();
 
-    if (error) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
-    }
+      if (error) throw new Error(`Failed to update profile: ${error.message}`);
 
-    return NextResponse.json({ data });
-}
+      return NextResponse.json({ message: 'Financial profile updated successfully', data });
+    } catch (err: any) {
+      console.error('Financial profile update failed:', err.message);
+      return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+    }
+  },
+  { schema },
+);

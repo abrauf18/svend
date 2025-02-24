@@ -11,6 +11,7 @@ import React, {
 import {
   Budget,
   BudgetCategoryGroups,
+  BudgetFinAccountTransaction,
   BudgetGoal,
   BudgetSpendingRecommendations,
   BudgetSpendingTrackingsByMonth,
@@ -92,7 +93,7 @@ export type OnboardingContextType = {
   accountManualTransactionDeleteOne: (transactionId: string) => void;
   accountProfileDataUpdate: (profileData: ProfileData) => void;
   accountBudgetUpdate: (budget: Budget) => void;
-  accountBudgetGoalsAddOne: (budgetGoal: BudgetGoal) => void;
+  accountBudgetGoalsUpsertOne: (budgetGoal: BudgetGoal) => void;
   accountChangeStepContextKey: (
     contextKey: AccountOnboardingStepContextKey,
   ) => void;
@@ -102,6 +103,7 @@ export type OnboardingContextType = {
   ) => void;
   accountSetStepContext: (newContextKey: AccountOnboardingStepContextKey) => void;
   accountBudgetSetLinkedFinAccounts: (linkedFinAccounts: FinAccount[]) => void;
+  accountSetPlaidItemTransactions: (transactions: BudgetFinAccountTransaction[]) => void;
 };
 
 export const OnboardingContext = createContext<
@@ -190,63 +192,33 @@ export function OnboardingContextProvider({
   }, [fetchAccountOnboardingState]);
 
   const accountNextStep = async () => {
-    const prevState = state.account;
-    console.log('updating state >> prevState.contextKey', prevState.contextKey);
-    const prevStepIdx = accountOnboardingSteps.findIndex(
-      (step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
-        step.contextKeys.includes(
-          prevState.contextKey as AccountOnboardingStepContextKey,
-        ),
-    );
-    const nextStepIndex = Math.min(
-      prevStepIdx + 1,
-      accountOnboardingStepContextKeys.length - 1,
-    );
-    let newStateAccount = {
-      ...prevState,
-      currentStepIdx: nextStepIndex,
-      contextKey: accountOnboardingSteps[nextStepIndex]?.contextKeys[0],
-    };
+    setState((prevState: OnboardingState) => {
+      const prevStepIdx = accountOnboardingSteps.findIndex(
+        (step: { contextKeys: AccountOnboardingStepContextKey[] }) =>
+          step.contextKeys.includes(
+            prevState.account.contextKey as AccountOnboardingStepContextKey,
+          ),
+      );
+      const nextStepIndex = Math.min(
+        prevStepIdx + 1,
+        accountOnboardingStepContextKeys.length - 1,
+      );
+      let newStateAccount = {
+        ...prevState.account,
+        currentStepIdx: nextStepIndex,
+        contextKey: accountOnboardingSteps[nextStepIndex]?.contextKeys[0],
+      };
 
-    // TODO: remove this as the only call left after goals form is db wired should be transition to 'profile_goals' and this can be handled in the step 1 next button
-    const updateContextKeyInDatabase = async (
-      contextKey: AccountOnboardingStepContextKey,
-    ) => {
-      if (state.account.userId && state.account.contextKey) {
-        const response = await fetch('/api/onboarding/account/state', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contextKey: contextKey,
-          }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          console.error('Error updating context key:', error);
-          throw new Error('Error updating context key:', error);
-        }
+      if (newStateAccount.contextKey == 'manual') {
+        accountNextStep();
+        return prevState;
       }
-    };
 
-    console.log(
-      'updating state >> newState.contextKey',
-      newStateAccount.contextKey,
-    );
-
-    if (newStateAccount.contextKey == 'manual') {
-      // transition to next step
-      accountNextStep();
-      return;
-    }
-
-    // udpate state
-    setState((prevState: OnboardingState) => ({
-      ...prevState,
-      account: newStateAccount,
-    }));
+      return {
+        ...prevState,
+        account: newStateAccount,
+      };
+    });
   };
 
   const accountPrevStep = () => {
@@ -392,23 +364,39 @@ export function OnboardingContextProvider({
         },
       };
 
-      console.log(
-        'onboarding context >> accountBudgetUpdateSpending, newState',
-        newState,
-      );
-
       return newState;
     });
   };
 
-  const accountBudgetGoalsAddOne = (budgetGoal: BudgetGoal) => {
+  const accountBudgetGoalsUpsertOne = (budgetGoal: BudgetGoal) => {
     setState((prevState: OnboardingState) => {
       const existingGoals = prevState.account.budget?.goals || [];
       
-      // Check if goal with same ID already exists
-      if (existingGoals.some(goal => goal.id === budgetGoal.id)) {
-        // If it exists, don't add it again
-        return prevState;
+      console.log("Debug goal update:", {
+        existingGoals,
+        newGoal: budgetGoal,
+        hasSubType: 'subType' in budgetGoal
+      });
+      
+      const existingGoalIndex = existingGoals.findIndex(goal => goal.id === budgetGoal.id);
+
+      if (existingGoalIndex >= 0) {
+        // If it exists, update it
+        const updatedGoals = [...existingGoals];
+        updatedGoals[existingGoalIndex] = {
+          ...updatedGoals[existingGoalIndex],  // Keep existing properties
+          ...budgetGoal,  // Override with new values
+        };
+        return {
+          ...prevState,
+          account: {
+            ...prevState.account,
+            budget: {
+              ...prevState.account.budget,
+              goals: updatedGoals,
+            },
+          },
+        };
       }
 
       // If it's a new goal, add it
@@ -470,10 +458,7 @@ export function OnboardingContextProvider({
   const accountManualInstitutionsAddMany = (
     institutions: AccountOnboardingManualInstitution[],
   ) => {
-    console.log('accountManualInstitutionsAddMany called with:', institutions);
-    
     setState((prevState: OnboardingState) => {
-      console.log('Current state institutions:', prevState.account.manualInstitutions);
       const existingInstitutions = prevState.account.manualInstitutions ?? [];
       
       // Create a map of existing institutions by normalized name+symbol
@@ -872,13 +857,15 @@ export function OnboardingContextProvider({
         return prevState;
       }
 
-      return {
+      const newState = {
         ...prevState,
         account: {
           ...prevState.account,
           contextKey: newContextKey,
         },
       };
+
+      return newState;
     });
   };
 
@@ -902,6 +889,33 @@ export function OnboardingContextProvider({
     });
   };
 
+  const accountSetPlaidItemTransactions = (transactions: BudgetFinAccountTransaction[]) => {
+    setState((prev) => {
+      const newState = {
+        ...prev,
+        account: {
+          ...prev.account,
+          plaidConnectionItems: (prev.account.plaidConnectionItems ?? []).map((item) => {
+            const newItem = {
+              ...item,
+              itemAccounts: item.itemAccounts.map((acc) => {
+                const filteredTransactions = transactions.filter((tx) => 
+                  tx.budgetFinAccountId === acc.budgetFinAccountId
+                );
+                return {
+                  ...acc,
+                  transactions: filteredTransactions
+                };
+              })
+            };
+            return newItem;
+          })
+        }
+      };
+      return newState;
+    });
+  };
+
   return (
     <OnboardingContext.Provider
       value={{
@@ -914,7 +928,7 @@ export function OnboardingContextProvider({
         accountPlaidItemAccountUnlinkOne,
         accountProfileDataUpdate,
         accountBudgetUpdate,
-        accountBudgetGoalsAddOne,
+        accountBudgetGoalsUpsertOne: accountBudgetGoalsUpsertOne,
         accountChangeStepContextKey,
         accountManualInstitutionsAddOne,
         accountManualInstitutionsAddMany,
@@ -932,6 +946,7 @@ export function OnboardingContextProvider({
         accountManualAccountUpdateOne,
         accountSetStepContext,
         accountBudgetSetLinkedFinAccounts,
+        accountSetPlaidItemTransactions,
       }}
     >
       {children}

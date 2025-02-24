@@ -13,6 +13,7 @@ import { createCategoryService } from '~/lib/server/category.service';
 import { createOnboardingService } from '~/lib/server/onboarding.service';
 import manualInstitutionsStateGetter from './_helpers/manual-institutions-state-getter';
 import { FinAccount } from '~/lib/model/fin.types';
+import { createTransactionService } from '~/lib/server/transaction.service';
 
 // GET /api/onboarding/account/state
 // Returns the current onboarding state for the account
@@ -111,6 +112,10 @@ export async function GET(request: Request) {
 
   if (error) return NextResponse.json({ error: error }, { status: 500 });
 
+  // Create services
+  const categoryService = createCategoryService(supabaseAdminClient);
+  const transactionService = createTransactionService(supabaseAdminClient);
+
   // Fetch all Plaid items for the user directly
   const { data: userPlaidItems, error: userPlaidItemsError } = 
     await supabaseAdminClient
@@ -144,6 +149,15 @@ export async function GET(request: Request) {
     }))
   ) || [];
 
+  // Fetch budget transactions via RPC
+  const { data: budgetTransactions, error: budgetTxError } = 
+    await supabaseAdminClient
+      .rpc('get_budget_transactions_within_range_by_budget_id', {
+        p_budget_id: budgetId,
+        p_start_date: null as unknown as string,
+        p_end_date: null as unknown as string
+      });
+
   // Group accounts by their parent item
   const itemsMap = new Map();
   plaidAccounts.forEach((plaidAccount) => {
@@ -158,6 +172,14 @@ export async function GET(request: Request) {
         itemAccounts: [],
       });
     }
+    const accountTransactions = transactionService.parseBudgetTransactions(budgetTransactions || [])
+      .filter(tx => {
+        const budgetFinAccount = budgetFinAccounts.find(
+          acc => acc.id === tx.budgetFinAccountId
+        );
+        return budgetFinAccount?.plaid_account_id === plaidAccount.id;
+      });
+
     itemsMap.get(item.id).itemAccounts.push({
       svendAccountId: plaidAccount.id,
       svendItemId: item.id,
@@ -176,6 +198,7 @@ export async function GET(request: Request) {
         budgetFinAccounts.find(
           (account) => account.plaid_account_id === plaidAccount.id,
         )?.id || null,
+      transactions: accountTransactions,
       createdAt: plaidAccount.created_at,
       updatedAt: plaidAccount.updated_at,
     });
@@ -215,7 +238,6 @@ export async function GET(request: Request) {
     console.error('Error creating signed URLs for institution logos:', error);
   }
 
-  const categoryService = createCategoryService(supabaseAdminClient);
   const svendCategoryGroups =
     await categoryService.getSvendDefaultCategoryGroups();
 
@@ -311,18 +333,9 @@ export async function GET(request: Request) {
   const profileData: any = {
     fullName: acctFinProfile.full_name,
     age: acctFinProfile.age ? acctFinProfile.age.toString() : null,
-    maritalStatus: acctFinProfile.marital_status,
-    dependents:
-      acctFinProfile.dependents !== null
-        ? acctFinProfile.dependents.toString()
-        : null,
-    incomeLevel: acctFinProfile.income_level,
+    annualIncome: acctFinProfile.annual_income,
     savings: acctFinProfile.savings,
-    currentDebt: acctFinProfile.current_debt,
-    primaryFinancialGoals: acctFinProfile.primary_financial_goals,
-    goalTimeline: acctFinProfile.goal_timeline,
-    monthlyContribution: acctFinProfile.monthly_contribution,
-    state: acctFinProfile.state,
+    state: acctFinProfile.state
   };
 
   return NextResponse.json({
