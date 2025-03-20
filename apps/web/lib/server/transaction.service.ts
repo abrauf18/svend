@@ -393,7 +393,7 @@ class TransactionService {
     try {
       // Transform transactions into the expected input format
       const transactionInputs = transactions.map(budgetTransaction => ({
-        budget_fin_account_id: budgetTransaction.budgetFinAccountId!,
+        budget_fin_account_id: budgetTransaction.budgetFinAccountId,
         user_tx_id: budgetTransaction.transaction.userTxId,
         plaid_tx_id: budgetTransaction.transaction.plaidTxId ?? null,
         fin_account_transaction_ids: budgetTransaction.transaction.finAccountTransactionIds,
@@ -619,14 +619,16 @@ class TransactionService {
     }
   }
 
-  async syncPlaidTransactions(budgetId: string, plaidConnectionItems: PlaidConnectionItemSummary[], plaidClient: PlaidApi): Promise<ServiceResult<PlaidSyncTransactionsResponse>> {
+  async syncPlaidTransactions(
+    plaidConnectionItems: PlaidConnectionItemSummary[],
+    plaidClient: PlaidApi
+  ): Promise<ServiceResult<PlaidSyncTransactionsResponse>> {
     try {
       const newTransactions: BudgetFinAccountTransaction[] = [];
+      const newUnlinkedTransactions: FinAccountTransaction[] = [];  // Single array for unlinked
       const recurringTransactions: BudgetFinAccountRecurringTransaction[] = [];
-      const newUnlinkedTransactions: FinAccountTransaction[] = [];
       const recurringUnlinkedTransactions: FinAccountRecurringTransaction[] = [];
       const itemCursors: Record<string, string> = {};
-      const plaidIdUpdates = new Map<string, string>();
       const modifiedTransactions: BudgetFinAccountTransaction[] = [];
 
       // Process each Plaid connection
@@ -648,24 +650,6 @@ class TransactionService {
               .map(tx => [tx.pending_transaction_id, tx])
           );
 
-          const added = new Set(syncResponse.data.added?.map(tx => tx.transaction_id) || []);
-          const removed = new Set(syncResponse.data.removed?.map(tx => tx.transaction_id) || []);
-          const modified = new Set(syncResponse.data.modified?.map(tx => tx.transaction_id) || []);
-          const updates = new Set([...added].filter(id => removed.has(id)));
-
-          // Create array of pending→posted transitions for logging
-          const pendingToPostedTransitions = (syncResponse.data.removed || [])
-            .map(removed => {
-              const postedVersion = pendingToPostedMap.get(removed.transaction_id);
-              return postedVersion ? {
-                removedId: removed.transaction_id,
-                newPostedId: postedVersion.transaction_id,
-                amount: postedVersion.amount,
-                date: postedVersion.date
-              } : null;
-            })
-            .filter(Boolean);
-
           // Track all transaction changes in this sync
           const allTransactionChanges = new Map<string, {
             transaction: any,
@@ -676,7 +660,6 @@ class TransactionService {
           (syncResponse.data.removed || []).forEach(async (removed) => {
             const postedVersion = pendingToPostedMap.get(removed.transaction_id);
             if (postedVersion) {
-              plaidIdUpdates.set(removed.transaction_id, postedVersion.transaction_id);
               // Update existing transaction with new plaid_tx_id and status
               const { error } = await this.supabase
                 .from('fin_account_transactions')
@@ -699,7 +682,7 @@ class TransactionService {
 
           // Skip adding transactions that are posted versions of pending ones we're updating
           (syncResponse.data.added || []).forEach(added => {
-            if (!added.pending_transaction_id || !plaidIdUpdates.has(added.pending_transaction_id)) {
+            if (!added.pending_transaction_id || !allTransactionChanges.has(added.transaction_id)) {
               allTransactionChanges.set(added.transaction_id, {
                 transaction: added,
                 status: 'added'
@@ -707,7 +690,7 @@ class TransactionService {
             }
           });
 
-          // After processing added transactions, add this:
+          // Process modified transactions
           (syncResponse.data.modified || []).forEach(modified => {
             allTransactionChanges.set(modified.transaction_id, {
               transaction: modified,
@@ -715,22 +698,142 @@ class TransactionService {
             });
           });
 
-          // Then update the filter condition to include modified transactions:
+          // Filter and process transactions
           const transactionsToProcess = Array.from(allTransactionChanges.values())
             .filter(change => 
-              // Process both additions and modifications that have categories
               (change.status === 'added' || change.status === 'modified') && 
               change.transaction.personal_finance_category?.detailed
             )
             .map(change => change.transaction);
 
+          // Add initial log for transactions being processed
+          console.log('Processing batch of transactions:', {
+            batchSize: transactionsToProcess.length,
+            sampleTransaction: transactionsToProcess[0] ? {
+              id: transactionsToProcess[0].transaction_id,
+              accountId: transactionsToProcess[0].account_id,
+              amount: transactionsToProcess[0].amount
+            } : null
+          });
+
+          // Handle unlinked transactions first
+          const unlinkedTransactionsToProcess = [];
+          for (const transaction of transactionsToProcess) {
+            const matchingAccount = item.plaidAccounts.find(acc => 
+              acc.plaidAccountId === transaction.account_id
+            );
+
+            if (!matchingAccount || !matchingAccount.budgetFinAccountIds?.length) {
+              const unlinkedTx: FinAccountTransaction = {
+                id: '',
+                plaidTxId: transaction.transaction_id,
+                userTxId: await this.generateUserTxIdFromPlaidTx({
+                  id: '',
+                  plaidTxId: transaction.transaction_id,
+                  date: transaction.date,
+                  amount: transaction.amount,
+                  plaidAccountId: matchingAccount?.svendAccountId // Use svendAccountId here
+                } as FinAccountTransaction),
+                date: transaction.date,
+                amount: Math.round(transaction.amount * 100) / 100,
+                plaidDetailedCategory: transaction.personal_finance_category?.detailed,
+                plaidCategoryConfidence: transaction.personal_finance_category?.confidence_level,
+                plaidAccountId: matchingAccount?.svendAccountId, // Use svendAccountId here
+                merchantName: transaction.merchant_name ?? '',
+                payee: transaction.payment_meta?.payee ?? '',
+                status: transaction.pending ? 'pending' : 'posted',
+                isoCurrencyCode: transaction.iso_currency_code ?? 'USD',
+                plaidRawData: transaction,
+              };
+              unlinkedTransactionsToProcess.push(unlinkedTx);
+              console.log('Adding unlinked transaction:', {
+                plaidAccountId: unlinkedTx.plaidAccountId,
+                plaidTxId: unlinkedTx.plaidTxId,
+                amount: unlinkedTx.amount,
+                reason: !matchingAccount ? 'no_matching_account' : 'no_budget_links'
+              });
+            }
+          }
+
+          // Process unlinked transactions with their own category processor
+          if (unlinkedTransactionsToProcess.length > 0) {
+            console.log('Processing categories for unlinked transactions:', {
+              count: unlinkedTransactionsToProcess.length,
+              sample: unlinkedTransactionsToProcess[0]
+            });
+
+            const { transactions: processedUnlinkedTransactions, error: unlinkedError } = 
+              await this.processPlaidCategoriesUnlinked(unlinkedTransactionsToProcess, []);
+            
+            if (unlinkedError) {
+              console.error('Error processing unlinked transaction categories:', unlinkedError);
+              return { data: null, error: unlinkedError };  // Return early if category processing fails
+            } 
+            
+            if (processedUnlinkedTransactions) {
+              // Verify categories were assigned
+              const missingCategories = processedUnlinkedTransactions.filter(tx => !tx.svendCategoryId);
+              if (missingCategories.length > 0) {
+                console.error('Some transactions still missing categories after processing:', {
+                  count: missingCategories.length,
+                  sample: missingCategories[0]
+                });
+                return { data: null, error: 'Failed to assign categories to some transactions' };
+              }
+
+              console.log('Successfully processed unlinked transactions:', {
+                count: processedUnlinkedTransactions.length,
+                sample: {
+                  plaidTxId: processedUnlinkedTransactions[0]?.plaidTxId,
+                  category: processedUnlinkedTransactions[0]?.svendCategoryId
+                }
+              });
+
+              newUnlinkedTransactions.push(...processedUnlinkedTransactions);
+            }
+          }
+
+          // Filter out unlinked transactions before processing linked ones
+          const linkedTransactionsToProcess = transactionsToProcess.filter(transaction => {
+            const matchingAccount = item.plaidAccounts.find(acc => 
+              acc.plaidAccountId === transaction.account_id
+            );
+            return matchingAccount && matchingAccount.budgetFinAccountIds?.length > 0;
+          });
+
+          // Process linked transactions
           const processedTransactions = await this.processPlaidTransactions(
-            transactionsToProcess,
+            linkedTransactionsToProcess,
             item.plaidAccounts
           );
 
+          // Add log after processing
+          console.log('Processed transactions:', {
+            processedCount: processedTransactions.length,
+            sampleProcessed: processedTransactions[0] ? {
+              plaidAccountId: processedTransactions[0].transaction.plaidAccountId,
+              budgetFinAccountId: processedTransactions[0].budgetFinAccountId
+            } : null
+          });
+
           // Handle the processed transactions
           for (const transaction of processedTransactions) {
+            const account = item.plaidAccounts.find(acc => 
+              acc.svendAccountId === transaction.transaction.plaidAccountId
+            );
+
+            if (!account || !account.budgetFinAccountIds || account.budgetFinAccountIds.length === 0) {
+              continue; // Skip any transactions that somehow got through without proper account links
+            }
+
+            // Add log for linked transactions
+            console.log('Processing linked transaction:', {
+              plaidTxId: transaction.transaction.plaidTxId,
+              budgetFinAccountId: transaction.budgetFinAccountId,
+              changeType: allTransactionChanges.get(transaction.transaction.plaidTxId!)?.status
+            });
+
+            // Handle linked transactions
             if (transaction.budgetFinAccountId) {
               const changeType = allTransactionChanges.get(transaction.transaction.plaidTxId!)?.status;
               if (changeType === 'modified') {
@@ -738,12 +841,6 @@ class TransactionService {
               } else {
                 newTransactions.push(transaction);
               }
-            } else {
-              const unlinkedTx: FinAccountTransaction = {
-                ...transaction.transaction,
-                svendCategoryId: transaction.category?.id,
-              };
-              newUnlinkedTransactions.push(unlinkedTx);
             }
           }
 
@@ -751,27 +848,113 @@ class TransactionService {
           nextCursor = syncResponse.data.next_cursor;
         }
 
-        // Save all transactions first
-        if (newTransactions.length > 0) {
-          const { error: saveError } = await this.saveBudgetTransactions(newTransactions, budgetId);
-          if (saveError) return { data: null, error: saveError };
+        // Group transactions by budget ID
+        const transactionsByBudget = new Map<string, BudgetFinAccountTransaction[]>();
+        
+        // Group new transactions by budget
+        for (const tx of newTransactions) {
+          if (tx.budgetFinAccountId) {
+            // Get the budget IDs from the plaidAccounts mapping
+            const account = item.plaidAccounts.find(acc => 
+              acc.svendAccountId === tx.transaction.plaidAccountId
+            );
+            if (account?.budgetFinAccountIds) {
+              // For each budget_fin_account_id, create a copy of the transaction
+              account.budgetFinAccountIds
+                .filter((budgetFinAccountId): budgetFinAccountId is string => 
+                  budgetFinAccountId !== null
+                )
+                .forEach(budgetFinAccountId => {
+                  // Create a new transaction with this specific budgetFinAccountId
+                  const txCopy = {
+                    ...tx,
+                    budgetFinAccountId
+                  };
+
+                  if (!transactionsByBudget.has(budgetFinAccountId)) {
+                    transactionsByBudget.set(budgetFinAccountId, []);
+                  }
+                  transactionsByBudget.get(budgetFinAccountId)!.push(txCopy);
+                });
+            }
+          }
         }
 
-        if (newUnlinkedTransactions.length > 0) {
-          const { error: saveUnlinkedError } = await this.saveTransactions(newUnlinkedTransactions);
-          if (saveUnlinkedError) return { data: null, error: saveUnlinkedError };
+        // Get budget mappings
+        const allBudgetFinAccountIds = Array.from(transactionsByBudget.keys());
+        const { data: budgetFinAccounts, error: bfaError } = await this.supabase
+          .from('budget_fin_accounts')
+          .select('id, budget_id')
+          .in('id', allBudgetFinAccountIds);
+
+        if (bfaError) {
+          console.error('Error fetching budget_fin_accounts:', bfaError);
+          return { data: null, error: 'Failed to fetch budget mappings' };
         }
 
-        // Only update cursor after successful save
+        // Create budget ID mapping
+        const budgetIdMap = new Map(
+          budgetFinAccounts?.map(bfa => [bfa.id, bfa.budget_id]) || []
+        );
+
+        // Save transactions by budget
+        for (const [budgetFinAccountId, budgetTransactions] of transactionsByBudget.entries()) {
+          const budgetId = budgetIdMap.get(budgetFinAccountId);
+          if (!budgetId) {
+            console.warn(`No budget_id found for budget_fin_account ${budgetFinAccountId}, skipping transactions`);
+            continue;
+          }
+
+          if (budgetTransactions.length > 0) {
+            const { error: saveError } = await this.saveBudgetTransactions(budgetTransactions, budgetId);
+            if (saveError) {
+              console.error(`Error saving transactions for budget ${budgetId}:`, saveError);
+              continue;
+            }
+          }
+        }
+
+        // Update cursor after successful processing
         const { error: cursorError } = await this.updatePlaidItemCursor(item.svendItemId, nextCursor);
         if (cursorError) return { data: null, error: cursorError };
 
         itemCursors[item.svendItemId] = nextCursor;
       }
 
+      // Log final processing summary
+      console.log('Transaction processing summary:', {
+        unlinkedCount: newUnlinkedTransactions.length,
+        linkedCount: newTransactions.length,
+        modifiedCount: modifiedTransactions.length
+      });
+
+      // Save all unlinked transactions at once
+      if (newUnlinkedTransactions.length > 0) {
+        console.log('Saving unlinked transactions:', {
+          count: newUnlinkedTransactions.length,
+          sample: newUnlinkedTransactions[0] ? {
+            id: newUnlinkedTransactions[0].id,
+            plaidTxId: newUnlinkedTransactions[0].plaidTxId,
+            plaidAccountId: newUnlinkedTransactions[0].plaidAccountId,
+            svendCategoryId: newUnlinkedTransactions[0].svendCategoryId
+          } : null
+        });
+
+        const { error: saveUnlinkedError } = await this.saveTransactions(newUnlinkedTransactions);
+        if (saveUnlinkedError) {
+          console.error('Failed to save unlinked transactions:', {
+            error: saveUnlinkedError,
+            count: newUnlinkedTransactions.length
+          });
+          return { data: null, error: saveUnlinkedError };
+        }
+        console.log('Successfully saved unlinked transactions:', {
+          count: newUnlinkedTransactions.length
+        });
+      }
+
       return {
         data: {
-          budgetId,
           newTransactions,
           newUnlinkedTransactions,
           recurringTransactions,
@@ -787,90 +970,319 @@ class TransactionService {
     }
   }
 
-  private async processPlaidTransactions(
-    plaidTransactions: Transaction[],
-    plaidAccounts: any[]
-  ): Promise<BudgetFinAccountTransaction[]> {
+  async syncPlaidTransactionsFinAccountMgmt(
+    plaidConnectionItems: PlaidConnectionItemSummary[],
+    plaidClient: PlaidApi
+  ): Promise<ServiceResult<PlaidSyncTransactionsResponse>> {
     try {
-      // 1. Initial transaction creation
-      const transactions = await Promise.all(plaidTransactions.map(async transaction => {
-        // Validate required fields
-        if (!transaction.transaction_id || !transaction.account_id || !transaction.date) {
-          console.warn('Missing required Plaid transaction fields:', transaction);
-          return null;
+      const newTransactions: BudgetFinAccountTransaction[] = [];
+      const newUnlinkedTransactions: FinAccountTransaction[] = [];
+      const recurringTransactions: BudgetFinAccountRecurringTransaction[] = [];
+      const recurringUnlinkedTransactions: FinAccountRecurringTransaction[] = [];
+      const itemCursors: Record<string, string> = {};
+      const modifiedTransactions: BudgetFinAccountTransaction[] = [];
+
+      // Process each Plaid connection
+      for (const item of plaidConnectionItems) {
+        let nextCursor = item.nextCursor;
+        let hasMore = true;
+
+        // Collect all transactions before saving
+        while (hasMore) {
+          console.log('Plaid sync request:', {
+            access_token: item.accessToken,
+            cursor: nextCursor,
+            item_id: item.svendItemId
+          });
+
+          const syncResponse = await plaidClient.transactionsSync({
+            access_token: item.accessToken,
+            cursor: nextCursor,
+          });
+
+          // Log transaction changes summary
+          const pendingToPostedMap = new Map(
+            (syncResponse.data.added || [])
+              .filter(tx => tx.pending_transaction_id)
+              .map(tx => [tx.pending_transaction_id, tx])
+          );
+
+          // Track all transaction changes in this sync
+          const allTransactionChanges = new Map<string, {
+            transaction: any,
+            status: 'added' | 'modified' | 'removed'
+          }>();
+
+          // Process removed transactions first
+          (syncResponse.data.removed || []).forEach(async (removed) => {
+            const postedVersion = pendingToPostedMap.get(removed.transaction_id);
+            if (postedVersion) {
+              // Update existing transaction with new plaid_tx_id and status
+              const { error } = await this.supabase
+                .from('fin_account_transactions')
+                .update({ 
+                  plaid_tx_id: postedVersion.transaction_id,
+                  plaid_raw_data: postedVersion as any,
+                  tx_status: 'posted'
+                })
+                .eq('plaid_tx_id', removed.transaction_id);
+              
+              if (error) {
+                console.error('Failed to update pending→posted transaction:', {
+                  oldId: removed.transaction_id,
+                  newId: postedVersion.transaction_id,
+                  error
+                });
+              }
+            }
+          });
+
+          // Skip adding transactions that are posted versions of pending ones we're updating
+          (syncResponse.data.added || []).forEach(added => {
+            if (!added.pending_transaction_id || !allTransactionChanges.has(added.transaction_id)) {
+              allTransactionChanges.set(added.transaction_id, {
+                transaction: added,
+                status: 'added'
+              });
+            }
+          });
+
+          // Process modified transactions
+          (syncResponse.data.modified || []).forEach(modified => {
+            allTransactionChanges.set(modified.transaction_id, {
+              transaction: modified,
+              status: 'modified'
+            });
+          });
+
+          // Filter and process transactions
+          const transactionsToProcess = Array.from(allTransactionChanges.values())
+            .filter(change => 
+              (change.status === 'added' || change.status === 'modified') && 
+              change.transaction.personal_finance_category?.detailed
+            )
+            .map(change => change.transaction);
+
+          // Add initial log for transactions being processed
+          console.log('Processing transactions:', {
+            total: transactionsToProcess.length,
+            sample: transactionsToProcess[0] ? {
+              id: transactionsToProcess[0].transaction_id,
+              account: transactionsToProcess[0].account_id,
+              amount: transactionsToProcess[0].amount
+            } : null
+          });
+
+          // Handle unlinked transactions first
+          const unlinkedTransactionsToProcess = [];
+          for (const transaction of transactionsToProcess) {
+            const matchingAccount = item.plaidAccounts.find(acc => 
+              acc.plaidAccountId === transaction.account_id
+            );
+
+            if (matchingAccount) {
+              const unlinkedTx: FinAccountTransaction = {
+                id: '',
+                plaidTxId: transaction.transaction_id,
+                userTxId: await this.generateUserTxIdFromPlaidTx({
+                  id: '',
+                  plaidTxId: transaction.transaction_id,
+                  date: transaction.date,
+                  amount: transaction.amount,
+                  plaidAccountId: matchingAccount.svendAccountId
+                } as FinAccountTransaction),
+                date: transaction.date,
+                amount: Math.round(transaction.amount * 100) / 100,
+                plaidDetailedCategory: transaction.personal_finance_category?.detailed,
+                plaidCategoryConfidence: transaction.personal_finance_category?.confidence_level,
+                plaidAccountId: matchingAccount.svendAccountId,
+                merchantName: transaction.merchant_name ?? '',
+                payee: transaction.payment_meta?.payee ?? '',
+                status: transaction.pending ? 'pending' : 'posted',
+                isoCurrencyCode: transaction.iso_currency_code ?? 'USD',
+                plaidRawData: transaction,
+              };
+              unlinkedTransactionsToProcess.push(unlinkedTx);
+            }
+          }
+
+          // Process and save unlinked transactions
+          if (unlinkedTransactionsToProcess.length > 0) {
+            const { transactions: processedUnlinkedTransactions, error: unlinkedError } = 
+              await this.processPlaidCategoriesUnlinked(unlinkedTransactionsToProcess, []);
+            
+            if (unlinkedError) {
+              console.error('Error processing unlinked transaction categories:', unlinkedError);
+              return { data: null, error: unlinkedError };
+            } 
+            
+            if (processedUnlinkedTransactions) {
+              newUnlinkedTransactions.push(...processedUnlinkedTransactions);
+            }
+          }
+
+          hasMore = syncResponse.data.has_more;
+          nextCursor = syncResponse.data.next_cursor;
         }
 
-        const matchingAccount = plaidAccounts?.find(
-          account => account.plaid_account_id === transaction.account_id
-        );
+        // Update cursor after successful processing
+        const { error: cursorError } = await this.updatePlaidItemCursor(item.svendItemId, nextCursor);
+        if (cursorError) return { data: null, error: cursorError };
 
-        if (!matchingAccount) {
-          console.warn('No matching account found for transaction:', transaction.transaction_id);
-          return null;
-        }
-
-        const rawAmount = transaction.amount;
-        const amount = Math.round(rawAmount * 100) / 100;
-
-        // console.log('[TransactionService] Processing transaction:', {
-        //   id: transaction.transaction_id,
-        //   rawAmount,
-        //   processedAmount: amount,
-        //   date: transaction.date,
-        //   category: transaction.personal_finance_category?.detailed,
-        //   status: transaction.pending ? 'pending' : 'posted'
-        // });
-
-        // Create base transaction
-        const baseTransaction: BudgetFinAccountTransaction = {
-          transaction: {
-            id: '',
-            plaidTxId: transaction.transaction_id,
-            userTxId: '', // Will be generated
-            date: transaction.date,
-            amount,
-            plaidDetailedCategory: transaction.personal_finance_category?.detailed || undefined,
-            plaidCategoryConfidence: transaction.personal_finance_category?.confidence_level || undefined,
-            plaidAccountId: matchingAccount.id,
-            merchantName: transaction.merchant_name ?? '',
-            payee: transaction.payment_meta?.payee ?? '',
-            status: transaction.pending ? 'pending' : 'posted',
-            isoCurrencyCode: transaction.iso_currency_code ?? 'USD',
-            plaidRawData: transaction,
-          },
-          budgetFinAccountId: matchingAccount.budget_fin_account_id,
-          categoryGroupId: '',
-          categoryGroup: '',
-          category: {} as Category,
-          merchantName: transaction.merchant_name ?? '',
-          payee: transaction.payment_meta?.payee ?? '',
-          notes: '',
-          budgetTags: [],
-          budgetAttachmentsStorageNames: []
-        };
-
-        // Generate unique userTxId for the transaction
-        baseTransaction.transaction.userTxId = await this.generateUserTxIdFromPlaidTx(baseTransaction.transaction);
-
-        return baseTransaction;
-      }));
-
-      const validTransactions = transactions.filter((tx): tx is BudgetFinAccountTransaction => tx !== null);
-
-      // 2. Process categories
-      const { transactions: processedTransactions, error } = await this.processPlaidCategories(validTransactions, []);
-      if (error) {
-        console.error('Error processing categories:', error);
-        return validTransactions; // Return unprocessed transactions as fallback
+        itemCursors[item.svendItemId] = nextCursor;
       }
 
-      // 3. Sort transactions by date (newest first)
-      return (processedTransactions || validTransactions).sort((a, b) => 
-        new Date(b.transaction.date).getTime() - new Date(a.transaction.date).getTime()
-      );
+      // Log final processing summary
+      console.log('Transaction processing summary:', {
+        unlinkedCount: newUnlinkedTransactions.length,
+        linkedCount: newTransactions.length,
+        modifiedCount: modifiedTransactions.length
+      });
+
+      // Save all unlinked transactions at once
+      if (newUnlinkedTransactions.length > 0) {
+        console.log('Saving unlinked transactions:', {
+          count: newUnlinkedTransactions.length,
+          sample: newUnlinkedTransactions[0] ? {
+            id: newUnlinkedTransactions[0].id,
+            plaidTxId: newUnlinkedTransactions[0].plaidTxId,
+            plaidAccountId: newUnlinkedTransactions[0].plaidAccountId,
+            svendCategoryId: newUnlinkedTransactions[0].svendCategoryId
+          } : null
+        });
+
+        const { error: saveUnlinkedError } = await this.saveTransactions(newUnlinkedTransactions);
+        if (saveUnlinkedError) {
+          console.error('Failed to save unlinked transactions:', {
+            error: saveUnlinkedError,
+            count: newUnlinkedTransactions.length
+          });
+          return { data: null, error: saveUnlinkedError };
+        }
+        console.log('Successfully saved unlinked transactions:', {
+          count: newUnlinkedTransactions.length
+        });
+      }
+
+      return {
+        data: {
+          newTransactions,
+          newUnlinkedTransactions,
+          recurringTransactions,
+          recurringUnlinkedTransactions,
+          modifiedTransactions
+        },
+        error: null
+      };
+
+    } catch (error: any) {
+      console.error('Error in syncPlaidTransactionsFinAccountMgmt:', error);
+      return { data: null, error: `Failed to sync transactions: ${error.message}` };
+    }
+  }
+
+  private async processPlaidTransactions(
+    plaidTransactions: Transaction[],
+    plaidAccounts: PlaidConnectionItemAccountSummary[]
+  ): Promise<BudgetFinAccountTransaction[]> {
+    try {
+        // Add initial log
+        console.log('Starting processPlaidTransactions:', {
+            inputTransactions: plaidTransactions.length,
+            accounts: plaidAccounts.map(acc => ({
+                svendAccountId: acc.svendAccountId,
+                plaidAccountId: acc.plaidAccountId,
+                budgetLinks: acc.budgetFinAccountIds.length
+            }))
+        });
+
+        // Log transactions that are being filtered out due to missing required fields
+        plaidTransactions.forEach(transaction => {
+            if (!transaction.transaction_id || !transaction.account_id || !transaction.date) {
+                console.log('Skipping transaction - missing required fields:', {
+                    hasTransactionId: !!transaction.transaction_id,
+                    hasAccountId: !!transaction.account_id,
+                    hasDate: !!transaction.date,
+                    amount: transaction.amount
+                });
+            }
+        });
+
+        // Only process transactions with valid required fields
+        const validTransactions = await Promise.all(plaidTransactions
+            .filter(transaction => transaction.transaction_id && transaction.account_id && transaction.date)
+            .map(async transaction => {
+                const matchingAccount = plaidAccounts?.find(
+                    account => account.plaidAccountId === transaction.account_id
+                );
+
+                // Create base transaction using the Svend account ID from the matching account
+                const baseTransaction: FinAccountTransaction = {
+                    id: '',
+                    plaidTxId: transaction.transaction_id,
+                    userTxId: '', // Will be generated
+                    date: transaction.date,
+                    amount: Math.round(transaction.amount * 100) / 100,
+                    plaidDetailedCategory: transaction.personal_finance_category?.detailed || undefined,
+                    plaidCategoryConfidence: transaction.personal_finance_category?.confidence_level || undefined,
+                    plaidAccountId: matchingAccount?.svendAccountId, // Use the Svend account ID here
+                    merchantName: transaction.merchant_name ?? '',
+                    payee: transaction.payment_meta?.payee ?? '',
+                    status: transaction.pending ? ('pending' as const) : ('posted' as const),
+                    isoCurrencyCode: transaction.iso_currency_code ?? 'USD',
+                    plaidRawData: transaction,
+                };
+
+                const userTxId = await this.generateUserTxIdFromPlaidTx(baseTransaction);
+                baseTransaction.userTxId = userTxId;
+
+                // If no matching account or no budget links, return null to filter out
+                if (!matchingAccount?.budgetFinAccountIds?.length) {
+                    return null;
+                }
+
+                // Create a transaction for each budget the account is linked to
+                return matchingAccount.budgetFinAccountIds
+                    .filter((budgetId): budgetId is string => budgetId !== null)
+                    .map(budgetId => ({
+                        transaction: { ...baseTransaction, userTxId },
+                        budgetFinAccountId: budgetId,
+                        categoryGroupId: '',
+                        categoryGroup: '',
+                        category: {} as Category,
+                        merchantName: transaction.merchant_name ?? '',
+                        payee: transaction.payment_meta?.payee ?? '',
+                        notes: '',
+                        budgetTags: [],
+                        budgetAttachmentsStorageNames: []
+                    }));
+            }));
+
+        // Filter out nulls and flatten the array
+        const linkedTransactions = validTransactions
+            .filter((tx): tx is NonNullable<typeof tx> => tx !== null)
+            .flatMap(tx => tx)
+            .filter((tx): tx is NonNullable<typeof tx> => tx !== null);
+
+        // Process categories for linked transactions
+        const { transactions: processedTransactions, error } = await this.processPlaidCategories(
+            linkedTransactions,
+            []
+        );
+
+        if (error) {
+            console.error('Error processing categories:', error);
+            return linkedTransactions;
+        }
+
+        const finalTransactions = processedTransactions || linkedTransactions;
+        return finalTransactions.sort((a, b) => 
+            new Date(b.transaction.date).getTime() - new Date(a.transaction.date).getTime()
+        );
+
     } catch (error) {
-      console.error('Error processing Plaid transactions:', error);
-      return [];
+        console.error('Error processing Plaid transactions:', error);
+        return [];
     }
   }
 
@@ -1093,18 +1505,41 @@ class TransactionService {
         throw new Error('Category mapping or categories fetch returned null or undefined');
       }
 
-      // Helper function to find category by Plaid category name
+      const defaultGroup = Object.values(svendCategories).find(group => 
+        group.categories.some(cat => cat.name.toLowerCase() === 'others' || cat.name.toLowerCase() === 'other')
+      );
+      const defaultCategory = defaultGroup?.categories.find(cat => 
+        cat.name.toLowerCase() === 'others' || cat.name.toLowerCase() === 'other'
+      );
+
+      if (!defaultCategory || !defaultGroup) {
+        throw new Error('No default category found in Svend categories');
+      }
+
+      // Helper function to find category by Plaid category
       const findCategoryByPlaidCategory = (plaidCategory: string) => {
         const mappedName = plaidMappings[plaidCategory]?.name;
-        if (!mappedName) return null;
+        if (!mappedName) return { 
+          category: defaultCategory, 
+          groupName: defaultGroup.name, 
+          groupId: defaultGroup.id 
+        };
 
         const group = Object.values(svendCategories).find(group =>
           group.categories.some(cat => cat.name === mappedName)
         );
-        if (!group) return null;
+        if (!group) return { 
+          category: defaultCategory, 
+          groupName: defaultGroup.name, 
+          groupId: defaultGroup.id 
+        };
 
         const category = group.categories.find(cat => cat.name === mappedName);
-        if (!category) return null;
+        if (!category) return { 
+          category: defaultCategory, 
+          groupName: defaultGroup.name, 
+          groupId: defaultGroup.id 
+        };
 
         return { category, groupName: group.name, groupId: group.id };
       };
@@ -1123,7 +1558,7 @@ class TransactionService {
           return transaction;
         }
 
-        const processed = {
+        return {
           ...transaction,
           category: {
             ...mappedCategory.category,
@@ -1134,8 +1569,6 @@ class TransactionService {
           categoryGroup: mappedCategory.groupName,
           categoryGroupId: mappedCategory.groupId
         };
-
-        return processed;
       });
 
       // Process recurring transactions
@@ -1157,7 +1590,140 @@ class TransactionService {
 
       return { 
         transactions: processedTransactions, 
-        recurringTransactions: processedRecurringTransactions 
+        recurringTransactions: recurringTransactions 
+      };
+    } catch (error: any) {
+      console.error('Error in processCategories:', error);
+      return { error: `SERVER_ERROR:[processPlaidCategories] ${error.message}` };
+    }
+  }
+  
+  async processPlaidCategoriesUnlinked(
+    transactions: FinAccountTransaction[],
+    recurringTransactions: FinAccountRecurringTransaction[]
+  ): Promise<{ 
+    transactions?: FinAccountTransaction[], 
+    recurringTransactions?: FinAccountRecurringTransaction[],
+    error?: string 
+  }> {
+    try {
+      // Get unique Plaid categories from both transaction types
+      const uniquePlaidCategories = [...new Set([
+        ...transactions.map(t => t.plaidDetailedCategory),
+        ...recurringTransactions.map(t => t.plaidDetailedCategory)
+      ].filter((cat): cat is string => !!cat))];
+
+      // Get mappings and categories
+      const [plaidMappings, svendCategories] = await Promise.all([
+        this.categoryService.mapPlaidCategoriesToSvendCategories(uniquePlaidCategories),
+        this.categoryService.getSvendDefaultCategoryGroups()
+      ]);
+
+      if (!plaidMappings || !svendCategories) {
+        throw new Error('Category mapping or categories fetch returned null or undefined');
+      }
+
+      const defaultGroup = Object.values(svendCategories).find(group => 
+        group.categories.some(cat => cat.name.toLowerCase() === 'others' || cat.name.toLowerCase() === 'other')
+      );
+      const defaultCategory = defaultGroup?.categories.find(cat => 
+        cat.name.toLowerCase() === 'others' || cat.name.toLowerCase() === 'other'
+      );
+
+      if (!defaultCategory || !defaultGroup) {
+        throw new Error('No default category found in Svend categories');
+      }
+
+      // Helper function to find category by Plaid category
+      const findCategoryByPlaidCategory = (plaidCategory: string) => {
+        const mappedName = plaidMappings[plaidCategory]?.name;
+        if (!mappedName) return { 
+          category: defaultCategory, 
+          groupName: defaultGroup.name, 
+          groupId: defaultGroup.id 
+        };
+
+        const group = Object.values(svendCategories).find(group =>
+          group.categories.some(cat => cat.name === mappedName)
+        );
+        if (!group) return { 
+          category: defaultCategory, 
+          groupName: defaultGroup.name, 
+          groupId: defaultGroup.id 
+        };
+
+        const category = group.categories.find(cat => cat.name === mappedName);
+        if (!category) return { 
+          category: defaultCategory, 
+          groupName: defaultGroup.name, 
+          groupId: defaultGroup.id 
+        };
+
+        return { category, groupName: group.name, groupId: group.id };
+      };
+
+      // Process regular transactions
+      const processedTransactions = transactions.map(transaction => {
+        const plaidCategory = transaction.plaidDetailedCategory;
+        if (!plaidCategory) {
+          console.warn('[Debug] No Plaid category for transaction:', transaction.plaidTxId);
+          // Use default category instead of returning without category
+          const defaultMapping = { 
+            category: defaultCategory, 
+            groupName: defaultGroup.name, 
+            groupId: defaultGroup.id 
+          };
+          return {
+            ...transaction,
+            svendCategoryId: defaultCategory.id,  // Make sure to set this
+            category: defaultMapping.category,
+            categoryGroup: defaultMapping.groupName,
+            categoryGroupId: defaultMapping.groupId
+          };
+        }
+
+        const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
+        if (!mappedCategory) {
+          console.warn('[Debug] No mapping found for category:', plaidCategory);
+          // Use default category instead of returning without category
+          return {
+            ...transaction,
+            svendCategoryId: defaultCategory.id,  // Make sure to set this
+            category: defaultCategory,
+            categoryGroup: defaultGroup.name,
+            categoryGroupId: defaultGroup.id
+          };
+        }
+
+        return {
+          ...transaction,
+          svendCategoryId: mappedCategory.category.id,  // Make sure to set this
+          category: mappedCategory.category,
+          categoryGroup: mappedCategory.groupName,
+          categoryGroupId: mappedCategory.groupId
+        };
+      });
+
+      // Process recurring transactions
+      const processedRecurringTransactions = recurringTransactions.map(tx => {
+        const plaidCategory = tx.plaidDetailedCategory;
+        if (!plaidCategory) return tx;
+
+        const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
+        if (!mappedCategory) return tx;
+
+        return {
+          ...tx,
+          categoryId: mappedCategory.category.id,
+          category: mappedCategory.category.name,
+          categoryGroup: mappedCategory.groupName,
+          categoryGroupId: mappedCategory.groupId
+        };
+      });
+
+      return { 
+        transactions: processedTransactions, 
+        recurringTransactions: recurringTransactions 
       };
     } catch (error: any) {
       console.error('Error in processCategories:', error);
@@ -1180,7 +1746,6 @@ class TransactionService {
       if (!plaidItems?.length) {
         return { 
           data: {
-            budgetId: plaidItems[0]?.budget_id || '',
             newTransactions: [],
             newUnlinkedTransactions: [],
             recurringTransactions: [],
@@ -1196,12 +1761,11 @@ class TransactionService {
         svendItemId: item.id,
         accessToken: item.access_token,
         nextCursor: item.next_cursor || '',
-        plaidAccounts: Array.isArray(item.plaid_accounts) ? item.plaid_accounts : []
+        plaidAccounts: (item.plaid_accounts as PlaidConnectionItemAccountSummary[]) || []
       }));
 
       // We already checked plaidItems.length above, so first item exists
       const { data, error } = await this.syncPlaidTransactions(
-        plaidItems[0]!.budget_id,
         plaidConnectionItems, 
         plaidClient
       );
@@ -1486,7 +2050,7 @@ class TransactionService {
           const enrichRequest: TransactionsEnrichRequest = {
             account_type: 'depository',
             transactions: enrichableTransactions.map(tx => {
-              const preset = presetTransactions.find(p => p.id === tx.userTxId) as any;
+              const preset = presetTransactions.find(p => p.id === tx.userTxId);
               return {
                 id: tx.userTxId,
                 description: preset.description,
@@ -1761,7 +2325,10 @@ export interface ITransactionService {
     newTransactions: FinAccountRecurringTransaction[]
   ) => Promise<ServiceResult<null>>;
   syncPlaidTransactions: (
-    budgetId: string,
+    plaidConnectionItems: PlaidConnectionItemSummary[],
+    plaidClient: PlaidApi
+  ) => Promise<ServiceResult<PlaidSyncTransactionsResponse>>;
+  syncPlaidTransactionsFinAccountMgmt: (
     plaidConnectionItems: PlaidConnectionItemSummary[],
     plaidClient: PlaidApi
   ) => Promise<ServiceResult<PlaidSyncTransactionsResponse>>;
@@ -1794,15 +2361,21 @@ export type ServiceResult<T> = {
   error: string | null;
 };
 
+export type PlaidConnectionItemAccountSummary = {
+  svendAccountId: string;
+  plaidAccountId: string;
+  budgetFinAccountIds: string[];
+};
+
 export type PlaidConnectionItemSummary = {
   svendItemId: string;
   accessToken: string;
   nextCursor: string;
-  plaidAccounts: any[];
+  plaidAccounts: PlaidConnectionItemAccountSummary[];
 };
 
 export interface PlaidSyncTransactionsResponse {
-  budgetId: string;
+  // budgetId?: string;
   newTransactions: BudgetFinAccountTransaction[];
   newUnlinkedTransactions: FinAccountTransaction[];
   recurringTransactions: BudgetFinAccountRecurringTransaction[];

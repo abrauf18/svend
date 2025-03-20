@@ -382,6 +382,7 @@ class BudgetService {
       // Return the complete budget object
       return {
         id: rawGetBudgetResults.id,
+        name: '',
         budgetType: rawGetBudgetResults.budget_type,
         spendingTracking: categoryGroupSpending,
         spendingRecommendations: recommendedCategoryGroupSpending,

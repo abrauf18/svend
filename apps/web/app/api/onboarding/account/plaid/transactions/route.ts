@@ -61,9 +61,9 @@ export const PATCH = enhanceRouteHandler(
         accessToken: item.access_token,
         nextCursor: item.next_cursor || '',
         plaidAccounts: item.plaid_accounts.map(account => ({
-          id: account.id,
-          plaid_account_id: account.plaid_account_id,
-          budget_fin_account_id: account.budget_fin_accounts[0]?.id ?? null
+          svendAccountId: account.id,
+          plaidAccountId: account.plaid_account_id,
+          budgetFinAccountIds: account.budget_fin_accounts.map(ba => ba.id)
         }))
       }));
 
@@ -82,7 +82,6 @@ export const PATCH = enhanceRouteHandler(
       const transactionService = createTransactionService(supabaseAdmin);
       
       const { data: syncResult, error: syncError } = await transactionService.syncPlaidTransactions(
-        budgetId,
         plaidConnectionItems,
         plaidClient
       );

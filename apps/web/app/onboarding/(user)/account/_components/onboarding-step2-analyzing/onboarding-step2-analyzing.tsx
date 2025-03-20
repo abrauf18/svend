@@ -67,7 +67,7 @@ export default function OnboardingStep2AnalyzingData() {
 
     const handleBudgetUpdate = () => {
       // Map goal recommendations and trackings to existing goals
-      const updatedGoals = state.account.budget.goals.map(goal => ({
+      const updatedGoals = (state.account.budget.goals ?? []).map(goal => ({
         ...goal,
         spendingRecommendations: {
           balanced: {
