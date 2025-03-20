@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 import dynamic from 'next/dynamic';
 
@@ -55,7 +55,6 @@ export function RootProviders({
             <I18nProvider settings={i18nSettings} resolver={i18nResolver}>
               <CaptchaProvider>
                 <CaptchaTokenSetter siteKey={captchaSiteKey} />
-
                 <AuthProvider>
                   <ThemeProvider
                     attribute="class"
@@ -64,7 +63,7 @@ export function RootProviders({
                     defaultTheme={theme}
                     enableColorScheme={false}
                   >
-                    {children}
+                      {children}
                   </ThemeProvider>
                 </AuthProvider>
               </CaptchaProvider>

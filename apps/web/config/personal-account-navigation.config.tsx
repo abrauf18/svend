@@ -1,4 +1,4 @@
-import { CreditCard, Home, User } from 'lucide-react';
+import { CreditCard, Home, Landmark, User } from 'lucide-react';
 
 import { NavigationConfigSchema } from '@kit/ui/navigation-schema';
 
@@ -18,6 +18,11 @@ const routes = [
     label: 'common:routes.account',
     path: pathsConfig.app.personalAccountSettings,
     Icon: <User className={iconClasses} />,
+  },
+  {
+    label: 'common:routes.finAccounts',
+    path: pathsConfig.app.finAccounts,
+    Icon: <Landmark className={iconClasses} />,
   },
 ];
 

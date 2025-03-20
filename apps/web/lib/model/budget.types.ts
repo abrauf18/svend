@@ -7,8 +7,9 @@ export type Budget = {
   spendingTracking: BudgetSpendingTrackingsByMonth;
   spendingRecommendations: BudgetSpendingRecommendations;
   goals: BudgetGoal[];
-  onboardingStep: Database['public']['Tables']['budgets']['Row']['current_onboarding_step'];
+  onboardingStep?: Database['public']['Tables']['budgets']['Row']['current_onboarding_step'];
   linkedFinAccounts: Array<FinAccount>;
+  name: string;
 }
 
 export interface BudgetFinAccountTransaction {
@@ -77,6 +78,8 @@ export interface BudgetGoal {
   spendingTracking: BudgetGoalSpendingTrackingsByMonth;
   debtPaymentComponent?: 'principal' | 'interest' | 'principal_interest';
   debtInterestRate?: number;
+  plaidAccountId?: string;
+  manualAccountId?: string;
   // For savings and debt goals only
   subType?: string;
   // Common fields

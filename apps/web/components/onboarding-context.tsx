@@ -130,6 +130,7 @@ export function OnboardingContextProvider({
       contextKey: undefined,
       budget: {
         id: '',
+        name: '',
         budgetType: '',
         spendingTracking: {} as BudgetSpendingTrackingsByMonth,
         spendingRecommendations: {

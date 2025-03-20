@@ -120,8 +120,10 @@ class SpendingService implements ISpendingService {
   ): {
     spendingTrackingsByMonth: BudgetSpendingTrackingsByMonth
   } {
-    // Find date range
-    const earliestTransactionDate = new Date(budgetTransactions[budgetTransactions.length - 1]!.transaction.date);
+    // Initialize with current month if no transactions
+    const earliestTransactionDate = budgetTransactions.length > 0 
+        ? new Date(budgetTransactions[budgetTransactions.length - 1]!.transaction.date)
+        : new Date();
 
     // Initialize spending tracking data structure for all months in range
     const spendingTrackingsByMonth: BudgetSpendingTrackingsByMonth = {};

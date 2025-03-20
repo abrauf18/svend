@@ -1,0 +1,16 @@
+{
+    "plaidAccountsTabLabel": "Auto Import",
+    "manualAccountsTabLabel": "Manual",
+    "pageTitle": "Financial Accounts",
+    "pageDescription": "Manage your financial accounts",
+    "available": "Available",
+    "connectedBudgets": "Connected Budgets",
+    "noBudgetsConnected": "No Budgets Connected",
+    "deleteConnection": "Delete Connection",
+    "deleteConnectionTitle": "Delete Connection",
+    "deleteConnectionDescription": "Are you sure you want to delete this connection?",
+    "unlinkAccount": "Unlink Account",
+    "unlinkAccountTitle": "Unlink Account",
+    "unlinkAccountDescription": "Are you sure you want to unlink this account?",
+    "delete": "Delete"
+}

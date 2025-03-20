@@ -1758,8 +1758,177 @@ create policy read_budget_fin_account_transactions
 -- Grant necessary permissions
 grant select on public.budget_fin_account_transactions to authenticated;
 grant select, update, insert on public.budget_fin_account_transactions to service_role;
+grant select, update, insert, delete on public.budget_fin_account_transactions to service_role;
 
 -- End of budget_fin_account_transactions table
+
+CREATE OR REPLACE FUNCTION link_budget_plaid_account(
+    p_budget_id UUID,
+    p_plaid_account_id UUID
+) RETURNS UUID AS $$
+DECLARE
+    v_budget_fin_account_id UUID;
+BEGIN
+    -- Insertar en budget_fin_accounts
+    INSERT INTO budget_fin_accounts (
+        budget_id,
+        plaid_account_id,
+        manual_account_id
+    ) VALUES (
+        p_budget_id,
+        p_plaid_account_id,
+        NULL
+    )
+    RETURNING id INTO v_budget_fin_account_id;
+
+    -- Copiar transacciones regulares existentes usando INSERT ON CONFLICT DO NOTHING
+    INSERT INTO budget_fin_account_transactions (
+        budget_id,
+        fin_account_transaction_id,
+        svend_category_id,
+        merchant_name,
+        payee,
+        tag_ids
+    )
+    SELECT 
+        p_budget_id,
+        fat.id,
+        fat.svend_category_id,
+        fat.merchant_name,
+        fat.payee,
+        '{}'::uuid[]
+    FROM fin_account_transactions fat
+    WHERE fat.plaid_account_id = p_plaid_account_id
+    ON CONFLICT (budget_id, fin_account_transaction_id) DO NOTHING;
+
+    -- Copiar transacciones recurrentes existentes usando INSERT ON CONFLICT DO NOTHING
+    INSERT INTO budget_fin_account_recurring_transactions (
+        budget_id,
+        fin_account_recurring_transaction_id,
+        svend_category_id,
+        tag_ids
+    )
+    SELECT 
+        p_budget_id,
+        fart.id,
+        fart.svend_category_id,
+        '{}'::uuid[]
+    FROM fin_account_recurring_transactions fart
+    WHERE fart.plaid_account_id = p_plaid_account_id
+    ON CONFLICT (budget_id, fin_account_recurring_transaction_id) DO NOTHING;
+
+    RETURN v_budget_fin_account_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION unlink_budget_plaid_account(
+    p_budget_id UUID,
+    p_plaid_account_id UUID
+) RETURNS BOOLEAN AS $$
+BEGIN
+    -- Eliminar la asociación de la cuenta
+    DELETE FROM budget_fin_accounts
+    WHERE budget_id = p_budget_id
+    AND plaid_account_id = p_plaid_account_id;
+
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Función para linkear una cuenta manual
+CREATE OR REPLACE FUNCTION link_budget_manual_account(
+    p_budget_id UUID,
+    p_manual_account_id UUID
+) RETURNS UUID AS $$
+DECLARE
+    v_budget_fin_account_id UUID;
+BEGIN
+    -- First check if link exists, if so return existing id
+    SELECT id INTO v_budget_fin_account_id
+    FROM budget_fin_accounts
+    WHERE budget_id = p_budget_id AND manual_account_id = p_manual_account_id;
+
+    IF v_budget_fin_account_id IS NULL THEN
+        -- Create new link if it doesn't exist
+        INSERT INTO budget_fin_accounts (
+            budget_id,
+            plaid_account_id,
+            manual_account_id
+        ) VALUES (
+            p_budget_id,
+            NULL,
+            p_manual_account_id
+        )
+        RETURNING id INTO v_budget_fin_account_id;
+    END IF;
+
+    -- Insert transactions that don't already exist
+    INSERT INTO budget_fin_account_transactions (
+        budget_id,
+        fin_account_transaction_id,
+        svend_category_id,
+        merchant_name,
+        payee,
+        tag_ids
+    )
+    SELECT 
+        p_budget_id,
+        fat.id,
+        fat.svend_category_id,
+        fat.merchant_name,
+        fat.payee,
+        '{}'::uuid[]
+    FROM fin_account_transactions fat
+    WHERE fat.manual_account_id = p_manual_account_id
+    AND NOT EXISTS (
+        SELECT 1 FROM budget_fin_account_transactions bfat
+        WHERE bfat.budget_id = p_budget_id
+        AND bfat.fin_account_transaction_id = fat.id
+    );
+
+    -- Insert recurring transactions that don't already exist
+    INSERT INTO budget_fin_account_recurring_transactions (
+        budget_id,
+        fin_account_recurring_transaction_id,
+        svend_category_id,
+        tag_ids
+    )
+    SELECT 
+        p_budget_id,
+        fart.id,
+        fart.svend_category_id,
+        '{}'::uuid[]
+    FROM fin_account_recurring_transactions fart
+    WHERE fart.manual_account_id = p_manual_account_id
+    AND NOT EXISTS (
+        SELECT 1 FROM budget_fin_account_recurring_transactions bfart
+        WHERE bfart.budget_id = p_budget_id
+        AND bfart.fin_account_recurring_transaction_id = fart.id
+    );
+
+    RETURN v_budget_fin_account_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Función para unlinkear una cuenta manual
+CREATE OR REPLACE FUNCTION unlink_budget_manual_account(
+    p_budget_id UUID,
+    p_manual_account_id UUID
+) RETURNS BOOLEAN AS $$
+BEGIN
+    -- Eliminar la asociación de la cuenta
+    DELETE FROM budget_fin_accounts
+    WHERE budget_id = p_budget_id
+    AND manual_account_id = p_manual_account_id;
+
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION link_budget_plaid_account(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION unlink_budget_plaid_account(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION link_budget_manual_account(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION unlink_budget_manual_account(UUID, UUID) TO authenticated;
 
 
 -- ============================================================

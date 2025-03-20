@@ -65,7 +65,8 @@
     "billing": "Billing",
     "dashboard": "Dashboard",
     "settings": "Settings",
-    "profile": "Profile"
+    "profile": "Profile",
+    "finAccounts": "Financial Accounts"
   },
   "roles": {
     "owner": {
@@ -82,5 +83,6 @@
     "accept": "Accept"
   },
   "transactionTabAddToGoalsBtn": "Add Transaction to Goals",
-  "addGoalsBtn": "Add Goals"
+  "addGoalsBtn": "Add Goals",
+  "profile": "Profile"
 }

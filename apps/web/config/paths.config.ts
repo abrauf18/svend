@@ -20,7 +20,8 @@ const PathsSchema = z.object({
     accountMembers: z.string().min(1),
     accountBillingReturn: z.string().min(1),
     joinTeam: z.string().min(1),
-    budgetManage: z.string().min(1)
+    budgetManage: z.string().min(1),
+    finAccounts: z.string().min(1),
   }),
 });
 
@@ -37,6 +38,7 @@ const pathsConfig = PathsSchema.parse({
     home: '/home',
     personalAccountSettings: '/home/settings',
     personalAccountBilling: '/home/billing',
+    finAccounts: '/home/fin-accounts',
     personalAccountBillingReturn: '/home/billing/return',
     accountHome: '/home/[account]',
     accountSettings: `/home/[account]/settings`,

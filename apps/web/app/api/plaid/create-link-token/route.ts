@@ -10,14 +10,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { budgetId, redirectType } = await request.json();
+  const { budgetId, redirectType, isOnboarding } = await request.json();
 
-  if (!budgetId || !redirectType) {
-    return NextResponse.json({ error: 'Budget ID and redirect type are required' }, { status: 400 });
+  if (isOnboarding) {
+    if (!budgetId || !redirectType) {
+      return NextResponse.json({ error: 'Budget ID and redirect type are required' }, { status: 400 });
+    }
   }
 
+  const redirectUri = isOnboarding ? `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/${redirectType}` : null;
+
   const configuration = new Configuration({
-    basePath: PlaidEnvironments[process.env.PLAID_ENV || 'sandbox'],
+    basePath: PlaidEnvironments[process.env.PLAID_ENV ?? 'sandbox'],
     baseOptions: {
       headers: {
         'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
@@ -52,7 +56,7 @@ export async function POST(request: Request) {
       ],
       required_if_supported_products: [
       ],
-      redirect_uri: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/${redirectType}`
+      redirect_uri: redirectUri ?? undefined
     });
 
     const nextRes = { 

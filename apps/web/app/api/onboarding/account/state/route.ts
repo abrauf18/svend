@@ -303,6 +303,7 @@ export async function GET(request: Request) {
   // Map the budget to match the Budget schema
   const formattedBudget: Budget = {
     id: budgetId,
+    name: '',
     budgetType: db_budget.budget_type,
     spendingTracking: (db_budget.spending_tracking ??
       {}) as BudgetSpendingTrackingsByMonth,

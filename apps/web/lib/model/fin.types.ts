@@ -10,6 +10,7 @@ export type FinAccount = {
   mask: string;
   officialName: string;
   balance: number;
+  balanceCurrent?: number;
 }
 
 // Interface representing a financial account transaction

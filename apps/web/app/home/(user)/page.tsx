@@ -23,9 +23,7 @@ function UserHomePage() {
         title={<Trans i18nKey={'common:routes.home'} />}
         description={<Trans i18nKey={'common:homeTabDescription'} />}
       />
-
-      <PageBody>
-      </PageBody>
+      <PageBody/>
     </>
   );
 }

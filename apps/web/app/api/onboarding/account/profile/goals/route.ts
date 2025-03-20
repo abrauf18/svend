@@ -44,9 +44,7 @@ export async function PUT(request: Request) {
     const { data, error } = await supabaseAdmin
         .from('acct_fin_profile')
         .update({
-            primary_financial_goals: primaryFinancialGoals,
-            goal_timeline: goalTimeline,
-            monthly_contribution: monthlyContribution,
+            annual_income: monthlyContribution * 12
         })
         .eq('account_id', user.id)
         .select();

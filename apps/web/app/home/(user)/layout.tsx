@@ -20,6 +20,7 @@ import { HomeMenuNavigation } from './_components/home-menu-navigation';
 import { HomeMobileNavigation } from './_components/home-mobile-navigation';
 import { HomeSidebar } from './_components/home-sidebar';
 import { loadUserWorkspace } from './_lib/server/load-user-workspace';
+import { FinAccountsMgmtProvider } from '~/components/fin-accounts-mgmt-context';
 
 function UserHomeLayout({ children }: React.PropsWithChildren) {
   const workspace = use(loadUserWorkspace());
@@ -27,25 +28,27 @@ function UserHomeLayout({ children }: React.PropsWithChildren) {
 
   return (
     <Page style={style}>
-      <PageNavigation>
-        <If condition={style === 'header'}>
-          <HomeMenuNavigation workspace={workspace} />
-        </If>
+        <PageNavigation>
+          <If condition={style === 'header'}>
+            <HomeMenuNavigation workspace={workspace} />
+          </If>
 
-        <If condition={style === 'sidebar'}>
-          <HomeSidebar workspace={workspace} />
-        </If>
-      </PageNavigation>
+          <If condition={style === 'sidebar'}>
+            <HomeSidebar workspace={workspace} />
+          </If>
+        </PageNavigation>
 
-      <PageMobileNavigation className={'flex items-center justify-between'}>
-        <AppLogo />
-        <HomeMobileNavigation workspace={workspace} />
-      </PageMobileNavigation>
+        <PageMobileNavigation className={'flex items-center justify-between'}>
+          <AppLogo />
+          <HomeMobileNavigation workspace={workspace} />
+        </PageMobileNavigation>
 
-      <UserWorkspaceContextProvider value={workspace}>
-        {children}
-      </UserWorkspaceContextProvider>
-    </Page>
+        <FinAccountsMgmtProvider>
+        <UserWorkspaceContextProvider value={workspace}>
+          {children}
+        </UserWorkspaceContextProvider>
+        </FinAccountsMgmtProvider>
+      </Page>
   );
 }
 

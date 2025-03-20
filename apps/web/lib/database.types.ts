@@ -2120,6 +2120,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      link_budget_manual_account: {
+        Args: {
+          p_budget_id: string
+          p_manual_account_id: string
+        }
+        Returns: string
+      }
+      link_budget_plaid_account: {
+        Args: {
+          p_budget_id: string
+          p_plaid_account_id: string
+        }
+        Returns: string
+      }
       team_account_workspace: {
         Args: {
           account_slug: string
@@ -2143,6 +2157,20 @@ export type Database = {
           new_owner_id: string
         }
         Returns: undefined
+      }
+      unlink_budget_manual_account: {
+        Args: {
+          p_budget_id: string
+          p_manual_account_id: string
+        }
+        Returns: boolean
+      }
+      unlink_budget_plaid_account: {
+        Args: {
+          p_budget_id: string
+          p_plaid_account_id: string
+        }
+        Returns: boolean
       }
       update_account_profile: {
         Args: {
