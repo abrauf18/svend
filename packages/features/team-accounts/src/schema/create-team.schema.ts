@@ -26,7 +26,7 @@ const TeamNameSchema = z
       return !RESERVED_NAMES_ARRAY.includes(name);
     },
     {
-      message: 'teams:reservedNameError',
+      message: 'budgets:reservedNameError',
     },
   );
 

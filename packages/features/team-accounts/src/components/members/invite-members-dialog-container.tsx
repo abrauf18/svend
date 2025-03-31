@@ -60,7 +60,7 @@ export function InviteMembersDialogContainer({
 }>) {
   const [pending, startTransition] = useTransition();
   const [isOpen, setIsOpen] = useState(false);
-  const { t } = useTranslation('teams');
+  const { t } = useTranslation('budgets');
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen} modal>
@@ -69,11 +69,11 @@ export function InviteMembersDialogContainer({
       <DialogContent onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>
-            <Trans i18nKey={'teams:inviteMembersHeading'} />
+            <Trans i18nKey={'budgets:inviteMembersHeading'} />
           </DialogTitle>
 
           <DialogDescription>
-            <Trans i18nKey={'teams:inviteMembersDescription'} />
+            <Trans i18nKey={'budgets:inviteMembersDescription'} />
           </DialogDescription>
         </DialogHeader>
 
@@ -115,7 +115,7 @@ function InviteMembersForm({
   pending: boolean;
   roles: string[];
 }) {
-  const { t } = useTranslation('teams');
+  const { t } = useTranslation('budgets');
 
   const form = useForm({
     resolver: zodResolver(InviteMembersSchema),
@@ -183,7 +183,7 @@ function InviteMembersForm({
                           <FormItem>
                             <If condition={isFirst}>
                               <FormLabel>
-                                <Trans i18nKey={'teams:roleLabel'} />
+                                <Trans i18nKey={'budgets:roleLabel'} />
                               </FormLabel>
                             </If>
 
@@ -250,7 +250,7 @@ function InviteMembersForm({
                 <Plus className={'mr-1 h-3'} />
 
                 <span>
-                  <Trans i18nKey={'teams:addAnotherMemberButtonLabel'} />
+                  <Trans i18nKey={'budgets:addAnotherMemberButtonLabel'} />
                 </span>
               </Button>
             </div>
@@ -261,8 +261,8 @@ function InviteMembersForm({
           <Trans
             i18nKey={
               pending
-                ? 'teams:invitingMembers'
-                : 'teams:inviteMembersButtonLabel'
+                ? 'budgets:invitingMembers'
+                : 'budgets:inviteMembersButtonLabel'
             }
           />
         </Button>

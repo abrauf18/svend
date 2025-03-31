@@ -8,10 +8,11 @@ import { useBudgetWorkspace } from '~/components/budget-workspace-context';
 import { BudgetFinAccountTransactionTag } from '~/lib/model/budget.types';
 
 interface TransactionTagSelectProps {
-  transactionId: string;
+  transactionId?: string;
   onTagsChange: (newTags: BudgetFinAccountTransactionTag[]) => void;
   disabled?: boolean;
-  type: 'transactions' | 'recurring';
+  type: 'transactions' | 'recurring' | 'rules';
+  initialValue?: string[];
 }
 
 const highlightMatch = (text: string, query: string) => {
@@ -43,6 +44,7 @@ export function TransactionTagSelect(props: TransactionTagSelectProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
 
   const { workspace, addBudgetTag } = useBudgetWorkspace();
 
@@ -52,16 +54,28 @@ export function TransactionTagSelect(props: TransactionTagSelectProps) {
 
   useEffect(() => {
     if (props.type === 'recurring') {
-      setSelectedTags((workspace.budgetRecurringTransactions ?? [])
-        .find(t => t.transaction.id === props.transactionId)?.budgetTags ?? []);
-    } else {
-      setSelectedTags((workspace.budgetTransactions ?? [])
-        .find(t => t.transaction.id === props.transactionId)?.budgetTags ?? []);
+      const tags = (workspace.budgetRecurringTransactions ?? [])
+        .find(t => t.transaction.id === props.transactionId)?.budgetTags ?? [];
+      setSelectedTags(tags);
+    } else if (props.type === 'transactions') {
+      const tags = (workspace.budgetTransactions ?? [])
+        .find(t => t.transaction.id === props.transactionId)?.budgetTags ?? [];
+      setSelectedTags(tags);
+    } else if (props.type === 'rules' && isInitialMount.current) {
+      if (props.initialValue && props.initialValue.length > 0) {
+        const tags = workspace.budgetTags?.filter(tag => props.initialValue?.includes(tag.id)) ?? [];
+        setSelectedTags(tags);
+      } else {
+        setSelectedTags([]);
+      }
+      isInitialMount.current = false;
     }
-  }, [workspace.budgetTransactions, workspace.budgetRecurringTransactions, props.transactionId, props.type]);
+  }, [workspace.budgetTransactions, workspace.budgetRecurringTransactions, workspace.budgetTags, props.transactionId, props.type, props.initialValue]);
 
   useEffect(() => {
-    props.onTagsChange(selectedTags);
+    if (!isInitialMount.current) {
+      props.onTagsChange(selectedTags);
+    }
   }, [selectedTags]);
 
   useEffect(() => {
@@ -103,18 +117,23 @@ export function TransactionTagSelect(props: TransactionTagSelectProps) {
       const { tag: newTag } = await response.json();
       addBudgetTag(newTag);
       
-      // Update selected tags and notify parent
-      const updatedSelectedTags = [...selectedTags, newTag];
-      setSelectedTags(updatedSelectedTags);
-
+      setSelectedTags(prevTags => [...prevTags, newTag]);
       setTagSearchQuery('');
       setIsOpen(false);
     } catch (error) {
       console.error('Failed to create tag:', error);
-      // You might want to add error handling UI here
     } finally {
       setIsCreatingTag(false);
     }
+  };
+
+  const handleTagToggle = (tag: BudgetFinAccountTransactionTag) => {
+    setSelectedTags(prevTags => {
+      const isSelected = prevTags.some(t => t.id === tag.id);
+      return isSelected
+        ? prevTags.filter(t => t.id !== tag.id)
+        : [...prevTags, tag];
+    });
   };
 
   return (
@@ -209,14 +228,7 @@ export function TransactionTagSelect(props: TransactionTagSelectProps) {
                       "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
                       selectedTags.some(st => st.id === tag.id) && "bg-accent text-accent-foreground"
                     )}
-                    onClick={() => {
-                      const isSelected = selectedTags.some(t => t.id === tag.id);
-                      const updatedTags = isSelected
-                        ? selectedTags.filter(t => t.id !== tag.id)
-                        : [...selectedTags, tag];
-                      
-                      setSelectedTags(updatedTags);
-                    }}
+                    onClick={() => handleTagToggle(tag)}
                   >
                     <span className="left-1 mr-1 flex h-3.5 w-3.5 items-center justify-center">
                       {selectedTags.some(st => st.id === tag.id) && (

@@ -25,7 +25,7 @@ import { initializeEmailI18n } from '../lib/i18n';
 
 interface Props {
   teamName: string;
-  teamLogo?: string;
+  budgetLogo?: string;
   inviter: string | undefined;
   invitedUserEmail: string;
   link: string;
@@ -88,13 +88,13 @@ export async function renderInviteEmail(props: Props) {
                 dangerouslySetInnerHTML={{ __html: mainText }}
               />
 
-              {props.teamLogo && (
+              {props.budgetLogo && (
                 <Section>
                   <Row>
                     <Column align="center">
                       <Img
                         className="rounded-full"
-                        src={props.teamLogo}
+                        src={props.budgetLogo}
                         width="64"
                         height="64"
                       />

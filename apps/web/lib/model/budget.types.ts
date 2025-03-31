@@ -6,6 +6,7 @@ export type Budget = {
   budgetType: string;
   spendingTracking: BudgetSpendingTrackingsByMonth;
   spendingRecommendations: BudgetSpendingRecommendations;
+  ruleOrder: string[];
   goals: BudgetGoal[];
   onboardingStep?: Database['public']['Tables']['budgets']['Row']['current_onboarding_step'];
   linkedFinAccounts: Array<FinAccount>;
@@ -178,4 +179,57 @@ export type BudgetGoalMultiRecommendations = {
   conservative: Record<string, BudgetGoalSpendingRecommendation>;
   relaxed: Record<string, BudgetGoalSpendingRecommendation>;
 };
+
+export interface BudgetRule {
+  id: string;
+  budgetId: string;
+  name: string;
+  isActive: boolean;
+  conditions: {
+    merchantName?: {
+      enabled: boolean;
+      matchType?: 'contains' | 'exactly';
+      value?: string;
+    };
+    amount?: {
+      enabled: boolean;
+      type?: 'expenses' | 'income';
+      matchType?: 'exactly' | 'between';
+      value?: string;
+      rangeStart?: string;
+      rangeEnd?: string;
+    };
+    date?: {
+      enabled: boolean;
+      matchType?: 'between' | 'exactly';
+      value?: number;
+      rangeStart?: number;
+      rangeEnd?: number;
+    };
+    account?: {
+      enabled: boolean;
+      value?: string;
+    };
+  };
+  actions: {
+    renameMerchant?: {
+      enabled: boolean;
+      value?: string;
+    };
+    setNote?: {
+      enabled: boolean;
+      value?: string;
+    };
+    setCategory?: {
+      enabled: boolean;
+      value?: string;
+    };
+    addTags?: {
+      enabled: boolean;
+      value?: string[];
+    };
+  };
+  createdAt: string;
+  updatedAt: string;
+}
 

@@ -55,7 +55,7 @@ async function FirstTimeInviteMembersModal({ params }: FirstTimeInviteMembersMod
             <Button size={'sm'} data-test={'invite-members-form-trigger'}>
               <PlusCircle className={'mr-2 w-4'} />
               <span>
-                <Trans i18nKey={'teams:inviteMembersButton'} />
+                <Trans i18nKey={'budgets:inviteMembersButton'} />
               </span>
             </Button>
           </InviteMembersDialogContainer>

@@ -61,8 +61,9 @@ export function AppBreadcrumbs(props: {
                 >
                   <BreadcrumbLink
                     href={
-                      '/' +
-                      splitPath.slice(0, splitPath.indexOf(path) + 1).join('/')
+                      path === 'settings'
+                        ? '/' + splitPath.slice(0, splitPath.indexOf(path) + 1).join('/') + '/general'
+                        : '/' + splitPath.slice(0, splitPath.indexOf(path) + 1).join('/')
                     }
                   >
                     {label}

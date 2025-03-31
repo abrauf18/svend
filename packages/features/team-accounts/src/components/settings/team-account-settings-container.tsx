@@ -23,7 +23,7 @@ export function TeamAccountSettingsContainer(props: {
   };
 
   paths: {
-    teamAccountSettings: string;
+    budgetAccountSettings: string;
   };
 
   features: {
@@ -35,11 +35,11 @@ export function TeamAccountSettingsContainer(props: {
       <Card>
         <CardHeader>
           <CardTitle>
-            <Trans i18nKey={'teams:settings.teamLogo'} />
+            <Trans i18nKey={'budgets:settings.budgetLogo'} />
           </CardTitle>
 
           <CardDescription>
-            <Trans i18nKey={'teams:settings.teamLogoDescription'} />
+            <Trans i18nKey={'budgets:settings.budgetLogoDescription'} />
           </CardDescription>
         </CardHeader>
 
@@ -51,17 +51,17 @@ export function TeamAccountSettingsContainer(props: {
       <Card>
         <CardHeader>
           <CardTitle>
-            <Trans i18nKey={'teams:settings.teamName'} />
+            <Trans i18nKey={'budgets:settings.budgetName'} />
           </CardTitle>
 
           <CardDescription>
-            <Trans i18nKey={'teams:settings.teamNameDescription'} />
+            <Trans i18nKey={'budgets:settings.budgetNameDescription'} />
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <UpdateTeamAccountNameForm
-            path={props.paths.teamAccountSettings}
+            path={props.paths.budgetAccountSettings}
             account={props.account}
           />
         </CardContent>
@@ -70,11 +70,11 @@ export function TeamAccountSettingsContainer(props: {
       <Card className={'border-destructive border'}>
         <CardHeader>
           <CardTitle>
-            <Trans i18nKey={'teams:settings.dangerZone'} />
+            <Trans i18nKey={'budgets:settings.dangerZone'} />
           </CardTitle>
 
           <CardDescription>
-            <Trans i18nKey={'teams:settings.dangerZoneDescription'} />
+            <Trans i18nKey={'budgets:settings.dangerZoneDescription'} />
           </CardDescription>
         </CardHeader>
 

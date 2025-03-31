@@ -24,6 +24,8 @@ import { createBudgetService } from '~/lib/server/budget.service';
 import { createTransactionService } from '~/lib/server/transaction.service';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { loadBudgetWorkspace } from './_lib/server/team-account-budget-manage-page.loader';
+import { createBudgetTransactionService } from '~/lib/server/budget.tx.service';
+import { createCategoryService } from '~/lib/server/category.service';
 
 interface Params {
   account: string;
@@ -46,6 +48,7 @@ function TeamWorkspaceLayout({
 
   const budgetService = createBudgetService(getSupabaseServerClient());
   const transactionService = createTransactionService(getSupabaseServerClient());
+  const budgetTransactionService = createBudgetTransactionService(getSupabaseServerClient(), createCategoryService(getSupabaseServerClient()));
 
   return (
     <Page style={style}>
@@ -82,10 +85,11 @@ function TeamWorkspaceLayout({
         accounts: data.accounts,
         account: data.account,
         budget: budgetService.parseBudget(data.budget)!,
-        budgetTransactions: transactionService.parseBudgetTransactions(data.budgetTransactions),
+        budgetTransactions: budgetTransactionService.parseBudgetTransactions(data.budgetTransactions),
         budgetRecurringTransactions: transactionService.parseBudgetRecurringTransactions(data.budgetRecurringTransactions),
         budgetCategories: data.budgetCategories,
         budgetTags: budgetService.parseBudgetTags(data.budgetTags || []),
+        budgetRules: budgetService.parseBudgetRules(data.budgetRules),
       }}>
         <FirstTimeInviteMembersModal
           params={{

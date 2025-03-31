@@ -30,11 +30,11 @@ export function DeleteInvitationDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            <Trans i18nKey="team:deleteInvitation" />
+            <Trans i18nKey="budgets:deleteInvitation" />
           </AlertDialogTitle>
 
           <AlertDialogDescription>
-            <Trans i18nKey="team:deleteInvitationDialogDescription" />
+            <Trans i18nKey="budgets:deleteInvitationDialogDescription" />
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -90,7 +90,7 @@ function DeleteInvitationForm({
             variant={'destructive'}
             disabled={isSubmitting}
           >
-            <Trans i18nKey={'teams:deleteInvitation'} />
+            <Trans i18nKey={'budgets:deleteInvitation'} />
           </Button>
         </AlertDialogFooter>
       </div>
@@ -102,11 +102,11 @@ function RemoveInvitationErrorAlert() {
   return (
     <Alert variant={'destructive'}>
       <AlertTitle>
-        <Trans i18nKey={'teams:deleteInvitationErrorTitle'} />
+        <Trans i18nKey={'budgets:deleteInvitationErrorTitle'} />
       </AlertTitle>
 
       <AlertDescription>
-        <Trans i18nKey={'teams:deleteInvitationErrorMessage'} />
+        <Trans i18nKey={'budgets:deleteInvitationErrorMessage'} />
       </AlertDescription>
     </Alert>
   );

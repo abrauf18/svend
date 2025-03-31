@@ -2,18 +2,21 @@ import { Database } from '../database.types';
 import { createCategoryService } from './category.service';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { BudgetCategoryGroups, BudgetFinAccountTransaction, BudgetSpendingTrackingsByMonth } from '../model/budget.types';
-import { createTransactionService } from './transaction.service';
-import { ITransactionService } from './transaction.service';
+import { createBudgetTransactionService, IBudgetTransactionService } from './budget.tx.service';
 
 /**
  * @name SpendingService
  * @description Service for spending-related operations
  */
 class SpendingService implements ISpendingService {
+  private budgetTransactionService: IBudgetTransactionService;
+
   constructor(
-    private readonly supabase: SupabaseClient<Database>,
-    private readonly transactionService: ITransactionService = createTransactionService(supabase)
-  ) {}
+    private readonly supabase: SupabaseClient<Database>
+  ) {
+    const categoryService = createCategoryService(supabase);
+    this.budgetTransactionService = createBudgetTransactionService(supabase, categoryService);
+  }
 
   /**
    * Updates budget spending in the database
@@ -72,7 +75,7 @@ class SpendingService implements ISpendingService {
         }
 
         // Calculate new spending tracking
-        const parsedTransactions = this.transactionService.parseBudgetTransactions(dbTransactions);
+        const parsedTransactions = this.budgetTransactionService.parseBudgetTransactions(dbTransactions);
         const { spendingTrackingsByMonth } = this.calculateSpendingTrackings(parsedTransactions, categoryGroups, dbTracking);
 
         // Merge tracking data

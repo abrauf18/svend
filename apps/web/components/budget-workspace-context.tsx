@@ -6,11 +6,12 @@ import {
   useContext,
   useEffect,
   useState,
+  useMemo,
 } from 'react';
 
 import { User } from '@supabase/supabase-js';
 import { Database } from '~/lib/database.types';
-import { Budget, BudgetCategoryGroups, BudgetFinAccountRecurringTransaction, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag, BudgetSpendingTrackingsByMonth } from '~/lib/model/budget.types';
+import { Budget, BudgetCategoryGroups, BudgetFinAccountRecurringTransaction, BudgetFinAccountTransaction, BudgetFinAccountTransactionTag, BudgetRule, BudgetSpendingTrackingsByMonth } from '~/lib/model/budget.types';
 import { Category, CategoryCompositionData, CategoryGroup } from '~/lib/model/fin.types';
 
 interface BudgetWorkspace {
@@ -22,6 +23,7 @@ interface BudgetWorkspace {
   budgetRecurringTransactions: BudgetFinAccountRecurringTransaction[];
   budgetCategories: BudgetCategoryGroups;
   budgetTags: BudgetFinAccountTransactionTag[];
+  budgetRules: BudgetRule[];
 }
 
 interface BudgetWorkspaceContextValue {
@@ -42,6 +44,9 @@ interface BudgetWorkspaceContextValue {
     categoryId: string,
     updateData: CategoryUpdateData
   ) => void;
+  updateBudgetRuleOrder: (ruleIds: string[]) => void;
+  addBudgetRule: (newRule: BudgetRule) => void;
+  deleteBudgetRule: (ruleId: string) => void;
 }
 
 export const BudgetWorkspaceContext =
@@ -54,7 +59,70 @@ export function useBudgetWorkspace() {
 export function BudgetWorkspaceContextProvider(
   props: React.PropsWithChildren<{ value: BudgetWorkspace }>,
 ) {
-  const [workspace, setWorkspace] = useState<BudgetWorkspace>(props.value);
+  // Initialize workspace with properly ordered rules
+  const [workspace, setWorkspace] = useState<BudgetWorkspace>(() => {
+    const ruleOrder = props.value.budget.ruleOrder || [];
+    const ruleMap = new Map(props.value.budgetRules.map(rule => [rule.id, rule]));
+    
+    // Create ordered rules array based on ruleOrder
+    const orderedRules = ruleOrder
+      .map(id => ruleMap.get(id))
+      .filter((rule): rule is BudgetRule => rule !== undefined);
+    
+    // Add any rules that aren't in ruleOrder at the end
+    const unorderedRules = props.value.budgetRules.filter(
+      rule => !ruleOrder.includes(rule.id)
+    );
+
+    return {
+      ...props.value,
+      budgetRules: [...orderedRules, ...unorderedRules],
+      budget: {
+        ...props.value.budget,
+        ruleOrder: [...orderedRules, ...unorderedRules].map(rule => rule.id)
+      }
+    };
+  });
+
+  const updateBudgetRuleOrder = useCallback((ruleIds: string[]) => {
+    setWorkspace(prev => {
+      // Validate that we have the same rules (just in different order)
+      const currentRuleIds = new Set(prev.budget.ruleOrder || []);
+      const newRuleIds = new Set(ruleIds);
+  
+      // Check if sets have same size and contain same elements
+      const hasAllRules = currentRuleIds.size === newRuleIds.size && 
+        [...currentRuleIds].every(id => newRuleIds.has(id));
+  
+      if (!hasAllRules) {
+        console.warn(
+          'Rule order update failed: New rule IDs do not match current rules',
+          {
+            current: [...currentRuleIds],
+            received: [...newRuleIds]
+          }
+        );
+        return prev;
+      }
+  
+      // Create a map of rule id to rule object for quick lookup
+      const ruleMap = new Map(prev.budgetRules.map(rule => [rule.id, rule]));
+      
+      // Create new ordered rules array based on ruleIds
+      const orderedRules = ruleIds
+        .map(id => ruleMap.get(id))
+        .filter((rule): rule is BudgetRule => rule !== undefined);
+  
+      return {
+        ...prev,
+        budget: {
+          ...prev.budget,
+          ruleOrder: ruleIds
+        },
+        budgetRules: orderedRules
+      };
+    });
+  }, []);
 
   const updateBudgetOnboardingStep = useCallback(
     (
@@ -233,6 +301,28 @@ export function BudgetWorkspaceContextProvider(
     []
   );
 
+  const addBudgetRule = useCallback((newRule: BudgetRule) => {
+    setWorkspace(prev => ({
+      ...prev,
+      budget: {
+        ...prev.budget,
+        ruleOrder: [...(prev.budget.ruleOrder || []), newRule.id]
+      },
+      budgetRules: [...prev.budgetRules, newRule]
+    }));
+  }, []);
+
+  const deleteBudgetRule = useCallback((ruleId: string) => {
+    setWorkspace(prev => ({
+      ...prev,
+      budget: {
+        ...prev.budget,
+        ruleOrder: prev.budget.ruleOrder.filter(id => id !== ruleId)
+      },
+      budgetRules: prev.budgetRules.filter(rule => rule.id !== ruleId)
+    }));
+  }, []);
+
   useEffect(() => {
     console.log('Budget workspace updated:', workspace);
   }, [workspace]);
@@ -250,6 +340,9 @@ export function BudgetWorkspaceContextProvider(
         addBudgetTag,
         updateBudgetSpending,
         updateCategory,
+        updateBudgetRuleOrder,
+        addBudgetRule,
+        deleteBudgetRule
       }}
     >
       {props.children}

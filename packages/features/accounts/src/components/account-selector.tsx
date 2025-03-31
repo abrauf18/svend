@@ -59,7 +59,7 @@ export function AccountSelector({
 }: React.PropsWithChildren<AccountSelectorProps>) {
   const [open, setOpen] = useState<boolean>(false);
   const [isCreatingAccount, setIsCreatingAccount] = useState<boolean>(false);
-  const { t } = useTranslation('teams');
+  const { t } = useTranslation('budgets');
   const personalData = usePersonalAccountData(userId);
 
   const value = useMemo(() => {
@@ -117,7 +117,7 @@ export function AccountSelector({
                       hidden: collapsed,
                     })}
                   >
-                    <Trans i18nKey={'teams:personalAccount'} />
+                    <Trans i18nKey={'budgets:personalAccount'} />
                   </span>
                 </span>
               }
@@ -164,7 +164,7 @@ export function AccountSelector({
                   <PersonalAccountAvatar />
 
                   <span className={'ml-2'}>
-                    <Trans i18nKey={'teams:personalAccount'} />
+                    <Trans i18nKey={'budgets:personalAccount'} />
                   </span>
 
                   <Icon item={PERSONAL_ACCOUNT_SLUG} />
@@ -177,8 +177,8 @@ export function AccountSelector({
                 <CommandGroup
                   heading={
                     <Trans
-                      i18nKey={'teams:yourTeams'}
-                      values={{ teamsCount: accounts.length }}
+                      i18nKey={'budgets:yourBudgets'}
+                      values={{ budgetsCount: accounts.length }}
                     />
                   }
                 >
@@ -248,7 +248,7 @@ export function AccountSelector({
                 <Plus className="mr-3 h-4 w-4" />
 
                 <span>
-                  <Trans i18nKey={'teams:createTeam'} />
+                  <Trans i18nKey={'budgets:createTeam'} />
                 </span>
               </Button>
             </div>

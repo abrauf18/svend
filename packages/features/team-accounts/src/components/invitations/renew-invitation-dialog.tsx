@@ -32,7 +32,7 @@ export function RenewInvitationDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            <Trans i18nKey="team:renewInvitation" />
+            <Trans i18nKey="budgets:renewInvitation" />
           </AlertDialogTitle>
 
           <AlertDialogDescription>
@@ -94,7 +94,7 @@ function RenewInvitationForm({
             data-test={'confirm-renew-invitation'}
             disabled={isSubmitting}
           >
-            <Trans i18nKey={'teams:renewInvitation'} />
+            <Trans i18nKey={'budgets:renewInvitation'} />
           </Button>
         </AlertDialogFooter>
       </div>
@@ -106,11 +106,11 @@ function RenewInvitationErrorAlert() {
   return (
     <Alert variant={'destructive'}>
       <AlertTitle>
-        <Trans i18nKey={'teams:renewInvitationErrorTitle'} />
+        <Trans i18nKey={'budgets:renewInvitationErrorTitle'} />
       </AlertTitle>
 
       <AlertDescription>
-        <Trans i18nKey={'teams:renewInvitationErrorDescription'} />
+        <Trans i18nKey={'budgets:renewInvitationErrorDescription'} />
       </AlertDescription>
     </Alert>
   );

@@ -8,20 +8,30 @@ import {
 import { FinAccountTransaction, Category, CategoryCompositionData, FinAccountRecurringTransaction, FinAccount } from '../model/fin.types';
 import { PlaidApi, Transaction, TransactionsEnrichRequest, TransactionStream, EnrichTransactionDirection, ClientProvidedEnrichedTransaction, TransactionStreamStatus } from 'plaid';
 import { ICategoryService, createCategoryService } from './category.service';
+import { IRulesService, createRulesService } from './rules.service';
+import { IBudgetTransactionService, createBudgetTransactionService } from './budget.tx.service';
 
 /**
  * @name TransactionService
  * @description Service for transaction-related operations
  */
-class TransactionService {
+export class TransactionService implements ITransactionService {
   private supabase: SupabaseClient<Database>;
   private categoryService: ICategoryService;
+  private rulesService: IRulesService | null = null;
+  private budgetTransactionService: IBudgetTransactionService;
 
   constructor(
-    supabaseClient: SupabaseClient
+    supabaseClient: SupabaseClient,
+    categoryService: ICategoryService
   ) {
     this.supabase = supabaseClient;
-    this.categoryService = createCategoryService(supabaseClient);
+    this.categoryService = categoryService;
+    this.budgetTransactionService = createBudgetTransactionService(supabaseClient, categoryService);
+  }
+
+  setRulesService(rulesService: IRulesService) {
+    this.rulesService = rulesService;
   }
 
   /**
@@ -86,96 +96,6 @@ class TransactionService {
 
     } catch (error) {
       console.error('Error parsing transactions:', error);
-      return [];
-    }
-  }
-
-  /**
- * Parses and validates raw budget transactions into strongly typed FinAccountTransaction objects
- * @param raw The raw budget transactions from the get_budget_transactions_by_team_account_slug function
- * @returns Array of validated FinAccountTransaction objects
- * 
- * Maps the following fields from database:
- * - Basic: id, date, amount, merchantName, payee, isoCurrencyCode
- * - Categories: plaidDetailedCategoryName, svendCategoryGroup, svendCategoryName, svendCategoryId
- * - Budget: budgetFinAccountId, notes
- * - Arrays: budgetTags (tags), budgetAttachmentsStorageNames (attachments_storage_names)
- */
-  parseBudgetTransactions(raw: Database['public']['Functions']['get_budget_transactions_by_team_account_slug']['Returns']): BudgetFinAccountTransaction[] {
-    try {
-      if (!Array.isArray(raw)) {
-        console.error('Expected array of transactions, received:', typeof raw);
-        return [];
-      }
-
-      return raw.reduce((validTransactions: BudgetFinAccountTransaction[], budgetTransaction) => {
-        try {
-          // Validate required fields
-          if (!budgetTransaction.id || !budgetTransaction.date ||
-            typeof budgetTransaction.amount !== 'number' ||
-            !budgetTransaction.budget_fin_account_id) {
-            console.error('Missing required transaction fields:', budgetTransaction);
-            return validTransactions;
-          }
-
-          // Validate date
-          const transactionDate = new Date(budgetTransaction.date);
-          if (isNaN(transactionDate.getTime())) {
-            console.error('Invalid transaction date:', budgetTransaction.date);
-            return validTransactions;
-          }
-
-          // Create validated transaction object matching SQL function return values
-          const validTransaction: BudgetFinAccountTransaction = {
-            transaction: {
-              id: budgetTransaction.id,
-              userTxId: budgetTransaction.user_tx_id,
-              plaidTxId: budgetTransaction.plaid_tx_id,
-              date: budgetTransaction.date,
-              amount: budgetTransaction.amount,
-              merchantName: budgetTransaction.merchant_name,
-              payee: budgetTransaction.payee ?? undefined,
-              isoCurrencyCode: budgetTransaction.iso_currency_code ?? undefined,
-              status: budgetTransaction.tx_status ?? 'posted',
-            } as FinAccountTransaction,
-            budgetFinAccountId: budgetTransaction.budget_fin_account_id ?? undefined,
-
-            // Category information
-            categoryGroupId: budgetTransaction.svend_category_group_id ?? undefined,
-            categoryGroup: budgetTransaction.svend_category_group ?? undefined,
-            category: {
-              id: budgetTransaction.svend_category_id ?? undefined,
-              name: budgetTransaction.svend_category ?? undefined,
-              isComposite: budgetTransaction.is_composite ?? false,
-              compositeData: Array.isArray(budgetTransaction.composite_data)
-                ? (budgetTransaction.composite_data as unknown as CategoryCompositionData[])
-                : undefined,
-            } as any,
-
-            // Optional fields that match SQL return
-            merchantName: budgetTransaction.merchant_name ?? undefined,
-            payee: budgetTransaction.payee ?? undefined,
-            notes: budgetTransaction.notes ?? '',
-
-            // Arrays from SQL
-            budgetTags: (budgetTransaction.tags as any[] ?? []).map((tag: any) => ({
-              id: tag.id || tag,  // Handle both object and string formats
-              name: tag.name || tag
-            } as BudgetFinAccountTransactionTag)),
-            budgetAttachmentsStorageNames: budgetTransaction.attachments_storage_names ?? [],
-          };
-
-          validTransactions.push(validTransaction);
-          return validTransactions;
-
-        } catch (error) {
-          console.error('Error parsing individual transaction:', error);
-          return validTransactions;
-        }
-      }, []);
-
-    } catch (error) {
-      console.error('Error parsing budget transactions:', error);
       return [];
     }
   }
@@ -254,7 +174,10 @@ class TransactionService {
    * @name saveBudgetTransactions
    * @description Saves budget transactions to the database
    */
-  async saveBudgetTransactions(transactions: BudgetFinAccountTransaction[], budgetId: string): Promise<ServiceResult<BudgetFinAccountTransaction[]>> {
+  async saveBudgetTransactions(
+    transactions: BudgetFinAccountTransaction[],
+    budgetId: string
+  ): Promise<ServiceResult<null>> {
     try {
       // First, handle enrichment updates for manual transactions
       const manualTransactionsToEnrich = transactions.filter(tx => 
@@ -301,7 +224,7 @@ class TransactionService {
       // Query for existing transactions
       const { data: existingTransactions, error: fetchError } = await this.supabase
         .from('fin_account_transactions')
-        .select('id, plaid_tx_id, manual_account_id')
+        .select('id, plaid_tx_id, manual_account_id, svend_category_id')
         .or(`plaid_tx_id.in.(${plaidTxIds.map(id => `"${id}"`).join(',')}),id.in.(${manualTxIds.map(id => `"${id}"`).join(',')})`);
 
       if (fetchError) throw fetchError;
@@ -314,8 +237,8 @@ class TransactionService {
         existingTransactions?.filter(tx => !tx.plaid_tx_id).map(tx => [tx.id, tx.id]) || []
       );
 
-      const newTransactions = [];
-      const updateTransactions = [];
+      let newTransactions: BudgetFinAccountTransaction[] = [];
+      let updateTransactions: BudgetFinAccountTransaction[] = [];
 
       for (const tx of transactions) {
         if (tx.transaction.plaidTxId && existingPlaidTxMap.has(tx.transaction.plaidTxId)) {
@@ -336,6 +259,23 @@ class TransactionService {
       // Handle new insertions using the stored procedure
       let newTransactionIds: string[] = [];
       if (newTransactions.length > 0) {
+        // Apply rules to new transactions before saving
+        if (this.rulesService) {
+          console.log('[Debug] Applying rules to new transactions:', {
+            count: newTransactions.length,
+            sampleTransaction: newTransactions[0] ? {
+              plaidTxId: newTransactions[0].transaction.plaidTxId,
+              merchantName: newTransactions[0].transaction.merchantName
+            } : null
+          });
+          const processedTransactions = await this.rulesService.fetchAndApplyRules(budgetId, newTransactions);
+          if (processedTransactions) {
+            newTransactions = processedTransactions;
+          }
+        } else {
+          console.warn('[Debug] Rules service not initialized, skipping rule application for new transactions');
+        }
+
         const rpcPayload = newTransactions.map(tx => ({
           user_tx_id: tx.transaction.userTxId || null,
           plaid_tx_id: tx.transaction.plaidTxId || null,
@@ -343,14 +283,16 @@ class TransactionService {
           budget_fin_account_id: tx.budgetFinAccountId || null,
           amount: tx.transaction.amount,
           date: tx.transaction.date,
-          svend_category_id: tx.category?.id,
-          merchant_name: tx.transaction.merchantName || null,
-          payee: tx.transaction.payee || null,
+          svend_category_id: tx.category?.id || tx.transaction.svendCategoryId || null,
+          merchant_name: tx.merchantName || tx.transaction.merchantName || null,
+          payee: tx.payee || tx.transaction.payee || null,
           tx_status: tx.transaction.status,
           iso_currency_code: tx.transaction.isoCurrencyCode || null,
           plaid_category_detailed: tx.transaction.plaidDetailedCategory ?? null,
           plaid_category_confidence: tx.transaction.plaidCategoryConfidence ?? null,
-          plaid_raw_data: tx.transaction.plaidRawData as any
+          plaid_raw_data: tx.transaction.plaidRawData as any,
+          notes: tx.notes || null,
+          tag_ids: tx.budgetTags?.map(tag => tag.id) || []
         }));
 
         const { data: ids, error: insertError } = await this.supabase
@@ -366,19 +308,59 @@ class TransactionService {
         newTransactionIds = ids || [];
       }
 
-      // Combine results
-      const results = [
-        ...updateTransactions,
-        ...newTransactions.map((tx, index) => ({
-          ...tx,
-          transaction: {
-            ...tx.transaction,
-            id: newTransactionIds[index]!
-          }
-        }))
-      ];
+      // Handle updates with rules applied
+      updateTransactions = transactions.filter(tx => 
+        (tx.transaction.plaidTxId && existingPlaidTxMap.has(tx.transaction.plaidTxId)) ||
+        (tx.transaction.manualAccountId && existingManualTxMap.has(tx.transaction.id))
+      );
+      if (updateTransactions.length > 0) {
+        const updatePayload = updateTransactions.map(tx => ({
+          id: tx.transaction.id,
+          user_tx_id: tx.transaction.userTxId,
+          amount: tx.transaction.amount,
+          date: tx.transaction.date,
+          svend_category_id: tx.category?.id || tx.transaction.svendCategoryId || tx.transaction.svendCategoryId || '',
+          merchant_name: tx.transaction.merchantName || null,
+          payee: tx.transaction.payee || null,
+          tx_status: tx.transaction.status,
+          iso_currency_code: tx.transaction.isoCurrencyCode || null,
+          plaid_category_detailed: tx.transaction.plaidDetailedCategory ?? null,
+          plaid_category_confidence: tx.transaction.plaidCategoryConfidence ?? null,
+          plaid_raw_data: tx.transaction.plaidRawData as any
+        }));
 
-      return { data: results, error: null };
+        const { error: updateError } = await this.supabase
+          .from('fin_account_transactions')
+          .upsert(updatePayload);
+
+        if (updateError) {
+          console.error('[Debug] Update error:', updateError);
+          throw updateError;
+        }
+
+        // Update the budget_fin_account_transactions table
+        const budgetTxUpdatePayload = updateTransactions.map(tx => ({
+          budget_id: budgetId,
+          fin_account_transaction_id: tx.transaction.id,
+          svend_category_id: tx.category?.id || tx.transaction.svendCategoryId || '',
+          merchant_name: tx.transaction.merchantName || null,
+          payee: tx.transaction.payee || null,
+          notes: tx.notes || null
+        }));
+
+        const { error: budgetTxUpdateError } = await this.supabase
+          .from('budget_fin_account_transactions')
+          .upsert(budgetTxUpdatePayload, {
+            onConflict: 'budget_id,fin_account_transaction_id'
+          });
+
+        if (budgetTxUpdateError) {
+          console.error('[Debug] Budget transaction update error:', budgetTxUpdateError);
+          throw budgetTxUpdateError;
+        }
+      }
+
+      return { data: null, error: null };
     } catch (error: any) {
       console.error('Error in saveBudgetTransactions:', error);
       return { data: null, error: `Failed to persist transactions: ${error.message}` };
@@ -470,8 +452,8 @@ class TransactionService {
         existingTransactions?.filter(tx => tx.user_tx_id).map(tx => [tx.user_tx_id, tx]) || []
       );
 
-      const newTransactions = [];
-      const updateTransactions = [];
+      let newTransactions = [];
+      let updateTransactions = [];
 
       // Separate new from existing transactions
       for (const tx of transactions) {
@@ -723,6 +705,7 @@ class TransactionService {
               acc.plaidAccountId === transaction.account_id
             );
 
+            // Check if the account is linked to any budgets
             if (!matchingAccount || !matchingAccount.budgetFinAccountIds?.length) {
               const unlinkedTx: FinAccountTransaction = {
                 id: '',
@@ -732,13 +715,13 @@ class TransactionService {
                   plaidTxId: transaction.transaction_id,
                   date: transaction.date,
                   amount: transaction.amount,
-                  plaidAccountId: matchingAccount?.svendAccountId // Use svendAccountId here
+                  plaidAccountId: matchingAccount?.svendAccountId
                 } as FinAccountTransaction),
                 date: transaction.date,
                 amount: Math.round(transaction.amount * 100) / 100,
                 plaidDetailedCategory: transaction.personal_finance_category?.detailed,
                 plaidCategoryConfidence: transaction.personal_finance_category?.confidence_level,
-                plaidAccountId: matchingAccount?.svendAccountId, // Use svendAccountId here
+                plaidAccountId: matchingAccount?.svendAccountId,
                 merchantName: transaction.merchant_name ?? '',
                 payee: transaction.payment_meta?.payee ?? '',
                 status: transaction.pending ? 'pending' : 'posted',
@@ -1080,7 +1063,8 @@ class TransactionService {
               acc.plaidAccountId === transaction.account_id
             );
 
-            if (matchingAccount) {
+            // Check if the account is linked to any budgets
+            if (!matchingAccount || !matchingAccount.budgetFinAccountIds?.length) {
               const unlinkedTx: FinAccountTransaction = {
                 id: '',
                 plaidTxId: transaction.transaction_id,
@@ -1089,13 +1073,13 @@ class TransactionService {
                   plaidTxId: transaction.transaction_id,
                   date: transaction.date,
                   amount: transaction.amount,
-                  plaidAccountId: matchingAccount.svendAccountId
+                  plaidAccountId: matchingAccount?.svendAccountId
                 } as FinAccountTransaction),
                 date: transaction.date,
                 amount: Math.round(transaction.amount * 100) / 100,
                 plaidDetailedCategory: transaction.personal_finance_category?.detailed,
                 plaidCategoryConfidence: transaction.personal_finance_category?.confidence_level,
-                plaidAccountId: matchingAccount.svendAccountId,
+                plaidAccountId: matchingAccount?.svendAccountId,
                 merchantName: transaction.merchant_name ?? '',
                 payee: transaction.payment_meta?.payee ?? '',
                 status: transaction.pending ? 'pending' : 'posted',
@@ -1275,8 +1259,7 @@ class TransactionService {
             return linkedTransactions;
         }
 
-        const finalTransactions = processedTransactions || linkedTransactions;
-        return finalTransactions.sort((a, b) => 
+        return (processedTransactions || linkedTransactions).sort((a, b) => 
             new Date(b.transaction.date).getTime() - new Date(a.transaction.date).getTime()
         );
 
@@ -1284,6 +1267,21 @@ class TransactionService {
         console.error('Error processing Plaid transactions:', error);
         return [];
     }
+  }
+
+  // Helper method to get budget ID from budget fin account ID
+  private async getBudgetIdFromBudgetFinAccountId(budgetFinAccountId: string): Promise<string> {
+    const { data } = await this.supabase
+        .from('budget_fin_accounts')
+        .select('budget_id')
+        .eq('id', budgetFinAccountId)
+        .single();
+    
+    if (!data?.budget_id) {
+        throw new Error(`No budget_id found for budget_fin_account ${budgetFinAccountId}`);
+    }
+    
+    return data.budget_id;
   }
 
   private async generateUserTxIdFromPlaidTx(transaction: FinAccountTransaction): Promise<string> {
@@ -1761,7 +1759,11 @@ class TransactionService {
         svendItemId: item.id,
         accessToken: item.access_token,
         nextCursor: item.next_cursor || '',
-        plaidAccounts: (item.plaid_accounts as PlaidConnectionItemAccountSummary[]) || []
+        plaidAccounts: (item.plaid_accounts as any[] || []).map(account => ({
+          svendAccountId: account.id,
+          plaidAccountId: account.plaid_account_id,
+          budgetFinAccountIds: [account.budget_fin_account_id]
+        }))
       }));
 
       // We already checked plaidItems.length above, so first item exists
@@ -2300,20 +2302,20 @@ class TransactionService {
 export function createTransactionService(
   supabaseClient: SupabaseClient
 ): ITransactionService {
-  return new TransactionService(supabaseClient);
+  const categoryService = createCategoryService(supabaseClient);
+  const transactionService = new TransactionService(supabaseClient, categoryService);
+  const rulesService = createRulesService(supabaseClient, transactionService);
+  return transactionService;
 }
 
 export interface ITransactionService {
   parseTransactions: (
     raw: Database['public']['Tables']['fin_account_transactions']['Row'][]
   ) => FinAccountTransaction[];
-  parseBudgetTransactions: (
-    raw: Database['public']['Functions']['get_budget_transactions_by_team_account_slug']['Returns']
-  ) => BudgetFinAccountTransaction[];
   parseBudgetRecurringTransactions: (
     raw: Database['public']['Functions']['get_budget_recurring_transactions_by_team_account_slug']['Returns']
   ) => BudgetFinAccountRecurringTransaction[];
-  saveBudgetTransactions: (transactions: BudgetFinAccountTransaction[], budgetId: string) => Promise<ServiceResult<BudgetFinAccountTransaction[]>>;
+  saveBudgetTransactions: (transactions: BudgetFinAccountTransaction[], budgetId: string) => Promise<ServiceResult<null>>;
   saveBudgetRecurringTransactions: (transactions: BudgetFinAccountRecurringTransaction[], budgetId: string) => Promise<ServiceResult<BudgetFinAccountRecurringTransaction[]>>;
   saveTransactions: (transactions: FinAccountTransaction[]) => Promise<ServiceResult<FinAccountTransaction[]>>;
   saveRecurringTransactions: (transactions: FinAccountRecurringTransaction[]) => Promise<ServiceResult<FinAccountRecurringTransaction[]>>;

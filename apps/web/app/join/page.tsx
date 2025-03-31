@@ -29,7 +29,7 @@ export const generateMetadata = async () => {
   const i18n = await createI18nServerInstance();
 
   return {
-    title: i18n.t('teams:joinTeamAccount'),
+    title: i18n.t('budgets:joinTeamAccount'),
   };
 };
 
@@ -133,17 +133,17 @@ function InviteNotFoundOrExpired() {
   return (
     <div className={'flex flex-col space-y-4'}>
       <Heading level={6}>
-        <Trans i18nKey={'teams:inviteNotFoundOrExpired'} />
+        <Trans i18nKey={'budgets:inviteNotFoundOrExpired'} />
       </Heading>
 
       <p className={'text-sm text-muted-foreground'}>
-        <Trans i18nKey={'teams:inviteNotFoundOrExpiredDescription'} />
+        <Trans i18nKey={'budgets:inviteNotFoundOrExpiredDescription'} />
       </p>
 
       <Button asChild className={'w-full'} variant={'outline'}>
         <Link href={pathsConfig.app.home}>
           <ArrowLeft className={'mr-2 w-4'} />
-          <Trans i18nKey={'teams:backToHome'} />
+          <Trans i18nKey={'budgets:backToHome'} />
         </Link>
       </Button>
     </div>

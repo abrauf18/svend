@@ -142,6 +142,7 @@ export function OnboardingContextProvider({
         onboardingStep: 'start',
         linkedFinAccounts: [],
         categoryGroups: {} as BudgetCategoryGroups,
+        ruleOrder: [],
       } as Budget,
       userId: undefined,
       svendCategoryGroups: {} as BudgetCategoryGroups,

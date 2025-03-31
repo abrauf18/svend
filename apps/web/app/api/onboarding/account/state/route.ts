@@ -14,6 +14,7 @@ import { createOnboardingService } from '~/lib/server/onboarding.service';
 import manualInstitutionsStateGetter from './_helpers/manual-institutions-state-getter';
 import { FinAccount } from '~/lib/model/fin.types';
 import { createTransactionService } from '~/lib/server/transaction.service';
+import { createBudgetTransactionService } from '~/lib/server/budget.tx.service';
 
 // GET /api/onboarding/account/state
 // Returns the current onboarding state for the account
@@ -115,6 +116,7 @@ export async function GET(request: Request) {
   // Create services
   const categoryService = createCategoryService(supabaseAdminClient);
   const transactionService = createTransactionService(supabaseAdminClient);
+  const budgetTransactionService = createBudgetTransactionService(supabaseAdminClient, categoryService);
 
   // Fetch all Plaid items for the user directly
   const { data: userPlaidItems, error: userPlaidItemsError } = 
@@ -172,7 +174,7 @@ export async function GET(request: Request) {
         itemAccounts: [],
       });
     }
-    const accountTransactions = transactionService.parseBudgetTransactions(budgetTransactions || [])
+    const accountTransactions = budgetTransactionService.parseBudgetTransactions(budgetTransactions || [])
       .filter(tx => {
         const budgetFinAccount = budgetFinAccounts.find(
           acc => acc.id === tx.budgetFinAccountId
@@ -312,6 +314,7 @@ export async function GET(request: Request) {
     goals: formattedBudgetGoals,
     onboardingStep: db_budget.current_onboarding_step,
     linkedFinAccounts,
+    ruleOrder: db_budget.rule_order,
   };
 
   // Fetch the financial profile for the user

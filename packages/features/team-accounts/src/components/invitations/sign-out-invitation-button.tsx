@@ -19,7 +19,7 @@ export function SignOutInvitationButton(
         window.location.assign(props.nextPath);
       }}
     >
-      <Trans i18nKey={'teams:signInWithDifferentAccount'} />
+      <Trans i18nKey={'budgets:signInWithDifferentAccount'} />
     </Button>
   );
 }

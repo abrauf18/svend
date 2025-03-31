@@ -364,6 +364,7 @@ create table if not exists public.budgets (
   start_date date not null default current_date,
   end_date date,
   current_onboarding_step budget_onboarding_step_enum not null default 'start',
+  rule_order text[] not null default '{}',  -- Add this line
   created_at timestamp with time zone default current_timestamp,
   updated_at timestamp with time zone default current_timestamp
 );
@@ -388,6 +389,132 @@ create policy read_budgets
 -- End of budgets table
 
 -- ============================================================
+-- budget_rules table
+-- ============================================================
+create table if not exists
+  public.budget_rules (
+    id uuid primary key default extensions.uuid_generate_v4(),
+    budget_id uuid not null,
+    name varchar(255) not null,
+    is_active boolean default true not null,
+    conditions jsonb not null,
+    actions jsonb not null,
+    created_at timestamptz default now() not null,
+    updated_at timestamptz default now() not null,
+    foreign key (budget_id) references public.budgets(id) on delete cascade
+  );
+
+CREATE TRIGGER set_timestamp
+BEFORE INSERT OR UPDATE ON public.budget_rules
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_set_timestamps();
+
+ALTER TABLE public.budget_rules ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "read_budget_rules" ON public.budget_rules
+    FOR SELECT
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1
+            FROM budgets
+            WHERE (budgets.id = budget_rules.budget_id) AND
+                  is_team_member(budgets.team_account_id, auth.uid())
+        )
+    );
+
+-- End of budget_rules table
+
+
+-- ============================================================
+-- Create and delete budget rule functions
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION create_budget_rule(
+    p_budget_id UUID,
+    p_name TEXT,
+    p_conditions JSONB,
+    p_actions JSONB,
+    p_is_active BOOLEAN DEFAULT true,
+    p_is_applied_to_all_transactions BOOLEAN DEFAULT false
+) RETURNS TABLE (
+    id UUID,
+    budget_id UUID,
+    name VARCHAR(255),  -- Changed from TEXT to VARCHAR(255)
+    is_active BOOLEAN,
+    conditions JSONB,
+    actions JSONB,
+    created_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE
+) AS $$
+DECLARE
+    v_new_rule budget_rules;
+BEGIN
+    -- Insert the new rule
+    INSERT INTO budget_rules (
+        budget_id,
+        name,
+        conditions,
+        actions,
+        is_active
+    ) VALUES (
+        p_budget_id,
+        p_name,
+        p_conditions,
+        p_actions,
+        p_is_active
+    )
+    RETURNING * INTO v_new_rule;
+
+    -- Update the budget's rule_order array
+    UPDATE budgets b
+    SET rule_order = COALESCE(b.rule_order, '{}'::text[]) || v_new_rule.id::text
+    WHERE b.id = p_budget_id;
+
+    -- Return the created rule
+    RETURN QUERY
+    SELECT 
+        v_new_rule.id,
+        v_new_rule.budget_id,
+        v_new_rule.name,
+        v_new_rule.is_active,
+        v_new_rule.conditions,
+        v_new_rule.actions,
+        v_new_rule.created_at,
+        v_new_rule.updated_at;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION delete_budget_rule(
+    p_rule_id UUID
+) RETURNS BOOLEAN AS $$
+DECLARE
+    v_budget_id UUID;
+BEGIN
+    -- Get the budget_id for this rule
+    SELECT budget_id INTO v_budget_id
+    FROM budget_rules
+    WHERE id = p_rule_id;
+
+    -- Delete the rule
+    DELETE FROM budget_rules
+    WHERE id = p_rule_id;
+
+    -- Update the budget's rule_order array to remove the deleted rule
+    UPDATE budgets
+    SET rule_order = array_remove(rule_order, p_rule_id::text)
+    WHERE id = v_budget_id;
+
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permissions
+GRANT EXECUTE ON FUNCTION create_budget_rule(UUID, TEXT, JSONB, JSONB, BOOLEAN, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION delete_budget_rule(UUID) TO authenticated;
+
+
+-- ============================================================
 -- Get budget by team account slug function
 -- ============================================================
 CREATE OR REPLACE FUNCTION get_budget_by_team_account_slug(p_team_account_slug TEXT)
@@ -397,6 +524,7 @@ RETURNS TABLE (
     budget_type TEXT,
     spending_tracking JSONB,
     spending_recommendations JSONB,
+    rule_order TEXT[],
     is_active BOOLEAN,
     start_date DATE,
     end_date DATE,
@@ -414,6 +542,7 @@ BEGIN
         b.budget_type::TEXT,
         b.spending_tracking,
         b.spending_recommendations,
+        b.rule_order,
         b.is_active,
         b.start_date,
         b.end_date,
@@ -429,6 +558,8 @@ BEGIN
                             WHEN pa.id IS NOT NULL THEN 'plaid'::text 
                             ELSE 'svend'::text 
                         END,
+                        'type', COALESCE(pa.type, ma.type),
+                        'institutionName', COALESCE(pci.institution_name, mfi.name),
                         'budgetFinAccountId', bfa.id,
                         'name', COALESCE(pa.name, ma.name),
                         'mask', COALESCE(pa.mask, ma.mask),
@@ -440,7 +571,9 @@ BEGIN
             )
             FROM budget_fin_accounts bfa
             LEFT JOIN plaid_accounts pa ON bfa.plaid_account_id = pa.id
+            LEFT JOIN plaid_connection_items pci ON pa.plaid_conn_item_id = pci.id
             LEFT JOIN manual_fin_accounts ma ON bfa.manual_account_id = ma.id
+            LEFT JOIN manual_fin_institutions mfi ON ma.institution_id = mfi.id
             WHERE bfa.budget_id = b.id
         ) as linked_accounts,
         (
@@ -1179,6 +1312,7 @@ grant select on public.fin_account_transactions to authenticated;
 CREATE TYPE budget_transaction_input AS (
     user_tx_id varchar(100),
     plaid_tx_id varchar(100),
+    manual_account_id UUID,
     budget_fin_account_id UUID,
     amount NUMERIC,
     date DATE,
@@ -1189,7 +1323,9 @@ CREATE TYPE budget_transaction_input AS (
     iso_currency_code TEXT,
     plaid_category_detailed TEXT,
     plaid_category_confidence TEXT,
-    plaid_raw_data JSONB
+    plaid_raw_data JSONB,
+    notes TEXT,
+    tag_ids UUID[]
 );
 
 -- Modified function to handle arrays
@@ -1270,13 +1406,17 @@ BEGIN
                 fin_account_transaction_id,
                 svend_category_id,
                 merchant_name,
-                payee
+                payee,
+                notes,
+                tag_ids
             ) VALUES (
                 p_budget_id,
                 v_fin_transaction_id,
                 v_transaction.svend_category_id,
                 v_transaction.merchant_name,
-                v_transaction.payee
+                v_transaction.payee,
+                COALESCE(v_transaction.notes, ''),  -- Use the notes from the input, or empty string if null
+                v_transaction.tag_ids
             );
         END IF;
 
@@ -1761,6 +1901,31 @@ grant select, update, insert on public.budget_fin_account_transactions to servic
 grant select, update, insert, delete on public.budget_fin_account_transactions to service_role;
 
 -- End of budget_fin_account_transactions table
+
+CREATE OR REPLACE FUNCTION get_budget_rules_by_team_account_slug(p_team_account_slug TEXT)
+RETURNS TABLE (
+    id UUID,
+    budget_id UUID,
+    name VARCHAR,
+    is_active BOOLEAN,
+    conditions JSONB,
+    actions JSONB,
+    created_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT br.* 
+    FROM budget_rules br
+        JOIN budgets b ON br.budget_id = b.id
+        JOIN accounts a ON b.team_account_id = a.id
+    WHERE a.slug = p_team_account_slug
+    AND a.is_personal_account = false;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Otorgar permisos
+GRANT EXECUTE ON FUNCTION get_budget_rules_by_team_account_slug(TEXT) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION link_budget_plaid_account(
     p_budget_id UUID,

@@ -66,6 +66,8 @@
     "dashboard": "Dashboard",
     "settings": "Settings",
     "profile": "Profile",
+    "rules": "Rules",
+    "general": "General",
     "finAccounts": "Financial Accounts"
   },
   "roles": {

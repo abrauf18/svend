@@ -30,7 +30,7 @@ export const UpdateTeamAccountNameForm = (props: {
   path: string;
 }) => {
   const [pending, startTransition] = useTransition();
-  const { t } = useTranslation('teams');
+  const { t } = useTranslation('budgets');
 
   const form = useForm({
     resolver: zodResolver(TeamNameFormSchema),
@@ -67,7 +67,7 @@ export const UpdateTeamAccountNameForm = (props: {
               return (
                 <FormItem>
                   <FormLabel>
-                    <Trans i18nKey={'teams:teamNameInputLabel'} />
+                    <Trans i18nKey={'budgets:budgetNameInputLabel'} />
                   </FormLabel>
 
                   <FormControl>
@@ -89,7 +89,7 @@ export const UpdateTeamAccountNameForm = (props: {
               data-test={'update-team-submit-button'}
               disabled={pending}
             >
-              <Trans i18nKey={'teams:updateTeamSubmitLabel'} />
+              <Trans i18nKey={'budgets:updateBudgetSubmitLabel'} />
             </Button>
           </div>
         </form>

@@ -32,7 +32,7 @@ export function AcceptInvitationContainer(props: {
     <div className={'flex flex-col items-center space-y-4'}>
       <Heading className={'text-center'} level={4}>
         <Trans
-          i18nKey={'teams:acceptInvitationHeading'}
+          i18nKey={'budgets:acceptInvitationHeading'}
           values={{
             accountName: props.invitation.account.name,
           }}
@@ -53,7 +53,7 @@ export function AcceptInvitationContainer(props: {
 
       <div className={'text-muted-foreground text-center text-sm'}>
         <Trans
-          i18nKey={'teams:acceptInvitationDescription'}
+          i18nKey={'budgets:acceptInvitationDescription'}
           values={{
             accountName: props.invitation.account.name,
           }}
@@ -85,7 +85,7 @@ export function AcceptInvitationContainer(props: {
         <SignOutInvitationButton nextPath={props.paths.signOutNext} />
 
         <span className={'text-muted-foreground text-center text-xs'}>
-          <Trans i18nKey={'teams:signInWithDifferentAccountDescription'} />
+          <Trans i18nKey={'budgets:signInWithDifferentAccountDescription'} />
         </span>
       </div>
     </div>

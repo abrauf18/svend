@@ -1,5 +1,5 @@
 import { FinAccount, FinAccountRecurringTransaction, FinAccountTransaction } from '../model/fin.types';
-import { BudgetFinAccountRecurringTransaction } from '../model/budget.types';
+import { BudgetFinAccountRecurringTransaction, BudgetRule } from '../model/budget.types';
 import { Database } from '../database.types';
 import {
   Budget,
@@ -386,6 +386,7 @@ class BudgetService {
         budgetType: rawGetBudgetResults.budget_type,
         spendingTracking: categoryGroupSpending,
         spendingRecommendations: recommendedCategoryGroupSpending,
+        ruleOrder: rawGetBudgetResults.rule_order,
         goals,
         onboardingStep: rawGetBudgetResults.current_onboarding_step,
         linkedFinAccounts,
@@ -731,8 +732,8 @@ class BudgetService {
    */
   private async retryOperation<T>(
     operation: () => Promise<T>,
-    maxRetries: number = 2,
-    delayMs: number = 3000
+    maxRetries = 2,
+    delayMs = 3000
   ): Promise<T> {
     let lastError: Error | undefined;
 
@@ -1252,7 +1253,7 @@ class BudgetService {
     const transactions = dbExistingTransactions
       .flatMap(account => {
         // Check if account and fin_account_recurring_transactions exist
-        if (!account || !account.fin_account_recurring_transactions) {
+        if (!account?.fin_account_recurring_transactions) {
           console.warn('Account or recurring transactions missing:', {
             accountId: account?.id,
             hasTransactions: !!account?.fin_account_recurring_transactions
@@ -3252,6 +3253,49 @@ class BudgetService {
       i === numMonths - 1 ? remainder : baseMonthlyAmount
     );
   }
+
+  async getBudgetRules(budgetId: string) {
+    try {
+      const { data, error } = await this.supabase
+        .rpc('get_budget_rules_by_team_account_slug', {
+          p_team_account_slug: budgetId
+        });
+
+      if (error) {
+        console.error('Error fetching budget rules:', error);
+        return {
+          data: null,
+          error: error.message
+        };
+      }
+
+      return {
+        data,
+        error: null
+      };
+    } catch (error) {
+      console.error('Error in getBudgetRules:', error);
+      return {
+        data: null,
+        error: error instanceof Error ? error.message : 'An unknown error occurred'
+      };
+    }
+  }
+
+  parseBudgetRules(rules: Database['public']['Tables']['budget_rules']['Row'][] | null): BudgetRule[] {
+    if (!rules) return [];
+    
+    return rules.map(rule => ({
+      id: rule.id,
+      budgetId: rule.budget_id,
+      name: rule.name,
+      isActive: rule.is_active,
+      conditions: rule.conditions as BudgetRule['conditions'],
+      actions: rule.actions as BudgetRule['actions'],
+      createdAt: rule.created_at,
+      updatedAt: rule.updated_at
+    }));
+  }
 }
 
 interface OnboardingAnalysisTransactionCollection {
@@ -3324,6 +3368,8 @@ export interface IBudgetService {
     recommendations: BudgetGoalMultiRecommendations,
     goalTrackings: Record<string, BudgetGoalSpendingTrackingsByMonth>
   ) => Promise<ServiceResult<null>>;
+  getBudgetRules: (budgetId: string) => Promise<ServiceResult<Database['public']['Tables']['budget_rules']['Row'][]>>;
+  parseBudgetRules: (rules: Database['public']['Tables']['budget_rules']['Row'][] | null) => BudgetRule[];
 }
 
 export type PlaidConnectionItemSummary = {

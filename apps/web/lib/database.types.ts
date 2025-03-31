@@ -431,6 +431,47 @@ export type Database = {
           },
         ]
       }
+      budget_rules: {
+        Row: {
+          actions: Json
+          budget_id: string
+          conditions: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          actions: Json
+          budget_id: string
+          conditions: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          actions?: Json
+          budget_id?: string
+          conditions?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_rules_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_tags: {
         Row: {
           budget_id: string
@@ -468,6 +509,7 @@ export type Database = {
           end_date: string | null
           id: string
           is_active: boolean
+          rule_order: string[]
           spending_recommendations: Json
           spending_tracking: Json
           start_date: string
@@ -481,6 +523,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_active?: boolean
+          rule_order?: string[]
           spending_recommendations?: Json
           spending_tracking?: Json
           start_date?: string
@@ -494,6 +537,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_active?: boolean
+          rule_order?: string[]
           spending_recommendations?: Json
           spending_tracking?: Json
           start_date?: string
@@ -1788,6 +1832,26 @@ export type Database = {
         }
         Returns: string[]
       }
+      create_budget_rule: {
+        Args: {
+          p_budget_id: string
+          p_name: string
+          p_conditions: Json
+          p_actions: Json
+          p_is_active?: boolean
+          p_is_applied_to_all_transactions?: boolean
+        }
+        Returns: {
+          id: string
+          budget_id: string
+          name: string
+          is_active: boolean
+          conditions: Json
+          actions: Json
+          created_at: string
+          updated_at: string
+        }[]
+      }
       create_budget_tag: {
         Args: {
           p_budget_id: string
@@ -1838,6 +1902,12 @@ export type Database = {
           updated_by: string | null
         }
       }
+      delete_budget_rule: {
+        Args: {
+          p_rule_id: string
+        }
+        Returns: boolean
+      }
       get_account_invitations: {
         Args: {
           account_slug: string
@@ -1883,6 +1953,7 @@ export type Database = {
           budget_type: string
           spending_tracking: Json
           spending_recommendations: Json
+          rule_order: string[]
           is_active: boolean
           start_date: string
           end_date: string
@@ -1965,6 +2036,21 @@ export type Database = {
           tags: Json
           fin_account_transaction_ids: string[]
           plaid_raw_data: Json
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      get_budget_rules_by_team_account_slug: {
+        Args: {
+          p_team_account_slug: string
+        }
+        Returns: {
+          id: string
+          budget_id: string
+          name: string
+          is_active: boolean
+          conditions: Json
+          actions: Json
           created_at: string
           updated_at: string
         }[]
@@ -2339,6 +2425,7 @@ export type Database = {
       budget_transaction_input: {
         user_tx_id: string | null
         plaid_tx_id: string | null
+        manual_account_id: string | null
         budget_fin_account_id: string | null
         amount: number | null
         date: string | null
@@ -2350,6 +2437,8 @@ export type Database = {
         plaid_category_detailed: string | null
         plaid_category_confidence: string | null
         plaid_raw_data: Json | null
+        notes: string | null
+        tag_ids: string[] | null
       }
       invitation: {
         email: string | null

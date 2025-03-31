@@ -31,7 +31,7 @@ interface Params {
 
 export const generateMetadata = async () => {
   const i18n = await createI18nServerInstance();
-  const title = i18n.t('teams:billing.pageTitle');
+  const title = i18n.t('budgets:billing.pageTitle');
 
   return {
     title,

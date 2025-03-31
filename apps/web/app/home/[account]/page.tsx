@@ -30,7 +30,7 @@ const DashboardDemo = loadDynamic(
 
 export const generateMetadata = async () => {
   const i18n = await createI18nServerInstance();
-  const title = i18n.t('teams:home.pageTitle');
+  const title = i18n.t('budgets:home.pageTitle');
 
   return {
     title,

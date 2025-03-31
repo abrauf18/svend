@@ -43,7 +43,7 @@ export function AccountInvitationsTable({
   invitations,
   permissions,
 }: AccountInvitationsTableProps) {
-  const { t } = useTranslation('teams');
+  const { t } = useTranslation('budgets');
   const [search, setSearch] = useState('');
   const columns = useGetColumns(permissions);
 
@@ -79,7 +79,7 @@ function useGetColumns(permissions: {
   canRemoveInvitation: boolean;
   currentUserRoleHierarchy: number;
 }): ColumnDef<Invitations[0]>[] {
-  const { t } = useTranslation('teams');
+  const { t } = useTranslation('budgets');
 
   return useMemo(
     () => [
@@ -181,7 +181,7 @@ function ActionsDropdown({
               data-test={'update-invitation-trigger'}
               onClick={() => setIsUpdatingRole(true)}
             >
-              <Trans i18nKey={'teams:updateInvitation'} />
+              <Trans i18nKey={'budgets:updateInvitation'} />
             </DropdownMenuItem>
 
             <If condition={getIsInviteExpired(invitation.expires_at)}>
@@ -189,7 +189,7 @@ function ActionsDropdown({
                 data-test={'renew-invitation-trigger'}
                 onClick={() => setIsRenewingInvite(true)}
               >
-                <Trans i18nKey={'teams:renewInvitation'} />
+                <Trans i18nKey={'budgets:renewInvitation'} />
               </DropdownMenuItem>
             </If>
           </If>
@@ -199,7 +199,7 @@ function ActionsDropdown({
               data-test={'remove-invitation-trigger'}
               onClick={() => setIsDeletingInvite(true)}
             >
-              <Trans i18nKey={'teams:removeInvitation'} />
+              <Trans i18nKey={'budgets:removeInvitation'} />
             </DropdownMenuItem>
           </If>
         </DropdownMenuContent>

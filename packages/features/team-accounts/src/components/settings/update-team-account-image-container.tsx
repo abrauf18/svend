@@ -21,7 +21,7 @@ export function UpdateTeamAccountImage(props: {
   };
 }) {
   const client = useSupabase();
-  const { t } = useTranslation('teams');
+  const { t } = useTranslation('budgets');
 
   const createToaster = useCallback(
     (promise: () => Promise<unknown>) => {

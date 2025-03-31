@@ -26,6 +26,8 @@ export class TeamBudgetsApi {
    * @param slug
    */
   async getBudgetWorkspace(slug: string) {
+    const budgetService = createBudgetService(this.client);
+    
     // First sync Plaid transactions and await the result
     const supabaseAdmin = getSupabaseServerAdminClient();
     const adminTransactionService = createTransactionService(supabaseAdmin);
@@ -82,6 +84,8 @@ export class TeamBudgetsApi {
       p_team_account_slug: slug,
     });
 
+    const budgetRulesPromise = budgetService.getBudgetRules(slug);
+
     // Then fetch all other data in parallel
     const [
       accountResult,
@@ -89,14 +93,16 @@ export class TeamBudgetsApi {
       budgetTransactionsResult,
       budgetRecurringTransactionsResult,
       budgetCategoriesResult,
-      budgetTagsResult
+      budgetTagsResult,
+      budgetRulesResult
     ] = await Promise.all([
       accountPromise,
       accountsPromise,
       budgetTransactionsPromise,
       budgetRecurringTransactionsPromise,
       budgetCategoriesPromise,
-      budgetTagsPromise
+      budgetTagsPromise,
+      budgetRulesPromise
     ]);
 
     if (accountResult.error) {
@@ -152,6 +158,7 @@ export class TeamBudgetsApi {
         budgetRecurringTransactions: budgetRecurringTransactionsResult.data,
         budgetCategories: budgetCategoriesResult,
         budgetTags: budgetTagsResult.data,
+        budgetRules: budgetRulesResult.data ?? [],
       },
       error: null,
     };
