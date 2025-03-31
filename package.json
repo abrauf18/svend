@@ -1,13 +1,13 @@
 {
   "name": "svend",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "sideEffects": false,
   "engines": {
     "node": ">=v18.17.1"
   },
   "author": {
-    "url": "https://my.svend.app",
+    "url": "https://dev-a8fe9997-my.svend.app",
     "name": "Svend"
   },
   "scripts": {
