@@ -81,6 +81,7 @@ export class TransactionService implements ITransactionService {
             plaidAccountId: transaction.plaid_account_id || undefined,
             svendCategoryId: transaction.svend_category_id || undefined,
             status: transaction.tx_status || 'posted',
+            meta_data: transaction.meta_data || {},
             createdAt: transaction.created_at || undefined,
             updatedAt: transaction.updated_at || undefined
           };
@@ -99,6 +100,97 @@ export class TransactionService implements ITransactionService {
       return [];
     }
   }
+
+    /**
+ * Parses and validates raw budget transactions into strongly typed FinAccountTransaction objects
+ * @param raw The raw budget transactions from the get_budget_transactions_by_team_account_slug function
+ * @returns Array of validated FinAccountTransaction objects
+ * 
+ * Maps the following fields from database:
+ * - Basic: id, date, amount, merchantName, payee, isoCurrencyCode
+ * - Categories: plaidDetailedCategoryName, svendCategoryGroup, svendCategoryName, svendCategoryId
+ * - Budget: budgetFinAccountId, notes
+ * - Arrays: budgetTags (tags), budgetAttachmentsStorageNames (attachments_storage_names)
+ */
+  parseBudgetTransactions(raw: Database['public']['Functions']['get_budget_transactions_by_team_account_slug']['Returns']): BudgetFinAccountTransaction[] {
+      try {
+        if (!Array.isArray(raw)) {
+          console.error('Expected array of transactions, received:', typeof raw);
+          return [];
+        }
+  
+        return raw.reduce((validTransactions: BudgetFinAccountTransaction[], budgetTransaction) => {
+          try {
+            // Validate required fields
+            if (!budgetTransaction.id || !budgetTransaction.date ||
+              typeof budgetTransaction.amount !== 'number' ||
+              !budgetTransaction.budget_fin_account_id) {
+              console.error('Missing required transaction fields:', budgetTransaction);
+              return validTransactions;
+            }
+  
+            // Validate date
+            const transactionDate = new Date(budgetTransaction.date);
+            if (isNaN(transactionDate.getTime())) {
+              console.error('Invalid transaction date:', budgetTransaction.date);
+              return validTransactions;
+            }
+  
+            // Create validated transaction object matching SQL function return values
+            const validTransaction: BudgetFinAccountTransaction = {
+              transaction: {
+                id: budgetTransaction.id,
+                userTxId: budgetTransaction.user_tx_id,
+                plaidTxId: budgetTransaction.plaid_tx_id,
+                date: budgetTransaction.date,
+                amount: budgetTransaction.amount,
+                merchantName: budgetTransaction.merchant_name,
+                payee: budgetTransaction.payee ?? undefined,
+                isoCurrencyCode: budgetTransaction.iso_currency_code ?? undefined,
+                status: budgetTransaction.tx_status ?? 'posted',
+              } as FinAccountTransaction,
+              budgetFinAccountId: budgetTransaction.budget_fin_account_id ?? undefined,
+  
+              // Category information
+              categoryGroupId: budgetTransaction.svend_category_group_id ?? undefined,
+              categoryGroup: budgetTransaction.svend_category_group ?? undefined,
+              category: {
+                id: budgetTransaction.svend_category_id ?? undefined,
+                name: budgetTransaction.svend_category ?? undefined,
+                isComposite: budgetTransaction.is_composite ?? false,
+                compositeData: Array.isArray(budgetTransaction.composite_data)
+                  ? (budgetTransaction.composite_data as unknown as CategoryCompositionData[])
+                  : undefined,
+              } as any,
+  
+              // Optional fields that match SQL return
+              merchantName: budgetTransaction.merchant_name ?? undefined,
+              payee: budgetTransaction.payee ?? undefined,
+              notes: budgetTransaction.notes ?? '',
+  
+              // Arrays from SQL
+              budgetTags: (budgetTransaction.tags as any[] ?? []).map((tag: any) => ({
+                id: tag.id || tag,  // Handle both object and string formats
+                name: tag.name || tag
+              } as BudgetFinAccountTransactionTag)),
+              budgetAttachmentsStorageNames: budgetTransaction.attachments_storage_names ?? [],
+            };
+  
+            validTransactions.push(validTransaction);
+            return validTransactions;
+  
+          } catch (error) {
+            console.error('Error parsing individual transaction:', error);
+            return validTransactions;
+          }
+        }, []);
+  
+      } catch (error) {
+        console.error('Error parsing budget transactions:', error);
+        return [];
+      }
+    }
+
 
   /**
    * Parses and validates raw budget recurring transactions into strongly typed BudgetFinAccountRecurringTransaction objects
@@ -194,7 +286,10 @@ export class TransactionService implements ITransactionService {
               date: tx.transaction.date,
               amount: tx.transaction.amount,
               svend_category_id: tx.transaction.svendCategoryId,
-              user_tx_id: tx.transaction.userTxId
+              user_tx_id: tx.transaction.userTxId,
+              meta_data: {
+                created_for: budgetId
+              }
             };
             if (tx.transaction.plaidDetailedCategory) updateFields.plaid_category_detailed = tx.transaction.plaidDetailedCategory;
             if (tx.transaction.plaidCategoryConfidence) updateFields.plaid_category_confidence = tx.transaction.plaidCategoryConfidence;
@@ -292,7 +387,10 @@ export class TransactionService implements ITransactionService {
           plaid_category_confidence: tx.transaction.plaidCategoryConfidence ?? null,
           plaid_raw_data: tx.transaction.plaidRawData as any,
           notes: tx.notes || null,
-          tag_ids: tx.budgetTags?.map(tag => tag.id) || []
+          tag_ids: tx.budgetTags?.map(tag => tag.id) || [],
+          meta_data: {
+            created_for: budgetId
+          }
         }));
 
         const { data: ids, error: insertError } = await this.supabase
@@ -476,7 +574,8 @@ export class TransactionService implements ITransactionService {
           iso_currency_code: tx.isoCurrencyCode || 'USD',
           plaid_category_detailed: tx.plaidDetailedCategory ?? null,
           plaid_category_confidence: tx.plaidCategoryConfidence ?? null,
-          plaid_raw_data: tx.plaidRawData as any
+          plaid_raw_data: tx.plaidRawData as any,
+          meta_data: tx.meta_data || {}
         };
 
         if (existing) {
@@ -603,7 +702,8 @@ export class TransactionService implements ITransactionService {
 
   async syncPlaidTransactions(
     plaidConnectionItems: PlaidConnectionItemSummary[],
-    plaidClient: PlaidApi
+    plaidClient: PlaidApi,
+    budgetId?: string
   ): Promise<ServiceResult<PlaidSyncTransactionsResponse>> {
     try {
       const newTransactions: BudgetFinAccountTransaction[] = [];
@@ -624,6 +724,9 @@ export class TransactionService implements ITransactionService {
             access_token: item.accessToken,
             cursor: nextCursor,
           });
+
+          console.log("syncResponse",syncResponse)
+          console.log(syncResponse.data.added)
 
           // Log transaction changes summary
           const pendingToPostedMap = new Map(
@@ -648,7 +751,10 @@ export class TransactionService implements ITransactionService {
                 .update({ 
                   plaid_tx_id: postedVersion.transaction_id,
                   plaid_raw_data: postedVersion as any,
-                  tx_status: 'posted'
+                  tx_status: 'posted',
+                  meta_data:{
+                    created_for: budgetId
+                  }
                 })
                 .eq('plaid_tx_id', removed.transaction_id);
               
@@ -787,7 +893,8 @@ export class TransactionService implements ITransactionService {
           // Process linked transactions
           const processedTransactions = await this.processPlaidTransactions(
             linkedTransactionsToProcess,
-            item.plaidAccounts
+            item.plaidAccounts,
+            budgetId
           );
 
           // Add log after processing
@@ -1167,7 +1274,8 @@ export class TransactionService implements ITransactionService {
 
   private async processPlaidTransactions(
     plaidTransactions: Transaction[],
-    plaidAccounts: PlaidConnectionItemAccountSummary[]
+    plaidAccounts: any[],
+    budgetId?:string
   ): Promise<BudgetFinAccountTransaction[]> {
     try {
         // Add initial log
@@ -1215,6 +1323,9 @@ export class TransactionService implements ITransactionService {
                     status: transaction.pending ? ('pending' as const) : ('posted' as const),
                     isoCurrencyCode: transaction.iso_currency_code ?? 'USD',
                     plaidRawData: transaction,
+                    meta_data: {
+                      created_for: budgetId
+                    }
                 };
 
                 const userTxId = await this.generateUserTxIdFromPlaidTx(baseTransaction);
@@ -1227,8 +1338,8 @@ export class TransactionService implements ITransactionService {
 
                 // Create a transaction for each budget the account is linked to
                 return matchingAccount.budgetFinAccountIds
-                    .filter((budgetId): budgetId is string => budgetId !== null)
-                    .map(budgetId => ({
+                    .filter((budgetId: string): budgetId is string => budgetId !== null)
+                    .map((budgetId:string) => ({
                         transaction: { ...baseTransaction, userTxId },
                         budgetFinAccountId: budgetId,
                         categoryGroupId: '',
@@ -1489,8 +1600,22 @@ export class TransactionService implements ITransactionService {
     try {
       // Get unique Plaid categories from both transaction types
       const uniquePlaidCategories = [...new Set([
-        ...transactions.map(t => t.transaction.plaidDetailedCategory),
-        ...recurringTransactions.map(t => t.transaction.plaidDetailedCategory)
+        ...transactions
+          .filter(t => t.transaction.plaidTxId) // Only process Plaid transactions
+          .map(t => {
+            const rawData = t.transaction.plaidRawData as (Transaction | TransactionStream);
+            const plaidCategory = ('personal_finance_category' in rawData && rawData.personal_finance_category?.detailed) || 
+                               t.transaction.plaidDetailedCategory;
+            return plaidCategory;
+          }),
+        ...recurringTransactions
+          .filter(t => t.transaction.plaidTxId) // Only process Plaid transactions
+          .map(t => {
+            const rawData = t.transaction.plaidRawData as (Transaction | TransactionStream);
+            const plaidCategory = ('personal_finance_category' in rawData && rawData.personal_finance_category?.detailed) || 
+                               t.transaction.plaidDetailedCategory;
+            return plaidCategory;
+          })
       ].filter((cat): cat is string => !!cat))];
 
       // Get mappings and categories
@@ -1544,13 +1669,26 @@ export class TransactionService implements ITransactionService {
 
       // Process regular transactions
       const processedTransactions = transactions.map(transaction => {
-        const plaidCategory = transaction.transaction.plaidDetailedCategory;
-        if (!plaidCategory) {
-          console.warn('[Debug] No Plaid category for transaction:', transaction.transaction.plaidTxId);
+        // Skip category processing for manual transactions
+        if (!transaction.transaction.plaidTxId) {
           return transaction;
         }
 
-        const mappedCategory = findCategoryByPlaidCategory(plaidCategory);
+        const rawData = transaction.transaction.plaidRawData as (Transaction | TransactionStream);
+        const plaidCategory = ('personal_finance_category' in rawData && rawData.personal_finance_category?.detailed) || 
+                            transaction.transaction.plaidDetailedCategory;
+
+        if (!plaidCategory) {
+          console.warn('[Debug] Missing Plaid category data:', {
+            plaidTxId: transaction.transaction.plaidTxId,
+            rawDataCategory: ('personal_finance_category' in rawData) ? rawData.personal_finance_category : null,
+            transactionCategory: transaction.transaction.plaidDetailedCategory,
+            rawData: rawData
+          });
+          return transaction;
+        }
+
+        const mappedCategory = plaidCategory ? findCategoryByPlaidCategory(plaidCategory) : null;
         if (!mappedCategory) {
           console.warn('[Debug] No mapping found for category:', plaidCategory);
           return transaction;
@@ -2312,6 +2450,9 @@ export interface ITransactionService {
   parseTransactions: (
     raw: Database['public']['Tables']['fin_account_transactions']['Row'][]
   ) => FinAccountTransaction[];
+  parseBudgetTransactions: (
+    raw: Database['public']['Functions']['get_budget_transactions_by_team_account_slug']['Returns']
+  ) => BudgetFinAccountTransaction[];
   parseBudgetRecurringTransactions: (
     raw: Database['public']['Functions']['get_budget_recurring_transactions_by_team_account_slug']['Returns']
   ) => BudgetFinAccountRecurringTransaction[];
@@ -2328,7 +2469,8 @@ export interface ITransactionService {
   ) => Promise<ServiceResult<null>>;
   syncPlaidTransactions: (
     plaidConnectionItems: PlaidConnectionItemSummary[],
-    plaidClient: PlaidApi
+    plaidClient: PlaidApi,
+    budgetId?:string
   ) => Promise<ServiceResult<PlaidSyncTransactionsResponse>>;
   syncPlaidTransactionsFinAccountMgmt: (
     plaidConnectionItems: PlaidConnectionItemSummary[],
@@ -2367,6 +2509,7 @@ export type PlaidConnectionItemAccountSummary = {
   svendAccountId: string;
   plaidAccountId: string;
   budgetFinAccountIds: string[];
+  meta_data?: { created_for: string } | null;
 };
 
 export type PlaidConnectionItemSummary = {

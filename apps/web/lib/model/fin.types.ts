@@ -32,6 +32,7 @@ export interface FinAccountTransaction {
   recurrenceDetails?: any;
   isRecurring?: boolean;
   plaidRawData?: Transaction; // Raw data from Plaid
+  meta_data?: any;
   createdAt?: string; // Timestamp
   updatedAt?: string; // Timestamp
 }

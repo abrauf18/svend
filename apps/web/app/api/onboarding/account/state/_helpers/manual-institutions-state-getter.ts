@@ -28,6 +28,7 @@ export default async function manualInstitutionsStateGetter({
         id,
         name,
         symbol,
+        meta_data,
         accounts:manual_fin_accounts(
           id,
           name,
@@ -36,6 +37,7 @@ export default async function manualInstitutionsStateGetter({
           balance_current,
           iso_currency_code,
           mask,
+          meta_data,
           fin_account_transactions (*)
         )`,
       )
@@ -56,6 +58,7 @@ export default async function manualInstitutionsStateGetter({
       id: inst.id,
       name: inst.name,
       symbol: inst.symbol,
+      meta_data:inst.meta_data,
       accounts: inst.accounts.map((acc) => ({
         id: acc.id,
         name: acc.name,
@@ -64,6 +67,7 @@ export default async function manualInstitutionsStateGetter({
         balanceCurrent: acc.balance_current,
         isoCurrencyCode: acc.iso_currency_code,
         mask: acc.mask,
+        meta_data:acc.meta_data,
         budgetFinAccountId: budgetFinAccounts.find(
           (account) => account.manual_account_id === acc.id,
         )?.id,

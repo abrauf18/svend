@@ -14,7 +14,7 @@ const CSRF_SECRET_COOKIE = 'csrfSecret';
 const NEXT_ACTION_HEADER = 'next-action';
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|images|locales|assets|api/*).*)'],
+  matcher: ['/((?!_next/static|_next/image|images|locales|assets|api/*|\\..*).*)'],
 };
 
 const getUser = (request: NextRequest, response: NextResponse) => {
@@ -24,6 +24,14 @@ const getUser = (request: NextRequest, response: NextResponse) => {
 };
 
 export async function middleware(request: NextRequest) {
+  console.log('Middleware triggered for:', request.nextUrl.pathname);
+  
+  // Skip middleware for any path containing a dot (files)
+  if (request.nextUrl.pathname.includes('.')) {
+    console.log('Skipping file path:', request.nextUrl.pathname);
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next();
 
   // set a unique request ID for each request
@@ -52,12 +60,13 @@ export async function middleware(request: NextRequest) {
     csrfResponse.headers.set('x-action-path', request.nextUrl.pathname);
   }
 
-  // Check for account onboarding redirect from /home/(user)
-  if (request.nextUrl.pathname.startsWith('/home')) {
+  // Check for account onboarding redirect from /home or /home/(user)
+  if (request.nextUrl.pathname === '/home' || request.nextUrl.pathname.startsWith('/home/')) {
     const supabase = createMiddlewareClient(request, response);
     
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      // First check account onboarding
       const { data, error } = await supabase
         .from('user_onboarding')
         .select('state->account')
@@ -72,10 +81,30 @@ export async function middleware(request: NextRequest) {
       const account = data?.account as { contextKey: AccountOnboardingStepContextKey };
       
       // Redirect to /onboarding/account if onboarding is not complete
-      console.log('middleware redirect to /onboarding/account if contextKey != end >> contextKey:', account?.contextKey);
       if (account?.contextKey as AccountOnboardingStepContextKey != 'end') {
-        console.log(`redirecting to accont onboarding for user ${user.id} with onboarding context ${account.contextKey}`)
+        console.log(`redirecting to account onboarding for user ${user.id} with onboarding context ${account.contextKey}`)
         return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/account`);
+      }
+
+      // Only check budget onboarding if we're on a budget route
+      const budgetSlug = request.nextUrl.pathname.split('/')[2];
+      if (budgetSlug) {
+        console.log('Querying budget in /home/ handler for slug:', budgetSlug);
+        const { data: budget, error: budgetError } = await supabase
+          .from('budgets')
+          .select('id, current_onboarding_step, team_account_id, accounts!inner(slug)')
+          .eq('accounts.slug', budgetSlug)
+          .single();
+
+        if (budgetError || !budget) {
+          console.log('Budget not found or error for slug:', budgetSlug);
+          console.error('Budget not found or error:', budgetError);
+          return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/home`);
+        }
+
+        if (!['invite_members', 'end'].includes(budget.current_onboarding_step)) {
+          return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/budget/${budget.accounts.slug}`);
+        }
       }
     }
   }
@@ -103,6 +132,38 @@ export async function middleware(request: NextRequest) {
       console.log('middleware redirect to /home if contextKey == end >> contextKey:', account?.contextKey);
       if (account?.contextKey as AccountOnboardingStepContextKey == 'end') {
         return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/home`);
+      }
+    }
+  }
+
+  // Check for budget onboarding redirect from /onboarding/budget/:budgetSlug
+  if (request.nextUrl.pathname.startsWith('/onboarding/budget/')) {
+    const supabase = createMiddlewareClient(request, response);
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const budgetSlug = request.nextUrl.pathname.split('/')[3];
+      
+      if (!budgetSlug) {
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/home`);
+      }
+
+      console.log('Querying budget in /onboarding/budget/ handler for slug:', budgetSlug);
+      const { data: budget, error: budgetError } = await supabase
+        .from('budgets')
+        .select('current_onboarding_step, accounts!inner(slug)')
+        .eq('accounts.slug', budgetSlug)
+        .single();
+
+      if (budgetError || !budget) {
+        console.log('Budget not found or error for slug:', budgetSlug);
+        console.error('Budget not found or error:', budgetError);
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/home`);
+      }
+
+      // Redirect to budget home if onboarding is complete
+      if (['invite_members', 'end'].includes(budget.current_onboarding_step)) {
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/home/${budget.accounts.slug}`);
       }
     }
   }
@@ -261,7 +322,7 @@ function matchUrlPattern(url: string) {
     const patternResult = pattern.pattern.exec(input);
 
     if (patternResult !== null && 'pathname' in patternResult) {
-      return pattern.handler;
+      return (req: NextRequest, res: NextResponse) => pattern.handler(req, res);
     }
   }
 }

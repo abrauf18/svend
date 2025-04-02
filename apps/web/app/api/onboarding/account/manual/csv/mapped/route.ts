@@ -168,6 +168,7 @@ export const POST = enhanceRouteHandler(
           supabaseAdmin,
           parsedText: transformedData,
           userId: user.id,
+          budgetId
         });
 
       if (institutionsError) {
@@ -323,6 +324,9 @@ export const POST = enhanceRouteHandler(
             payee: '',
             iso_currency_code: 'USD',
             tx_status: 'posted' as const,
+            meta_data:{
+              created_for: budgetId  || ' '
+            },
             svend_category_id: builtInCategories.find(
               cat => normalizeCategory(cat.category_name ?? '') === normalizeCategory(trans.TransactionCategory ?? '')
             )?.category_id || ''

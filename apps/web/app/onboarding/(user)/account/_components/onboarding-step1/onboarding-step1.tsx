@@ -1,4 +1,3 @@
-import { useOnboardingContext } from '@kit/accounts/components';
 import { Button } from '@kit/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@kit/ui/card';
 import { Progress } from '@kit/ui/progress';
@@ -12,6 +11,7 @@ import { AccountOnboardingStepContextKey } from '~/lib/model/onboarding.types';
 import { FinAccount } from '~/lib/model/fin.types';
 import { AccountOnboardingState } from '~/lib/model/onboarding.types';
 import { toast } from 'sonner';
+import { useOnboardingContext } from '~/components/onboarding-context'
 
 function OnboardingStep1ConnectPlaidAccounts() {
   const [loadingPlaidOAuth, setLoadingPlaidOAuth] = useState(false);

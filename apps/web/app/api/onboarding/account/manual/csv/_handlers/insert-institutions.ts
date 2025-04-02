@@ -1,4 +1,5 @@
 import { SupabaseClient, User } from '@supabase/supabase-js';
+import { metadata } from '~/admin/layout';
 import { Database } from '~/lib/database.types';
 import { CSVRow } from '~/lib/model/onboarding.types';
 
@@ -6,6 +7,7 @@ type Props = {
   supabaseAdmin: SupabaseClient;
   parsedText: CSVRow[];
   userId: string;
+  budgetId: string
 };
 
 type Institution =
@@ -21,6 +23,7 @@ export default async function insertInstitutions({
   supabaseAdmin,
   parsedText,
   userId,
+  budgetId,
 }: Props): Promise<Result> {
   try {
     // Get all current institutions first
@@ -98,6 +101,9 @@ export default async function insertInstitutions({
           console.warn('[Insert Institutions] Found duplicate in new entries:', {
             name: duplicateNameInNew?.BankName,
             symbol: duplicateSymbolInNew?.BankSymbol,
+            meta_data: {
+              created_for: budgetId
+            },
             existing: Array.from(nonRepeatedInstitutions.values()).map(i => ({
               name: i.BankName,
               symbol: i.BankSymbol
@@ -117,6 +123,9 @@ export default async function insertInstitutions({
             owner_account_id: userId,
             name: inst.BankName.trim(),
             symbol: inst.BankSymbol.trim(),
+            meta_data:{
+              created_for: budgetId
+            }
           })),
         ])
         .select();

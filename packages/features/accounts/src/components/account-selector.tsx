@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 import { CaretSortIcon, PersonIcon } from '@radix-ui/react-icons';
-import { CheckCircle, Plus } from 'lucide-react';
+import { CheckCircle, Plus, Crown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@kit/ui/avatar';
@@ -30,6 +30,7 @@ interface AccountSelectorProps {
     label: string | null;
     value: string | null;
     image?: string | null;
+    role?: string | null;
   }>;
 
   features: {
@@ -117,7 +118,7 @@ export function AccountSelector({
                       hidden: collapsed,
                     })}
                   >
-                    <Trans i18nKey={'budgets:personalAccount'} />
+                    <Trans i18nKey={'budgets:myAccount'} />
                   </span>
                 </span>
               }
@@ -153,8 +154,6 @@ export function AccountSelector({
           collisionPadding={20}
         >
           <Command>
-            <CommandInput placeholder={t('searchAccount')} className="h-9" />
-
             <CommandList>
               <CommandGroup>
                 <CommandItem
@@ -164,7 +163,7 @@ export function AccountSelector({
                   <PersonalAccountAvatar />
 
                   <span className={'ml-2'}>
-                    <Trans i18nKey={'budgets:personalAccount'} />
+                    <Trans i18nKey={'budgets:myAccount'} />
                   </span>
 
                   <Icon item={PERSONAL_ACCOUNT_SLUG} />
@@ -177,55 +176,59 @@ export function AccountSelector({
                 <CommandGroup
                   heading={
                     <Trans
-                      i18nKey={'budgets:yourBudgets'}
+                      i18nKey={'budgets:myBudgets'}
                       values={{ budgetsCount: accounts.length }}
                     />
                   }
                 >
-                  {(accounts ?? []).map((account) => (
-                    <CommandItem
-                      data-test={'account-selector-team'}
-                      data-name={account.label}
-                      data-slug={account.value}
-                      className={cn(
-                        'group my-1 flex justify-between transition-colors',
-                        {
-                          ['bg-muted']: value === account.value,
-                        },
-                      )}
-                      key={account.value}
-                      value={account.value ?? ''}
-                      onSelect={(currentValue) => {
-                        setOpen(false);
+                  <CommandInput placeholder={t('budgets:searchBudget')} className="h-9" />
 
-                        if (onAccountChange) {
-                          onAccountChange(currentValue);
-                        }
-                      }}
-                    >
-                      <div className={'flex items-center'}>
-                        <Avatar className={'mr-2 h-5 w-5'}>
-                          <AvatarImage src={account.image ?? undefined} />
+                  {(accounts ?? []).map((account) => {
+                    return (
+                      <CommandItem
+                        data-test={'account-selector-team'}
+                        data-name={account.label}
+                        data-slug={account.value}
+                        className={cn(
+                          'group my-1 flex justify-between transition-colors',
+                          {
+                            ['bg-muted']: value === account.value,
+                          },
+                        )}
+                        key={account.value}
+                        value={account.value ?? ''}
+                        onSelect={(currentValue) => {
+                          setOpen(false);
+                          onAccountChange?.(currentValue);
+                        }}
+                      >
+                        <div className={'flex items-center'}>
+                          <Avatar className={'mr-2 h-5 w-5'}>
+                            <AvatarImage src={account.image ?? undefined} />
+                            <AvatarFallback
+                              className={cn({
+                                ['bg-background']: value === account.value,
+                                ['group-hover:bg-background']:
+                                  value !== account.value,
+                              })}
+                            >
+                              {account.label ? account.label[0] : ''}
+                            </AvatarFallback>
+                          </Avatar>
 
-                          <AvatarFallback
-                            className={cn({
-                              ['bg-background']: value === account.value,
-                              ['group-hover:bg-background']:
-                                value !== account.value,
-                            })}
-                          >
-                            {account.label ? account.label[0] : ''}
-                          </AvatarFallback>
-                        </Avatar>
+                          <span className={'mr-2 max-w-[165px] truncate'}>
+                            {account.label}
+                          </span>
 
-                        <span className={'mr-2 max-w-[165px] truncate'}>
-                          {account.label}
-                        </span>
-                      </div>
+                          {account.role === 'owner' && (
+                            <Crown className="ml-1 h-3 w-3 text-yellow-500" />
+                          )}
+                        </div>
 
-                      <Icon item={account.value ?? ''} />
-                    </CommandItem>
-                  ))}
+                        <Icon item={account.value ?? ''} />
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
               </If>
             </CommandList>
@@ -248,7 +251,7 @@ export function AccountSelector({
                 <Plus className="mr-3 h-4 w-4" />
 
                 <span>
-                  <Trans i18nKey={'budgets:createTeam'} />
+                  <Trans i18nKey={'budgets:createBudget'} />
                 </span>
               </Button>
             </div>

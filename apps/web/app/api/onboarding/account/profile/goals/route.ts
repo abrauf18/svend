@@ -15,8 +15,6 @@ export async function PUT(request: Request) {
 
     const body = await request.json();
 
-    const supabaseAdmin = getSupabaseServerAdminClient();
-
     const {
         primaryFinancialGoals,
         goalTimeline,
@@ -41,7 +39,7 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: 'monthlyContribution is required' }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
         .from('acct_fin_profile')
         .update({
             annual_income: monthlyContribution * 12

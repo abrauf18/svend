@@ -140,6 +140,9 @@ export async function POST(request: Request) {
         institution_id: institutionId,
         institution_name: institutionName,
         institution_logo_storage_name: institutionLogoStorageName || null,
+        meta_data: {
+          created_for: budgetId
+        }
       })
       .select('id')
       .single();
@@ -170,7 +173,8 @@ export async function POST(request: Request) {
         p_iso_currency_code: plaidAccount.balances.iso_currency_code as string | undefined,
         p_official_name: plaidAccount.official_name as string | undefined,
         p_plaid_persistent_account_id: plaidAccount.persistent_account_id as string | undefined,
-        p_subtype: plaidAccount.subtype as string | undefined
+        p_subtype: plaidAccount.subtype as string | undefined,
+        p_meta_data: { created_for: budgetId }
       }
 
       const { data, error } = await supabaseAdminClient.rpc('add_budget_plaid_account', rpcParams);
@@ -213,8 +217,10 @@ export async function POST(request: Request) {
     //   return NextResponse.json({ error: 'Failed to update onboarding state' }, { status: 500 });
     // }
 
-    const resPlaidItemAccounts = plaidItemAccountsResponse.data.accounts.map((plaidAccount) => {
+    const resPlaidItemAccounts = plaidItemAccountsResponse.data.accounts.map((plaidAccount:any) => {
       const insertedAccount = accountInsertResults.find(result => result.plaidAccount?.account_id === plaidAccount.account_id);
+      const accountMetadata = { created_for: budgetId };
+
       return {
         svendAccountId: insertedAccount?.data?.plaid_account_id as string,
         svendItemId: newPlaidConnectionSvendItemId,
@@ -231,6 +237,7 @@ export async function POST(request: Request) {
         balanceCurrent: plaidAccount.balances.current || 0,
         balanceLimit: plaidAccount.balances.limit || 0,
         isoCurrencyCode: plaidAccount.balances.iso_currency_code || '',
+        meta_data: accountMetadata,
         createdAt: insertedAccount?.data?.created_at as string,
         updatedAt: insertedAccount?.data?.updated_at as string
       };

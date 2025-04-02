@@ -19,6 +19,7 @@ export function TeamAccountAccountsSelector(params: {
     label: string | null;
     value: string | null;
     image: string | null;
+    role: string | null;
   }>;
 }) {
   const router = useRouter();

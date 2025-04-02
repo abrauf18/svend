@@ -26,6 +26,7 @@ export type TeamAccountWorkspace = Awaited<
 export const loadTeamWorkspace = cache(workspaceLoader);
 
 async function workspaceLoader(accountSlug: string) {
+  console.log('workspaceLoader', accountSlug);
   const client = getSupabaseServerClient();
   const api = createTeamAccountsApi(client);
 

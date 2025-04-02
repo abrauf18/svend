@@ -92,6 +92,7 @@ export const POST = enhanceRouteHandler(
           supabaseAdmin,
           parsedText,
           userId: user!.id,
+          budgetId
         });
 
       if (institutionsError) {
@@ -254,6 +255,9 @@ export const POST = enhanceRouteHandler(
               )?.category_id || '',
               merchant_name: trans.TransactionMerchant || '',
               payee: '',
+              meta_data:{
+                created_for: budgetId  || ' '
+              },
               tx_status: 'posted' as const,
               iso_currency_code: 'USD'
             }))
@@ -287,7 +291,10 @@ export const POST = enhanceRouteHandler(
           name: account.name,
           mask: account.mask || '',
           officialName: account.name,
-          balance: account.balance_current
+          balance: account.balance_current,
+          meta_data: {
+            created_for: budgetId
+          }
         };
       }).filter((account): account is NonNullable<typeof account> => account !== null);
 

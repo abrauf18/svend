@@ -45,6 +45,7 @@ export const PATCH = enhanceRouteHandler(
           plaid_accounts (
             id,
             plaid_account_id,
+            meta_data,
             budget_fin_accounts (
               id,
               budget_id
@@ -63,7 +64,8 @@ export const PATCH = enhanceRouteHandler(
         plaidAccounts: item.plaid_accounts.map(account => ({
           svendAccountId: account.id,
           plaidAccountId: account.plaid_account_id,
-          budgetFinAccountIds: account.budget_fin_accounts.map(ba => ba.id)
+          budgetFinAccountIds: account.budget_fin_accounts.map(ba => ba.id),
+          meta_data: account.meta_data,
         }))
       }));
 
@@ -83,7 +85,8 @@ export const PATCH = enhanceRouteHandler(
       
       const { data: syncResult, error: syncError } = await transactionService.syncPlaidTransactions(
         plaidConnectionItems,
-        plaidClient
+        plaidClient,
+        budgetId,
       );
 
       if (syncError) throw new Error(syncError);

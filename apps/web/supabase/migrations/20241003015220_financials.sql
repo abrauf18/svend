@@ -133,6 +133,7 @@ create table if not exists public.plaid_connection_items (
   institution_logo_storage_name text,
   access_token text not null,
   next_cursor text, -- cursor for Plaid sync
+  meta_data JSONB,
   created_at timestamp with time zone default current_timestamp,
   updated_at timestamp with time zone default current_timestamp
 );
@@ -241,6 +242,7 @@ create table if not exists public.plaid_accounts (
   iso_currency_code text default 'USD',
   balance_limit numeric,
   mask text,
+  meta_data JSONB,
   created_at timestamp with time zone default current_timestamp,
   updated_at timestamp with time zone default current_timestamp
 );
@@ -266,6 +268,7 @@ CREATE TABLE if NOT EXISTS public.manual_fin_institutions (
     name text not null,
     owner_account_id uuid references public.accounts(id) not null,
     symbol varchar(5) not null,
+    meta_data jsonb,
     created_at timestamp with time zone not null default current_timestamp,
     updated_at timestamp with time zone not null default current_timestamp,
     UNIQUE (owner_account_id, name),
@@ -311,6 +314,7 @@ create table if not exists public.manual_fin_accounts (
   iso_currency_code text default 'USD',
   balance_limit numeric,
   mask text,
+  meta_data JSONB,
   created_at timestamp with time zone default current_timestamp,
   updated_at timestamp with time zone default current_timestamp,
   UNIQUE (institution_id, name)
@@ -344,6 +348,7 @@ create type budget_type as enum (
 create type budget_onboarding_step_enum as enum (
     'start',
     'plaid',
+    'manual',
     'profile_goals',
     'analyze_spending',
     'analyze_spending_in_progress',
@@ -1226,6 +1231,7 @@ create table if not exists public.fin_account_transactions (
   -- transaction_code text,
   -- transaction_type text,
   plaid_raw_data jsonb,
+  meta_data JSONB,
   created_at timestamp with time zone default current_timestamp,
   updated_at timestamp with time zone default current_timestamp
 );
@@ -1325,7 +1331,8 @@ CREATE TYPE budget_transaction_input AS (
     plaid_category_confidence TEXT,
     plaid_raw_data JSONB,
     notes TEXT,
-    tag_ids UUID[]
+    tag_ids UUID[],
+    meta_data JSONB
 );
 
 -- Modified function to handle arrays
@@ -1379,7 +1386,8 @@ BEGIN
                 plaid_raw_data,
                 svend_category_id,
                 user_tx_id,
-                plaid_tx_id
+                plaid_tx_id,
+                meta_data
             ) VALUES (
                 v_plaid_account_id,
                 v_manual_account_id,
@@ -1394,7 +1402,8 @@ BEGIN
                 v_transaction.plaid_raw_data,
                 v_transaction.svend_category_id,
                 v_transaction.user_tx_id,
-                v_transaction.plaid_tx_id
+                v_transaction.plaid_tx_id,
+                v_transaction.meta_data
             )
             RETURNING id INTO v_fin_transaction_id;
         END IF;
@@ -2120,7 +2129,8 @@ CREATE OR REPLACE FUNCTION add_budget_plaid_account(
     p_mask TEXT = NULL,
     p_official_name TEXT = NULL,
     p_plaid_persistent_account_id TEXT = NULL,
-    p_subtype TEXT = NULL
+    p_subtype TEXT = NULL,
+    p_meta_data JSONB DEFAULT NULL
 )
 RETURNS budget_plaid_account_result AS $$
 DECLARE
@@ -2145,7 +2155,8 @@ BEGIN
         official_name,
         plaid_persistent_account_id,
         type,
-        subtype
+        subtype,
+        meta_data
     )
     VALUES (
         p_plaid_conn_item_id,
@@ -2160,7 +2171,8 @@ BEGIN
         p_official_name,
         p_plaid_persistent_account_id,
         p_type,
-        p_subtype
+        p_subtype,
+        p_meta_data
     )
     RETURNING id, created_at, updated_at INTO v_plaid_account_id, v_created_at, v_updated_at;
     

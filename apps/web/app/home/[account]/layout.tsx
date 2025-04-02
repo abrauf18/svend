@@ -40,10 +40,11 @@ function TeamWorkspaceLayout({
   const data = use(loadBudgetWorkspace(params.account));
   const style = getLayoutStyle(params.account);
 
-  const accounts = data.accounts.map(({ name, slug, picture_url }) => ({
+  const accounts = data.accounts.map(({ name, slug, picture_url, role }) => ({
     label: name,
     value: slug,
     image: picture_url,
+    role,
   }));
 
   const budgetService = createBudgetService(getSupabaseServerClient());

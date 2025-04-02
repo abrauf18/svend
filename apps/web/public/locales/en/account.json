@@ -111,6 +111,6 @@
   "language": "Language",
   "languageDescription": "Choose your preferred language",
   "noTeamsYet": "You don't have any teams yet.",
-  "createTeam": "Create a team to get started.",
-  "createTeamButtonLabel": "Create a Team"
+  "createBudget": "Create a budget to get started.",
+  "createBudgetButtonLabel": "Create a Budget"
 }

@@ -15,7 +15,7 @@ export function HomeAddAccountButton(props: { className?: string }) {
         className={props.className}
         onClick={() => setIsAddingAccount(true)}
       >
-        <Trans i18nKey={'account:createTeamButtonLabel'} />
+        <Trans i18nKey={'account:createBudgetButtonLabel'} />
       </Button>
 
       <CreateTeamAccountDialog

@@ -12,6 +12,7 @@ type AccountModel = {
   label: string | null;
   value: string | null;
   image: string | null;
+  role: string | null;
 };
 
 export function TeamAccountLayoutSidebar(props: {

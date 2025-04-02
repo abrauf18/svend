@@ -127,6 +127,9 @@ export default async function insertAccounts({
             name: acc.AccountName,
             type: validateAccountType(acc.AccountType),
             mask: acc.AccountMask,
+            meta_data: {
+              created_for: budgetId
+            }
           })),
         ])
         .select();

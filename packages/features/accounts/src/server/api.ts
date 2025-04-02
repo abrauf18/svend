@@ -124,6 +124,23 @@ class AccountsApi {
 
     return response.data?.customer_id;
   }
+
+  /**
+   * @name getTeamAccountWorkspace
+   * @description Get the team account workspace data for a specific account slug.
+   * @param accountSlug - The slug of the team account
+   */
+  async getTeamAccountWorkspace(accountSlug: string) {
+    const { data, error } = await this.client
+      .rpc('team_account_workspace', { account_slug: accountSlug })
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
 }
 
 export function createAccountsApi(client: SupabaseClient<Database>) {

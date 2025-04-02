@@ -59,6 +59,7 @@ export function TeamAccountNavigationMenu(props: {
             label: account.name,
             value: account.slug,
             image: account.picture_url,
+            role: account.role,
           }))}
         />
 

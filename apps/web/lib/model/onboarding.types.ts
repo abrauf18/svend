@@ -48,6 +48,7 @@ export type AccountOnboardingPlaidConnectionItem = {
   institutionLogoSignedUrl: string;
   accessToken?: string;
   nextCursor?: string;
+  meta_data?:any,
   itemAccounts: AccountOnboardingPlaidItemAccount[];
 };
 
@@ -79,6 +80,9 @@ export type AccountOnboardingManualInstitutionAccount = {
   institutionId: string;
   balanceCurrent: number;
   budgetFinAccountId?: string;
+  meta_data?: {
+    created_for: string;
+  };
   transactions: FinAccountTransaction[];
   mask: string;
 };
@@ -87,6 +91,9 @@ export type AccountOnboardingManualInstitution = {
   id: string;
   name: string;
   symbol: string;
+  meta_data?: {
+    created_for: string;
+  };
   accounts: AccountOnboardingManualInstitutionAccount[];
 };
 

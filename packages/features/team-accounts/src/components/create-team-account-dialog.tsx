@@ -45,11 +45,11 @@ export function CreateTeamAccountDialog(
       >
         <DialogHeader>
           <DialogTitle>
-            <Trans i18nKey={'budgets:createTeamModalHeading'} />
+            <Trans i18nKey={'budgets:createBudgetModalHeading'} />
           </DialogTitle>
 
           <DialogDescription>
-            <Trans i18nKey={'budgets:createTeamModalDescription'} />
+            <Trans i18nKey={'budgets:createBudgetModalDescription'} />
           </DialogDescription>
         </DialogHeader>
 
@@ -129,11 +129,11 @@ function CreateOrganizationAccountForm(props: { onClose: () => void }) {
               <Trans i18nKey={'common:cancel'} />
             </Button>
 
-            <Button data-test={'confirm-create-team-button'} disabled={pending}>
+            <Button data-test={'confirm-create-budget-button'} disabled={pending}>
               {pending ? (
-                <Trans i18nKey={'budgets:creatingTeam'} />
+                <Trans i18nKey={'budgets:creatingBudget'} />
               ) : (
-                <Trans i18nKey={'budgets:createTeamSubmitLabel'} />
+                <Trans i18nKey={'budgets:createBudgetSubmitLabel'} />
               )}
             </Button>
           </div>

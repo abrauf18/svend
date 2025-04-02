@@ -33,6 +33,28 @@ export const POST = enhanceRouteHandler(
       const supabase = getSupabaseServerClient();
       const supabaseAdmin = getSupabaseServerAdminClient();
       
+      // Check if user is in onboarding
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from('user_onboarding')
+        .select('state->account')
+        .eq('user_id', user.id)
+        .single();
+
+      if (onboardingError) {
+        throw new Error(`Failed to fetch onboarding state: ${onboardingError.message}`);
+      }
+
+      const onboardingState = onboardingData?.account as any;
+      if (!['start', 'plaid', 'manual'].includes(onboardingState.contextKey)) {
+        return NextResponse.json({ error: 'User not in onboarding' }, { status: 403 });
+      }
+
+      const budgetId = onboardingState.budgetId;
+      if (!budgetId) {
+        return NextResponse.json({ error: 'No budget found in onboarding state' }, { status: 404 });
+      }
+
+
       // Verify institution belongs to user
       const { data: institution, error: institutionError } = await supabase
         .from('manual_fin_institutions')
@@ -58,6 +80,9 @@ export const POST = enhanceRouteHandler(
           name,
           mask,
           balance_current: balanceCurrent,
+          meta_data:{
+            created_for: budgetId
+          }
         })
         .select('id');
 

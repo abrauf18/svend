@@ -14,7 +14,7 @@ export class TeamAccountsPageObject {
   async setup(params = this.createTeamName()) {
     await this.auth.signUpFlow('/home');
 
-    await this.createTeam(params);
+    await this.createBudget(params);
   }
 
   getTeamFromSelector(teamName: string) {
@@ -61,7 +61,7 @@ export class TeamAccountsPageObject {
     }).toPass();
   }
 
-  async createTeam({ teamName, slug } = this.createTeamName()) {
+  async createBudget({ teamName, slug } = this.createTeamName()) {
     await this.openAccountsSelector();
 
     await this.page.click('[data-test="create-team-account-trigger"]');

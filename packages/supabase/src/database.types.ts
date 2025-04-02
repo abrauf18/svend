@@ -820,6 +820,7 @@ export type Database = {
           iso_currency_code: string | null
           manual_account_id: string | null
           merchant_name: string | null
+          meta_data: Json | null
           payee: string | null
           plaid_account_id: string | null
           plaid_category_confidence: string | null
@@ -839,6 +840,7 @@ export type Database = {
           iso_currency_code?: string | null
           manual_account_id?: string | null
           merchant_name?: string | null
+          meta_data?: Json | null
           payee?: string | null
           plaid_account_id?: string | null
           plaid_category_confidence?: string | null
@@ -858,6 +860,7 @@ export type Database = {
           iso_currency_code?: string | null
           manual_account_id?: string | null
           merchant_name?: string | null
+          meta_data?: Json | null
           payee?: string | null
           plaid_account_id?: string | null
           plaid_category_confidence?: string | null
@@ -975,6 +978,7 @@ export type Database = {
           institution_id: string
           iso_currency_code: string | null
           mask: string | null
+          meta_data: Json | null
           name: string
           official_name: string | null
           owner_account_id: string
@@ -991,6 +995,7 @@ export type Database = {
           institution_id: string
           iso_currency_code?: string | null
           mask?: string | null
+          meta_data?: Json | null
           name: string
           official_name?: string | null
           owner_account_id: string
@@ -1007,6 +1012,7 @@ export type Database = {
           institution_id?: string
           iso_currency_code?: string | null
           mask?: string | null
+          meta_data?: Json | null
           name?: string
           official_name?: string | null
           owner_account_id?: string
@@ -1049,6 +1055,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          meta_data: Json | null
           name: string
           owner_account_id: string
           symbol: string
@@ -1057,6 +1064,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          meta_data?: Json | null
           name: string
           owner_account_id: string
           symbol: string
@@ -1065,6 +1073,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          meta_data?: Json | null
           name?: string
           owner_account_id?: string
           symbol?: string
@@ -1267,6 +1276,7 @@ export type Database = {
           id: string
           iso_currency_code: string | null
           mask: string | null
+          meta_data: Json | null
           name: string
           official_name: string | null
           owner_account_id: string
@@ -1285,6 +1295,7 @@ export type Database = {
           id?: string
           iso_currency_code?: string | null
           mask?: string | null
+          meta_data?: Json | null
           name: string
           official_name?: string | null
           owner_account_id: string
@@ -1303,6 +1314,7 @@ export type Database = {
           id?: string
           iso_currency_code?: string | null
           mask?: string | null
+          meta_data?: Json | null
           name?: string
           official_name?: string | null
           owner_account_id?: string
@@ -1352,6 +1364,7 @@ export type Database = {
           institution_id: string
           institution_logo_storage_name: string | null
           institution_name: string
+          meta_data: Json | null
           next_cursor: string | null
           owner_account_id: string
           plaid_item_id: string
@@ -1364,6 +1377,7 @@ export type Database = {
           institution_id: string
           institution_logo_storage_name?: string | null
           institution_name: string
+          meta_data?: Json | null
           next_cursor?: string | null
           owner_account_id: string
           plaid_item_id: string
@@ -1376,6 +1390,7 @@ export type Database = {
           institution_id?: string
           institution_logo_storage_name?: string | null
           institution_name?: string
+          meta_data?: Json | null
           next_cursor?: string | null
           owner_account_id?: string
           plaid_item_id?: string
@@ -1778,6 +1793,7 @@ export type Database = {
           p_official_name?: string
           p_plaid_persistent_account_id?: string
           p_subtype?: string
+          p_meta_data?: Json
         }
         Returns: Database["public"]["CompositeTypes"]["budget_plaid_account_result"]
       }
@@ -2367,6 +2383,7 @@ export type Database = {
       budget_onboarding_step_enum:
         | "start"
         | "plaid"
+        | "manual"
         | "profile_goals"
         | "analyze_spending"
         | "analyze_spending_in_progress"
@@ -2439,6 +2456,7 @@ export type Database = {
         plaid_raw_data: Json | null
         notes: string | null
         tag_ids: string[] | null
+        meta_data: Json | null
       }
       invitation: {
         email: string | null

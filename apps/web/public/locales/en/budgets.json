@@ -25,10 +25,10 @@
   "billing": {
     "pageTitle": "Billing"
   },
-  "yourBudgets": "Your Budgets ({{budgetsCount}})",
+  "myBudgets": "My Budgets ({{budgetsCount}})",
   "createBudget": "Create a Budget",
   "creatingBudget": "Creating Budget...",
-  "personalAccount": "Personal Account",
+  "myAccount": "My Account",
   "searchAccount": "Search Account...",
   "membersTabLabel": "Members",
   "memberName": "Name",
@@ -165,5 +165,6 @@
   "joiningBudget": "Joining budget...",
   "leaveBudgetInputLabel": "Please type LEAVE to confirm leaving the budget.",
   "leaveBudgetInputDescription": "By leaving the budget, you will no longer have access to it.",
-  "reservedNameError": "This name is reserved. Please choose a different one."
+  "reservedNameError": "This name is reserved. Please choose a different one.",
+  "searchBudget": "Search budgets..."
 }

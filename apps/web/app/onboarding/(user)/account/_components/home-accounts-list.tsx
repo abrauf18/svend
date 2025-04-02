@@ -53,7 +53,7 @@ function HomeAccountsListEmptyState() {
           <Trans i18nKey={'account:noTeamsYet'} />
         </EmptyStateHeading>
         <EmptyStateText>
-          <Trans i18nKey={'account:createTeam'} />
+          <Trans i18nKey={'account:createBudget'} />
         </EmptyStateText>
       </EmptyState>
     </div>
