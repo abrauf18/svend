@@ -23,7 +23,7 @@ major_version = 15
 
 [db.seed]
 enabled = true
-sql_paths = ['seed.sql']
+sql_paths = ['seed.dev.sql']
 
 [studio]
 # Port to use for Supabase Studio.
