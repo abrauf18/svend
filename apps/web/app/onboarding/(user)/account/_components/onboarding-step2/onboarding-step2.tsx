@@ -139,11 +139,19 @@ function OnboardingStep2ProfileGoals() {
       setPendingTypeChange(null);
     }
     
-    if (typeof pendingAction === 'function') {
+    if (pendingAction === 'skip') {
+      // Reset form state and proceed with skip
+      if (formResetRef.current) {
+        formResetRef.current();
+      }
+      setIsDirty(false);
+      setIsFormValid(true);
+      updateContextKey('analyze_spending');
+    } else if (typeof pendingAction === 'function') {
       pendingAction();
     }
     setPendingAction(null);
-  }, [pendingTypeChange, pendingAction, handleTypeSelect]);
+  }, [pendingTypeChange, pendingAction, handleTypeSelect, updateContextKey]);
 
   const handleCancelAction = () => {
     setShowConfirmDialog(false);

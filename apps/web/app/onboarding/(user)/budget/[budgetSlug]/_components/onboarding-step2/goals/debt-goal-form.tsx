@@ -24,6 +24,7 @@ import { RadioGroup, RadioGroupItem } from '@kit/ui/radio-group';
 import { BaseFormSchema } from './types';
 import { Button } from '@kit/ui/button';
 import { useBudgetOnboardingContext } from '~/components/budget-onboarding-context';
+import { toast } from 'sonner';
 
 const paymentComponentOptions = [
   { value: 'principal', label: 'Principal Only' },
@@ -39,9 +40,6 @@ const FormSchema = BaseFormSchema.extend({
       return !isNaN(parsed) && parsed >= 0;
     }, "Interest rate must be a valid number"),
   debtPaymentComponent: z.enum(['principal', 'interest', 'principal_interest']),
-  targetDate: z.string().refine((date) => {
-    return new Date(date) > new Date();
-  }, "Target date must be in the future"),
   subType: z.string()
 });
 
@@ -193,7 +191,14 @@ export function DebtGoalForm(props: {
       });
 
       if (!response.ok) {
-        throw new Error('Error creating budget goal: ' + (await response.json()).error);
+        const errorData = await response.json();
+        const errorMessage = errorData.error || 'Error creating budget goal';
+        toast.error(errorMessage, {
+          className: "bg-destructive text-destructive-foreground",
+          descriptionClassName: "text-destructive-foreground",
+          duration: 6000
+        });
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -212,6 +217,13 @@ export function DebtGoalForm(props: {
       return budgetGoal;
     } catch (error: any) {
       console.error(error);
+      if (!error.message.includes('Error creating budget goal')) {
+        toast.error('An unexpected error occurred while creating the goal', {
+          className: "bg-destructive text-destructive-foreground",
+          descriptionClassName: "text-destructive-foreground",
+          duration: 6000
+        });
+      }
       throw error;
     }
   };
@@ -405,7 +417,11 @@ export function DebtGoalForm(props: {
                 <FormItem>
                   <FormLabel>Target Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input 
+                      type="date" 
+                      {...field} 
+                      min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

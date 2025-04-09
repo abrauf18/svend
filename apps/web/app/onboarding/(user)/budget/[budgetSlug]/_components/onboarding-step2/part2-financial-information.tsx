@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -52,24 +52,52 @@ const calculateDefaultIncome = (state: OnboardingState): string => {
   const plaidConnections = state.budget.plaidConnectionItems || [];
   const categoryGroups = state.budget.svendCategoryGroups || {};
   
+  console.log('Initial state check:', {
+    manualInstitutions: manualInstitutions.map(inst => ({
+      name: inst.name,
+      accounts: inst.accounts.map(acc => ({
+        name: acc.name,
+        transactionCount: acc.transactions?.length
+      }))
+    })),
+    plaidConnections: plaidConnections.map(conn => ({
+      accounts: conn.itemAccounts.map(acc => ({
+        name: acc.accountName,
+        transactionCount: acc.transactions?.length
+      }))
+    }))
+  });
+  
   // Find Income category group
   const incomeGroup = Object.values(categoryGroups).find(group => 
     group.name.toLowerCase() === 'income'
   );
+  console.log('Found income group:', incomeGroup);
+  
   if (!incomeGroup) return "";
   
   // Calculate date 30 days ago from today
   const today = new Date();
   const thirtyDaysAgo = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+  console.log('Looking for transactions since:', thirtyDaysAgo);
 
-  // Get manual transactions (with logging)
+  // Get manual transactions
   const manualTransactions = manualInstitutions.flatMap(inst => 
     inst.accounts.flatMap(acc => {
+      console.log('Checking manual account:', acc.name, 'with transactions:', acc.transactions?.length);
       const transactions = acc.budgetFinAccountId 
         ? acc.transactions.filter(tx => {
             const isIncome = incomeGroup.categories.some(c => c.id === tx.svendCategoryId);
             const isPosted = tx.status === 'posted';
             const isRecent = new Date(tx.date) >= thirtyDaysAgo;
+            console.log('Manual transaction:', {
+              amount: tx.amount,
+              categoryId: tx.svendCategoryId,
+              isIncome,
+              isPosted,
+              isRecent,
+              date: tx.date
+            });
             return isIncome && isPosted && isRecent;
           })
         : [];
@@ -80,16 +108,27 @@ const calculateDefaultIncome = (state: OnboardingState): string => {
   // Get Plaid transactions
   const plaidTransactions = plaidConnections.flatMap(conn => 
     conn.itemAccounts.flatMap(acc => {
+      console.log('Checking Plaid account:', acc.accountName, 'with transactions:', acc.transactions?.length);
       const transactions = (acc.transactions || []).filter(tx => {
         const isIncome = tx.categoryGroup?.toLowerCase() === 'income';
         const isPosted = tx.transaction.status === 'posted';
         const isRecent = new Date(tx.transaction.date) >= thirtyDaysAgo;
-        
+        console.log('Plaid transaction:', {
+          amount: tx.transaction.amount,
+          categoryGroup: tx.categoryGroup,
+          isIncome,
+          isPosted,
+          isRecent,
+          date: tx.transaction.date
+        });
         return isIncome && isPosted && isRecent;
       });
       return transactions;
     })
   );
+
+  console.log('Found manual transactions:', manualTransactions.length);
+  console.log('Found Plaid transactions:', plaidTransactions.length);
 
   // Calculate total
   const annualIncome = Math.round(
@@ -98,6 +137,8 @@ const calculateDefaultIncome = (state: OnboardingState): string => {
     plaidTransactions.reduce((sum, tx) => 
       sum + Math.abs(Number(tx.transaction.amount)), 0)) * 12
   );
+
+  console.log('Calculated annual income:', annualIncome);
 
   return annualIncome <= 0 ? "" : annualIncome.toString();
 };
@@ -131,44 +172,51 @@ export function FinancialInformation(props: {
   initialData: any;
 }) {
   const { state, accountProfileDataUpdate, budgetSlug } = useBudgetOnboardingContext();
+  const [isLoading, setIsLoading] = useState(true);
 
-  const defaultValues = React.useMemo(() => {
-    if (props.initialData) {
-      return {
-        annualIncome: props.initialData?.annualIncome?.toString() || calculateDefaultIncome(state),
-        savings: props.initialData?.savings?.toString() || calculateDefaultSavings(state),
-      };
-    } else {
-      return {
-        annualIncome: calculateDefaultIncome(state),
-        savings: calculateDefaultSavings(state),
-      };
-    }
-  }, [props.initialData, state]);
-
+  // Initialize form with empty values first
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
-    defaultValues,
+    defaultValues: {
+      annualIncome: 0,
+      savings: 0,
+    },
     mode: 'onChange',
   });
 
   const { reset } = form;
   const annualIncomeInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Update form values when state is loaded
+  useEffect(() => {
+    console.log('State changed:', { 
+      hasBudget: !!state.budget,
+      initialData: props.initialData,
+      isLoading 
+    });
+    
+    if (state.budget) {
+      const defaultIncome = calculateDefaultIncome(state);
+      const defaultSavings = calculateDefaultSavings(state);
+      
+      console.log('Calculated values:', { defaultIncome, defaultSavings });
+      
+      const newValues = {
+        annualIncome: props.initialData?.annualIncome?.toString() || defaultIncome || "",
+        savings: props.initialData?.savings?.toString() || defaultSavings || "",
+      };
+      
+      console.log('Setting form values:', newValues);
+      reset(newValues);
+      setIsLoading(false);
+    }
+  }, [state.budget, props.initialData, reset, isLoading]);
+
   useEffect(() => {
     if (annualIncomeInputRef.current) {
       annualIncomeInputRef.current.focus();
     }
   }, []);
-
-  useEffect(() => {
-    if (props.initialData) {
-      reset({
-        annualIncome: props.initialData?.annualIncome?.toString() || calculateDefaultIncome(state),
-        savings: props.initialData?.savings?.toString() || calculateDefaultSavings(state),
-      });
-    }
-  }, [props.initialData, state]);
 
   useEffect(() => {
     props.onValidationChange(form.formState.isValid);

@@ -19,7 +19,12 @@ export const debtSubTypes: Record<string, string> = {
 // Base schema that all goal forms will extend
 export const BaseFormSchema = z.object({
   name: z.string().min(1, 'Name is required.'),
-  amount: z.string(),
+  amount: z.string()
+    .min(1, 'Amount is required.')
+    .refine((val) => {
+      const parsed = parseFloat(val.replace(/[^0-9.-]/g, ''));
+      return !isNaN(parsed) && parsed > 0;
+    }, 'Amount must be greater than 0'),
   budgetFinAccountId: z
     .string()
     .uuid('Invalid account ID format. Must be a valid UUID.'),
@@ -34,12 +39,12 @@ export const BaseFormSchema = z.object({
       (val) => {
         if (!val) return true;
         
-        // Get today's date and strip time components
+        const inputDate = new Date(val);
         const today = new Date();
-        const todayStr = today.toISOString().split('T')[0]!;
-        
-        // Compare the date strings directly
-        return val > todayStr;  // This will compare YYYY-MM-DD strings
+        // Set both dates to start of day for comparison
+        inputDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        return inputDate > today;
       },
       'Target date must be in the future.',
     ),

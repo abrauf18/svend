@@ -136,9 +136,26 @@ export const PATCH = enhanceRouteHandler(async ({ params, user }) => {
 
     if (syncError) throw new Error(syncError);
 
+    // Fetch all linked transactions for the budget
+    const { data: linkedTransactions, error: linkedTxError } = await supabaseAdmin
+      .rpc('get_budget_transactions_within_range_by_budget_id', {
+        p_budget_id: budgetId,
+        p_start_date: null as unknown as string,
+        p_end_date: null as unknown as string
+      });
+
+    if (linkedTxError) {
+      console.error('Error fetching linked transactions:', linkedTxError);
+      throw new Error('Failed to fetch linked transactions');
+    }
+
+    // Parse the linked transactions into the expected format
+    const parsedLinkedTransactions = transactionService.parseBudgetTransactions(linkedTransactions || []);
+
     return NextResponse.json({
       message: 'Plaid transactions synced successfully',
       ...syncResult,
+      newTransactions: parsedLinkedTransactions
     });
   } catch (err: any) {
     console.error('Failed to sync Plaid transactions:', err);

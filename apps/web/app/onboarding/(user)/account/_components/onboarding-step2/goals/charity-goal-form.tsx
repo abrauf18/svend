@@ -24,15 +24,7 @@ import {
 import { BaseFormSchema } from './types';
 
 const FormSchema = BaseFormSchema.extend({
-  amount: z.string()
-    .min(1, "Amount is required")
-    .refine((val) => {
-      const parsed = parseFloat(val.replace(/[^0-9.-]/g, ''));
-      return !isNaN(parsed) && parsed > 0;
-    }, "Amount must be greater than 0"),
-  targetDate: z.string().refine((date) => {
-    return new Date(date) > new Date();
-  }, "Target date must be in the future"),
+  // no unique fields
 });
 
 export function CharityGoalForm(props: {
@@ -302,7 +294,11 @@ export function CharityGoalForm(props: {
               <FormItem>
                 <FormLabel>Target Date</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} />
+                  <Input 
+                    type="date" 
+                    {...field} 
+                    min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

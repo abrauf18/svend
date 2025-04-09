@@ -35,7 +35,8 @@ const FormSchema = z.object({
       return num;
     })
     .refine((val) => val >= 0, 'Must be positive')
-    .refine((val) => val <= 100000000, 'Must be less than $100M'),
+    .refine((val) => val <= 100000000, 'Must be less than $100M')
+    .refine((val) => Number.isInteger(val), 'Must be a whole number'),
   savings: z.string()
     .min(1, 'Savings amount is required')
     .transform((val) => {
@@ -270,6 +271,13 @@ export function FinancialInformation(props: {
                           onChange={(e) => {
                             const value = e.target.value.replace(/[^0-9]/g, '');
                             field.onChange(value);
+                          }}
+                          onBlur={(e) => {
+                            const value = e.target.value.replace(/[^0-9]/g, '');
+                            if (value) {
+                              const formattedValue = parseInt(value, 10).toLocaleString();
+                              field.onChange(formattedValue);
+                            }
                           }}
                         />
                       </div>

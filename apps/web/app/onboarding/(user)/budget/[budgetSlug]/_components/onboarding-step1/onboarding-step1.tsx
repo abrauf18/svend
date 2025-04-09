@@ -251,10 +251,18 @@ function OnboardingStep1() {
 
       const result = await response.json();
       
+      // Focused log to track Plaid transactions
+      console.log('Plaid sync result:', {
+        hasTransactions: !!result.newTransactions,
+        transactionCount: result.newTransactions?.length,
+        firstTransaction: result.newTransactions?.[0],
+        lastTransaction: result.newTransactions?.[result.newTransactions?.length - 1]
+      });
+      
       accountSetPlaidItemTransactions(result.newTransactions || []);
     } catch (error) {
       console.error('Error syncing Plaid transactions:', error);
-      throw error; // Re-throw the error so Promise.allSettled can catch it
+      throw error;
     }
   }
 

@@ -22,6 +22,7 @@ import {
 } from '@kit/ui/select';
 import { BaseFormSchema } from './types';
 import { Button } from '@kit/ui/button';
+import { toast } from 'sonner';
 
 const saveSubTypes = {
   'emergency_fund': 'Build an emergency fund',
@@ -33,12 +34,6 @@ const saveSubTypes = {
 };
 
 const FormSchema = BaseFormSchema.extend({
-  amount: z.string()
-    .min(1, "Amount is required")
-    .refine((val) => {
-      const parsed = parseFloat(val.replace(/[^0-9.-]/g, ''));
-      return !isNaN(parsed) && parsed > 0;
-    }, "Amount must be greater than 0"),
   subType: z.string()
 });
 
@@ -195,7 +190,14 @@ export function SaveGoalForm(props: {
       });
 
       if (!response.ok) {
-        throw new Error('Error creating budget goal: ' + (await response.json()).error);
+        const errorData = await response.json();
+        const errorMessage = errorData.error || 'Error creating budget goal';
+        toast.error(errorMessage, {
+          className: "bg-destructive text-destructive-foreground",
+          descriptionClassName: "text-destructive-foreground",
+          duration: 6000
+        });
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -214,6 +216,13 @@ export function SaveGoalForm(props: {
       return budgetGoal;
     } catch (error: any) {
       console.error(error);
+      if (!error.message.includes('Error creating budget goal')) {
+        toast.error('An unexpected error occurred while creating the goal', {
+          className: "bg-destructive text-destructive-foreground",
+          descriptionClassName: "text-destructive-foreground",
+          duration: 6000
+        });
+      }
       throw error;
     }
   };
@@ -355,7 +364,11 @@ export function SaveGoalForm(props: {
                 <FormItem>
                   <FormLabel>Target Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} value={field.value || ''} />
+                    <Input 
+                      type="date" 
+                      {...field} 
+                      min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -371,7 +384,7 @@ export function SaveGoalForm(props: {
                 <FormItem>
                   <FormLabel>Description (Optional)</FormLabel>
                   <FormControl>
-                    <Input {...field} value={field.value || ''} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

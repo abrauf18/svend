@@ -39,9 +39,6 @@ const FormSchema = BaseFormSchema.extend({
       return !isNaN(parsed) && parsed >= 0;
     }, "Interest rate must be a valid number"),
   debtPaymentComponent: z.enum(['principal', 'interest', 'principal_interest']),
-  targetDate: z.string().refine((date) => {
-    return new Date(date) > new Date();
-  }, "Target date must be in the future"),
   subType: z.string()
 });
 
@@ -405,7 +402,11 @@ export function DebtGoalForm(props: {
                 <FormItem>
                   <FormLabel>Target Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input 
+                      type="date" 
+                      {...field} 
+                      min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
